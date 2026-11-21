@@ -16,6 +16,7 @@ export function DropMark({ className }: { className?: string }) {
     <svg className={className} viewBox="0 0 24 32" aria-hidden>
       <path d="M12 1.5C12 1.5 3 12.6 3 20a9 9 0 0 0 18 0C21 12.6 12 1.5 12 1.5Z" />
       <path className="mx-mark__shine" d="M8.2 20.5a4.2 4.2 0 0 0 3.4 4.4" />
+      <circle className="mx-mark__sun" cx="12" cy="20" r="2.4" />
     </svg>
   );
 }
@@ -28,7 +29,7 @@ export function Hud({ chapter, autoplay, touch, onJump, onToggleAutoplay, railRe
         <DropMark className="mx-brand__mark" />
         <span className="mx-brand__text">
           <strong>{BRAND}</strong>
-          <small>Tunisia · Water &amp; agriculture</small>
+          <small>Water · Land · Sun</small>
         </span>
       </div>
 
@@ -65,7 +66,7 @@ export function Hud({ chapter, autoplay, touch, onJump, onToggleAutoplay, railRe
           {touch ? 'Swipe to follow the drop' : 'Scroll to follow the drop'}
           <span className="mx-hint__wheel" aria-hidden />
         </p>
-        <p className="mx-hint mx-hint--lamp" data-show={(chapter === 4 || chapter === 5) && !touch ? true : undefined}>
+        <p className="mx-hint mx-hint--lamp" data-show={chapter === 4 && !touch ? true : undefined}>
           Move your cursor to water the fields
         </p>
       </div>

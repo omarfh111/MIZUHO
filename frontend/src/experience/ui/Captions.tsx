@@ -18,7 +18,7 @@ export function Captions({ chapter, onEnter }: Props) {
         return (
           <section
             key={item.id}
-            className={`mx-caption mx-caption--${item.side} ${finale ? 'mx-caption--finale' : ''}`}
+            className={`mx-caption mx-caption--${item.side} ${item.tone === 'sun' ? 'mx-caption--sun' : ''} ${finale ? 'mx-caption--finale' : ''}`}
             data-state={state(index, chapter)}
             aria-hidden={index !== chapter}
           >

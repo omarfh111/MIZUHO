@@ -1,5 +1,5 @@
 import { useMemo, type CSSProperties } from 'react';
-import { MEDJERDA, PLACES, TUNISIA_OUTLINE, DJERBA, type LonLat } from '../core/geo.ts';
+import { ENERGY_SITES, MEDJERDA, PLACES, TUNISIA_OUTLINE, DJERBA, type LonLat } from '../core/geo.ts';
 
 /**
  * Lightweight vector intro used when WebGL is unavailable or the 3D scene
@@ -19,6 +19,7 @@ export function Fallback({ chapter }: { chapter: number }) {
     djerba: toPath(DJERBA, true),
     river: toPath(MEDJERDA),
     places: PLACES.map((place) => ({ ...place, xy: project(place.at) })),
+    energy: ENERGY_SITES.map((site) => ({ ...site, xy: project(site.at) })),
     focus: project([8.77, 36.54]),
   }), []);
 
@@ -48,6 +49,12 @@ export function Fallback({ chapter }: { chapter: number }) {
             <g key={place.id} className={`mx-fallback__place mx-fallback__place--${place.kind}`} style={{ '--i': i } as CSSProperties}>
               <circle cx={place.xy[0]} cy={place.xy[1]} r={place.kind === 'dam' ? 2.4 : 1.6} />
               <circle className="mx-fallback__pulse" cx={place.xy[0]} cy={place.xy[1]} r="2.4" />
+            </g>
+          ))}
+          {shapes.energy.map((site) => (
+            <g key={site.id} className={`mx-fallback__energy mx-fallback__energy--${site.kind}`}>
+              <circle cx={site.xy[0]} cy={site.xy[1]} r="3.2" />
+              <circle className="mx-fallback__pulse" cx={site.xy[0]} cy={site.xy[1]} r="3.2" />
             </g>
           ))}
           <circle className="mx-fallback__focus" cx={shapes.focus[0]} cy={shapes.focus[1]} r="9" />
