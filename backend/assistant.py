@@ -236,6 +236,15 @@ def finalize(turn: Turn, answer: dict) -> AssistantAnswer:
     for key, fact in turn.facts.items():
         if key in turn.requested_facts:
             used.setdefault(key, fact)
+    decision = turn.explanations.get("decision")
+    if decision and decision not in paragraphs:
+        # Retain the solver's objective and binding constraints even when the model
+        # summarizes the same allocation with a more general sentence.
+        supporting = set(decision.fact_ids)
+        references = tuple(key for key in used if key in supporting) or decision.fact_ids
+        rationale = decision.model_copy(update={"fact_ids": references})
+        paragraphs = [rationale, *(p for p in paragraphs if not supporting.intersection(p.fact_ids))]
+        used.update((key, turn.facts[key]) for key in references)
     return AssistantAnswer(
         paragraphs=tuple(paragraphs), citations=tuple(cited.values()), facts=tuple(used.values()),
         missing_information=tuple(dict.fromkeys(gaps)), tools_used=tuple(turn.tools_used),

@@ -277,7 +277,7 @@ def planning_facts(turn: Turn, args: ScenarioArgs, *, explain: bool) -> dict:
         for warning in proposed.warnings:
             if warning.type not in {"efficiency", "insufficient"}:
                 facts.append(turn.fact(warning.message, provenance, remember=True))
-    turn.explanations["planning"] = GroundedParagraph(text=explanation, citation_ids=(),
+    turn.explanations["decision" if explain else "planning"] = GroundedParagraph(text=explanation, citation_ids=(),
                                                        fact_ids=tuple(fact.id for fact in supporting))
     return {
         "verification": proposed.status,
