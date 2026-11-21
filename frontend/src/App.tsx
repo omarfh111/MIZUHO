@@ -13,6 +13,7 @@ const AssistantPanel = lazy(() => import('./components/AssistantPanel.tsx'));
 const TunisiaExplorer = lazy(() => import('./components/TunisiaExplorer.tsx'));
 const ResourceView = lazy(() => import('./components/ResourceView.tsx'));
 const RegionalPlanning = lazy(() => import('./components/RegionalPlanning.tsx'));
+const FieldDayAudit = lazy(() => import('./components/FieldDayAudit.tsx'));
 type Page = 'tunisia' | 'map' | 'energy' | 'simulation';
 const currentPage = (): Page => {
   const hash = window.location.hash;
@@ -165,12 +166,12 @@ export default function App() {
           <div className="eyebrow"><span className="eyebrow-rule" />
             {page === 'map' ? 'RESOURCE MAPPING' : page === 'energy' ? 'RESOURCE ASSESSMENT' : 'IRRIGATION CONTINUITY'}
           </div>
-          <h1>{page === 'map' ? <><em>Irrigation</em> observatory</> : page === 'energy' ? <><em>Water</em> &amp; energy</> : <><em>Irrigation</em> simulation</>}</h1>
+          <h1>{page === 'map' ? <><em>Irrigation</em> observatory</> : page === 'energy' ? <><em>Water</em> &amp; energy</> : <><em>Daily water</em> deliveries</>}</h1>
           <p>{page === 'map' ? site?.properties.field_zone
               ? 'Inspect the terrain, land cover, and evidence behind this agricultural zone.'
               : 'Explore the site, compare solar options, and plan irrigation.'
             : page === 'energy' ? 'Inspect the water and solar inputs available for the selected site.'
-            : 'Choose an outage, replay water deliveries and see how long essential household loads can stay powered.'}</p>
+            : 'Which parcels can receive their turn on time? Compare schedules against the available water, delivery windows and pumping capacity.'}</p>
         </div>
         {page === 'map' && site && <div className="hero-location"><MapPin size={19} />
           <div><strong>{site.properties.label}</strong><small>{site.properties.locality ?? 'Agricultural site'}</small></div></div>}
@@ -203,6 +204,7 @@ export default function App() {
           onEvidence={setSource} onPlan={() => navigate('simulation')} />
       </Suspense>}
       {page === 'energy' && catalog?.mode === 'live' && <CivicContinuity key={siteId || cityId} city={site?.properties.label ?? city?.name ?? 'the selected area'} />}
+      {page === 'simulation' && <Suspense fallback={null}><FieldDayAudit key={siteId || cityId} /></Suspense>}
       {catalog && site && visitedSimulation && <div hidden={page !== 'simulation'}>
         {site.properties.field_zone ? <Suspense fallback={<p role="status">Loading regional planner…</p>}>
           <RegionalPlanning key={siteId} site={site} visible={page === 'simulation'} onPlanChange={setZonePlan} />
