@@ -5,6 +5,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { LandCoverGrid } from '../types.ts';
 import { reliefGeometry, verticalExaggeration, type ReliefGrid } from './cityReliefGeometry.ts';
 import { paintLandCover } from './landCover.ts';
+import { sampleSurface, type SurfacePoint } from './surfaceSample.ts';
 import { disposeScene } from './terrain.ts';
 import './city-relief.css';
 
@@ -13,14 +14,23 @@ interface Props {
   relief: ReliefGrid;
   landCover?: LandCoverGrid;
   showLandCover?: boolean;
+  markers?: ReliefMarker[];
+  onInspect?: (point: SurfacePoint) => void;
 }
 
+export interface ReliefMarker extends SurfacePoint {
+  id: string;
+  label: string;
+  deliveryFraction?: number;
+}
+const noMarkers: ReliefMarker[] = [];
 type Terrain = NonNullable<ReturnType<typeof reliefGeometry>>;
 type ReliefControls = {
   turn: (direction: number) => void;
   zoom: (direction: number) => void;
   home: (topDown?: boolean) => void;
   cover: (visible: boolean) => void;
+  refresh: () => void;
 };
 const palette = ['#376d60', '#688150', '#ad995c', '#dcbe85'];
 const number = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 });
@@ -54,7 +64,8 @@ function terrainScene(grid: ReliefGrid, terrain: Terrain) {
   const material = new THREE.MeshStandardMaterial({
     vertexColors: true, roughness: 0.89, metalness: 0.06,
   });
-  scene.add(new THREE.Mesh(surface, material));
+  const mesh = new THREE.Mesh(surface, material);
+  scene.add(mesh);
 
   const walls = [];
   for (let i = 0; i < terrain.rim.length; i += 2) {
@@ -102,11 +113,12 @@ function terrainScene(grid: ReliefGrid, terrain: Terrain) {
   const light = new THREE.DirectionalLight('#ffedd2', 1.7);
   light.position.set(-50, 100, -90);
   scene.add(light);
-  return { scene, material };
+  return { scene, mesh, material };
 }
 
-function ElevationRaster({ relief, terrain, name, cover }: {
+function ElevationRaster({ relief, terrain, name, cover, markers, onInspect }: {
   relief: ReliefGrid; terrain: Terrain; name: string; cover?: LandCoverGrid;
+  markers: ReliefMarker[]; onInspect?: (point: SurfacePoint) => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -131,14 +143,21 @@ function ElevationRaster({ relief, terrain, name, cover }: {
   }, [cover, relief, terrain]);
   const raster = cover ? 'land-cover map' : 'elevation grid';
   return <div className="city-relief-raster">
-    <canvas ref={canvas} width={cover?.cols ?? relief.cols} height={cover?.rows ?? relief.rows} role="img"
-      aria-label={`North-up ${raster} for ${name}`}
-      style={{ aspectRatio: terrain.widthMetres / terrain.depthMetres }} />
+    <div className="city-raster-frame" style={{ aspectRatio: terrain.widthMetres / terrain.depthMetres }}>
+      <canvas ref={canvas} width={cover?.cols ?? relief.cols} height={cover?.rows ?? relief.rows} role="img"
+        onClick={event => {
+          const box = event.currentTarget.getBoundingClientRect();
+          onInspect?.({ u: (event.clientX - box.left) / box.width, v: 1 - (event.clientY - box.top) / box.height });
+        }} aria-label={`North-up ${raster} for ${name}`} />
+      {markers.map(marker => <span key={marker.id} className="city-relief-pin" data-marker={marker.id}
+        style={{ left: `${marker.u * 100}%`, top: `${(1 - marker.v) * 100}%` }}>{marker.label}
+        {marker.deliveryFraction !== undefined && <i aria-hidden="true" style={{ width: `${100 * marker.deliveryFraction}%` }} />}</span>)}
+    </div>
     <span>North-up {raster}</span>
   </div>;
 }
 
-export default function CityRelief({ name, relief, landCover, showLandCover = false }: Props) {
+export default function CityRelief({ name, relief, landCover, showLandCover = false, markers = noMarkers, onInspect }: Props) {
   const terrain = useMemo(() => reliefGeometry(relief), [relief]);
   const mount = useRef<HTMLDivElement>(null);
   const pointer = useRef<HTMLSpanElement>(null);
@@ -147,6 +166,11 @@ export default function CityRelief({ name, relief, landCover, showLandCover = fa
   const fallback = failedGrid === relief || !terrain?.indices.length;
   const coverMode = useRef(showLandCover);
   coverMode.current = showLandCover;
+  const markerState = useRef(markers);
+  markerState.current = markers;
+  const inspect = useRef(onInspect);
+  inspect.current = onInspect;
+  const pinElements = useRef(new Map<string, HTMLSpanElement>());
 
   useEffect(() => {
     const container = mount.current;
@@ -165,7 +189,7 @@ export default function CityRelief({ name, relief, landCover, showLandCover = fa
     renderer.domElement.setAttribute('aria-hidden', 'true');
     container.append(renderer.domElement);
 
-    const { scene, material } = terrainScene(relief, terrain);
+    const { scene, mesh, material } = terrainScene(relief, terrain);
     const coverCanvas = landCover && document.createElement('canvas');
     const texture = landCover && coverCanvas && paintLandCover(coverCanvas, landCover)
       ? new THREE.CanvasTexture(coverCanvas) : null;
@@ -192,6 +216,9 @@ export default function CityRelief({ name, relief, landCover, showLandCover = fa
     const projectedCentre = new THREE.Vector3();
     const offset = new THREE.Vector3();
     const spherical = new THREE.Spherical();
+    const projectedPin = new THREE.Vector3();
+    const scale = 100 / Math.max(terrain.widthMetres, terrain.depthMetres);
+    const deliveryColumns = new Map<string, THREE.Mesh<THREE.CylinderGeometry, THREE.MeshStandardMaterial>>();
     let width = 1;
     let height = 1;
     let scheduled = 0;
@@ -203,6 +230,34 @@ export default function CityRelief({ name, relief, landCover, showLandCover = fa
       const direction = Math.atan2((projectedNorth.x - projectedCentre.x) * width,
         (projectedNorth.y - projectedCentre.y) * height);
       if (pointer.current) pointer.current.style.transform = `rotate(${direction}rad)`;
+      deliveryColumns.forEach(column => { column.visible = false; });
+      if (landCover) for (const marker of markerState.current) {
+        const element = pinElements.current.get(marker.id);
+        if (!element) continue;
+        const { elevation } = sampleSurface(relief, landCover, marker);
+        element.hidden = elevation == null;
+        if (elevation == null) continue;
+        projectedPin.set((marker.u - .5) * terrain.widthMetres * scale, (elevation - terrain.low) * scale * verticalExaggeration,
+          (.5 - marker.v) * terrain.depthMetres * scale);
+        if (marker.deliveryFraction) {
+          let column = deliveryColumns.get(marker.id);
+          if (!column) {
+            column = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 1, 16),
+              new THREE.MeshStandardMaterial({ color: '#42d9ba', emissive: '#15675a', emissiveIntensity: .3 }));
+            deliveryColumns.set(marker.id, column);
+            scene.add(column);
+          }
+          const height = 12 * THREE.MathUtils.clamp(marker.deliveryFraction, 0, 1);
+          column.position.copy(projectedPin);
+          column.position.y += height / 2;
+          column.scale.y = height;
+          column.visible = true;
+          projectedPin.y += height;
+        }
+        projectedPin.project(camera);
+        element.style.left = `${(projectedPin.x + 1) * 50}%`;
+        element.style.top = `${(1 - projectedPin.y) * 50}%`;
+      }
       renderer.render(scene, camera);
     };
     const schedule = () => { if (!scheduled) scheduled = window.requestAnimationFrame(draw); };
@@ -226,7 +281,7 @@ export default function CityRelief({ name, relief, landCover, showLandCover = fa
         camera.updateProjectionMatrix();
         schedule();
       },
-      home,
+      home, refresh: schedule,
       cover(visible) {
         const map = visible ? texture : null;
         if (material.map === map) return;
@@ -254,6 +309,23 @@ export default function CityRelief({ name, relief, landCover, showLandCover = fa
       schedule();
     });
     resize.observe(container);
+    const ray = new THREE.Raycaster();
+    let press: { x: number; y: number; id: number } | undefined;
+    const down = (event: PointerEvent) => {
+      press = event.isPrimary && event.button === 0 ? { x: event.clientX, y: event.clientY, id: event.pointerId } : undefined;
+    };
+    const up = (event: PointerEvent) => {
+      const start = press;
+      press = undefined;
+      if (!inspect.current || !start || start.id !== event.pointerId || Math.hypot(start.x - event.clientX, start.y - event.clientY) > 5) return;
+      const bounds = renderer.domElement.getBoundingClientRect();
+      ray.setFromCamera(new THREE.Vector2((event.clientX - bounds.left) / bounds.width * 2 - 1,
+        1 - (event.clientY - bounds.top) / bounds.height * 2), camera);
+      const hit = ray.intersectObject(mesh, false)[0]?.uv;
+      if (hit) inspect.current({ u: hit.x, v: hit.y });
+    };
+    renderer.domElement.addEventListener('pointerdown', down);
+    renderer.domElement.addEventListener('pointerup', up);
     const lost = (event: Event) => {
       event.preventDefault();
       setFailedGrid(relief);
@@ -264,6 +336,8 @@ export default function CityRelief({ name, relief, landCover, showLandCover = fa
       window.cancelAnimationFrame(scheduled);
       resize.disconnect();
       orbit.dispose();
+      renderer.domElement.removeEventListener('pointerdown', down);
+      renderer.domElement.removeEventListener('pointerup', up);
       material.map = null;
       texture?.dispose();
       disposeScene(scene);
@@ -275,14 +349,18 @@ export default function CityRelief({ name, relief, landCover, showLandCover = fa
   }, [fallback, landCover, relief, terrain]);
 
   useEffect(() => { controls.current?.cover(showLandCover); }, [showLandCover]);
+  useEffect(() => { controls.current?.refresh(); }, [markers]);
 
   if (!terrain) return <p role="status">Elevation samples are unavailable for {name}.</p>;
   const activeCover = showLandCover ? landCover : undefined;
   return <figure className="city-relief" aria-label={`Elevation around ${name}`} data-relief-mode={fallback ? 'raster' : '3d'}
     data-surface={activeCover ? 'land-cover' : 'elevation'}>
     <div className="city-relief-stage">
-      {fallback ? <ElevationRaster name={name} relief={relief} terrain={terrain} cover={activeCover} /> : <>
+      {fallback ? <ElevationRaster name={name} relief={relief} terrain={terrain} cover={activeCover} markers={markers} onInspect={onInspect} /> : <>
         <div className="city-relief-mount" ref={mount} />
+        {markers.map(marker => <span className="city-relief-pin" key={marker.id} data-marker={marker.id}
+          ref={node => { if (node) pinElements.current.set(marker.id, node); else pinElements.current.delete(marker.id); }}>
+          {marker.label}</span>)}
         <div className="city-relief-compass" aria-label="North"><span ref={pointer}><Compass size={20} aria-hidden="true" /></span><b>N</b></div>
         <div className="city-relief-controls" role="group" aria-label="Relief controls">
           <button type="button" title="Rotate left" aria-label="Rotate left" onClick={() => controls.current?.turn(-1)}><RotateCcw size={16} /></button>
