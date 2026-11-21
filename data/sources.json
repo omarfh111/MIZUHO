@@ -1,4 +1,12 @@
 {
+  "bouhertma-fieldclimate": {
+    "title": "Jendouba GDA Bouhertma FieldClimate station observations",
+    "organization": "Tunisian Ministry of Agriculture, Hydraulic Resources and Fisheries",
+    "date": "2026-09-14",
+    "page": null,
+    "url": "https://catalog.data.gov.tn/dataset/station-climatique-station-jendouba-gda-bouhertma-fieldclimate",
+    "limitation": "Hourly reported irradiance at the station in W/m². The archive has gaps and does not specify a timezone. Photovoltaic generation and irrigation demand require additional inputs."
+  },
   "demo-site": {
     "title": "Jendouba pilot site",
     "organization": "Mizhuo",
@@ -95,12 +103,20 @@
     "url": null,
     "limitation": "No observed water level, pumping test or metered withdrawal is available for a pilot borehole."
   },
+  "pvgis-sarah3-jendouba-2023": {
+    "title": "PVGIS-SARAH3 hourly PV estimates at the Jendouba reference point",
+    "organization": "European Commission Joint Research Centre",
+    "date": "2023",
+    "page": null,
+    "url": "https://re.jrc.ec.europa.eu/api/v5_3/seriescalc?lat=36.50&lon=8.78&startyear=2023&endyear=2023&pvcalculation=1&peakpower=10&loss=14&outputformat=json&raddatabase=PVGIS-SARAH3&angle=15&aspect=-35&mountingplace=building",
+    "limitation": "Hourly estimates for hypothetical 10 kWp systems use PVGIS power samples as representative of each hour. Separate rooftop and canopy request URLs and raw exports accompany the local archive. Site surveys, metered loads and installation costs are unavailable."
+  },
   "site-pvgis": {
     "title": "Site-level photovoltaic yield and loads",
     "organization": "Mizhuo evidence register",
     "date": null,
     "page": null,
     "url": null,
-    "limitation": "No verified PVGIS output, measured load series, annual costs or site survey is available for the two demo options."
+    "limitation": "The demo solar options lack a measured facility load, installation survey and verified annual costs. Separate archived PVGIS-SARAH3 profiles estimate production at the Jendouba reference point."
   }
 }

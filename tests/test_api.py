@@ -74,6 +74,17 @@ def test_development_cors_allows_configured_origin(monkeypatch):
         assert "access-control-allow-origin" not in disallowed.headers
 
 
+def test_station_observations_and_replanning_endpoints(client):
+    weather = client.get("/api/weather/bouhertma", params={"day": "2026-05-08"})
+    assert weather.status_code == 200
+    assert weather.json()["unit"] == "W/m²" and len(weather.json()["observations"]) == 24
+    assert client.get("/api/weather/bouhertma", params={"day": "unavailable"}).status_code == 422
+    result = post_compare(client, compare_request("mini", incident={"kind": "pump_shutdown", "start_slot": 2, "duration_slots": 1}))
+    assert result["incident_checkpoint"]["tank_stock_m3"] == 5
+    response = client.post("/api/compare", json=compare_request("mini", overrides={"demand_by_plot_m3": {"A": 1}}))
+    assert response.status_code == 422 and response.json()["detail"][0]["loc"] == ["body", "overrides", "demand_by_plot_m3", "A"]
+
+
 def test_v5_miniature_shares_water_during_an_outage(client):
     result = post_compare(client, compare_request("mini"))
     fixed, proposed = result["baseline"], result["optimized"]

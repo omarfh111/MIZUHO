@@ -18,7 +18,7 @@ def available_power(slot: Slot) -> tuple[int, int]:
 
 
 def pump_limit(site: Site, slot: Slot) -> int:
-    return min(site.pump_max_m3_per_slot, sum(available_power(slot)) // site.pump_wh_per_m3)
+    return min(site.pump_max_m3_per_slot, sum(available_power(slot)) // site.pump_wh_per_m3) if slot.pump_available else 0
 
 
 def validate_state(scenario: Scenario, state: State) -> None:
@@ -77,11 +77,14 @@ def can_allocate_history(requests: list[list[int]], past_slot_count: int) -> boo
     return all(allocate(request, set()) for request in range(len(requests)))
 
 
-def simulate(scenario: Scenario, state: State, actions: Sequence[Action]) -> Simulation:
+def simulate(scenario: Scenario, state: State, actions: Sequence[Action], *, stop_before_slot: int | None = None) -> Simulation:
     validate_state(scenario, state)
+    stop = len(scenario.slots) if stop_before_slot is None else stop_before_slot
+    if not state.current_slot <= stop <= len(scenario.slots):
+        raise ValueError("Replay cutoff is outside the remaining horizon.")
     indexed = {}
     for action in actions:
-        if not state.current_slot <= action.slot < len(scenario.slots):
+        if not state.current_slot <= action.slot < stop:
             return invalid([], action.slot, "slot")
         if action.slot in indexed:
             return invalid([], action.slot, "duplicate_action")
@@ -93,13 +96,13 @@ def simulate(scenario: Scenario, state: State, actions: Sequence[Action]) -> Sim
     on_time = dict(state.delivered_on_time_by_plot_m3)
     stock, quota = state.tank_stock_m3, state.quota_remaining_m3
     balances: list[SlotBalance] = []
-    for slot in scenario.slots[state.current_slot:]:
+    for slot in scenario.slots[state.current_slot:stop]:
         action = indexed.get(slot.slot) or Action(slot=slot.slot)
         solar_available, grid_available = available_power(slot)
         pumped = action.pump_m3
         pump_wh = pumped * site.pump_wh_per_m3
         limits = (
-            (site.pump_max_m3_per_slot, "pump_flow"),
+            (site.pump_max_m3_per_slot if slot.pump_available else 0, "pump_flow"),
             (quota, "quota"),
             (site.tank_capacity_m3 - stock, "tank_capacity"),
         )
@@ -125,7 +128,7 @@ def simulate(scenario: Scenario, state: State, actions: Sequence[Action]) -> Sim
             if slot.slot not in plot.allowed_slots:
                 return invalid(balances, slot.slot, "allowed_slot", plot.plot_id)
             limits = (
-                (site.gravity_max_m3_per_slot, "gravity_flow"),
+                (site.gravity_max_m3_per_slot if slot.gravity_available else 0, "gravity_flow"),
                 (stock, "stock"),
                 (plot.demand_m3 - prior, "demand"),
             )
@@ -145,7 +148,9 @@ def simulate(scenario: Scenario, state: State, actions: Sequence[Action]) -> Sim
         ))
     plot_results = summarize_plots(scenario, state, delivered, on_time)
     return Simulation(
-        slots=tuple(balances), plot_results=plot_results, metrics=summarize_slots(balances, plot_results)
+        slots=tuple(balances), plot_results=plot_results, metrics=summarize_slots(balances, plot_results),
+        end_state=State(current_slot=stop, tank_stock_m3=stock, quota_remaining_m3=quota,
+                        delivered_by_plot_m3=delivered, delivered_on_time_by_plot_m3=on_time),
     )
 
 
@@ -183,7 +188,7 @@ def shortfall_warnings(scenario: Scenario, state: State) -> tuple[str, ...]:
     warnings = ["timely_coverage_shortfall"]
     if state.tank_stock_m3 + state.quota_remaining_m3 < required:
         warnings.append("stock_and_quota_below_minimum")
-    if len(remaining) * scenario.site.gravity_max_m3_per_slot < required:
+    if sum(slot.gravity_available for slot in remaining) * scenario.site.gravity_max_m3_per_slot < required:
         warnings.append("gravity_capacity_below_minimum")
     if state.tank_stock_m3 + sum(pump_limit(scenario.site, slot) for slot in remaining) < required:
         warnings.append("pumping_capacity_below_minimum")

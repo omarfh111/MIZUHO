@@ -50,7 +50,7 @@ def add_horizon(model: cp_model.CpModel, scenario: Scenario, state: State, name:
         used = []
         volumes = []
         for plot in scenario.plots:
-            if index not in plot.allowed_slots:
+            if not slot.gravity_available or index not in plot.allowed_slots:
                 continue
             limit = min(site.gravity_max_m3_per_slot,
                         plot.demand_m3 - state.delivered_by_plot_m3.get(plot.plot_id, 0))

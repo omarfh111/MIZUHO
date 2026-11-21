@@ -7,14 +7,18 @@
     "layers": {
       "provenance": "simulated",
       "origin": "Frozen M7 demo catalog",
-      "missing": ["Local wind observations","Local WaPOR extract"]
+      "missing": ["Local wind observations", "Verified parcel survey at the fictional pilot"]
     },
     "energy": {
       "provenance": "simulated",
       "origin": "Frozen M7 synthetic hourly profiles",
-      "missing": ["PVGIS response","Annual site load and installation costs"]
+      "missing": ["Annual measured site load and installation costs"]
     },
     "weather": {"provenance":"simulated","origin":"Locked v5 day-ahead acceptance cases"},
-    "telemetry": {"provenance":"simulated","origin":"Independent example readings for the v5 efficiency alert"}
+    "telemetry": {"provenance":"simulated","origin":"M4 hourly physical replay and M3 virtual instruments; separate simulated load history for forecasting"},
+    "assila_boundaries": {"provenance":"observed","origin":"OpenStreetMap mapped geometry; see agriculture/assila/sources.json"},
+    "assila_water_use": {"provenance":"estimated","origin":"FAO WaPOR raster extraction and NASA POWER temperature analysis; see agriculture/assila/sources.json"},
+    "pvgis": {"provenance":"estimated","origin":"EC JRC PVGIS-SARAH3 2023 reference-point profiles in tools/m2m3/data/energy; load comparison is simulated"},
+    "bouhertma": {"provenance":"observed","origin":"Archived FieldClimate station CSV; see weather/BOUHERTMA.md for time and coverage limitations"}
   }
 }

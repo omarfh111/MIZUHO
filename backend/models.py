@@ -29,6 +29,8 @@ class Slot(PlanningModel):
     grid_available: Annotated[bool, Field(strict=True)]
     grid_cap_w: Amount
     solar_wh: Amount
+    pump_available: bool = True
+    gravity_available: bool = True
 
 
 class Plot(PlanningModel):
@@ -143,6 +145,7 @@ class Simulation(PlanningModel):
     plot_results: tuple[PlotResult, ...] = ()
     metrics: Metrics | None = None
     violations: tuple[Violation, ...] = ()
+    end_state: State | None = None
 
 
 class Plan(PlanningModel):
@@ -177,6 +180,7 @@ class Provenance(StrEnum):
 
 class LayerId(StrEnum):
     PLOTS = "plots"
+    WAPOR = "wapor"
     SOLAR = "solar"
     WIND = "wind"
     ANOMALIES = "anomalies"
@@ -192,6 +196,23 @@ class ScenarioRecord(Scenario):
     weather_pair_id: PlotId | None = None
 
 
+class OperatingOverrides(PlanningModel):
+    pump_max_m3_per_slot: Amount | None = None
+    pump_power_cap_w: Amount | None = None
+    grid_cap_w: Amount | None = None
+    gravity_available: bool = True
+    solar_percent: Annotated[int, Field(strict=True, ge=0, le=100)] = 100
+    pvgis_option_id: Literal["ombriere", "toiture"] | None = None
+    demand_by_plot_m3: dict[PlotId, Amount] = Field(default_factory=dict)
+
+
+class Incident(PlanningModel):
+    kind: Literal["unexpected_outage", "pump_shutdown"]
+    start_slot: SlotIndex
+    duration_slots: Annotated[int, Field(strict=True, ge=1, le=24)]
+    previous_actions: Annotated[tuple[Action, ...], Field(min_length=1, max_length=24)] | None = None
+
+
 class CompareRequest(PlanningModel):
     scenario_id: PlotId
     state: State
@@ -200,6 +221,8 @@ class CompareRequest(PlanningModel):
     restart_grid_cap_w: Amount | None = None
     planning_mode: Literal["nominal", "weather_buffer"] = "nominal"
     weather_pair_id: PlotId | None = None
+    overrides: OperatingOverrides = Field(default_factory=OperatingOverrides)
+    incident: Incident | None = None
 
 
 Price = Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0, le=1_000_000_000)]
@@ -236,9 +259,11 @@ class SiteProperties(PlanningModel):
     date: Date
     # Opt in only for the matching fictional geometry bundled with M7.
     relief: Literal["jendouba-demo"] | None = None
+    survey_available: bool | None = None
 
 
 class LayerProperties(PlanningModel):
+    eta_mm_day: Annotated[float, Field(ge=0, allow_inf_nan=False)] | None = None
     label: PlotId
     source_id: PlotId
     status: Provenance | None = None
@@ -264,6 +289,9 @@ class Sites(PlanningModel):
 
 
 class Layer(PlanningModel):
+    period: str | None = None
+    resolution: str | None = None
+    unit: str | None = None
     type: Literal["FeatureCollection"]
     features: tuple[Feature[LayerProperties], ...]
     date: Date | None = None
@@ -452,6 +480,7 @@ class Comparison(PlanningModel):
     baseline: ApiPlan
     optimized: ApiPlan
     weather_comparison: ApiWeatherComparison | None = None
+    incident_checkpoint: State | None = None
 
 
 class Citation(PlanningModel):
@@ -477,11 +506,24 @@ class DecisionFact(PlanningModel):
     provenance: Provenance
 
 
+class ReplaySelection(PlanningModel):
+    plan: Literal["baseline", "optimized"]
+    actions: Annotated[tuple[Action, ...], Field(min_length=1, max_length=24)]
+    weather_profile: Literal["central", "adverse"] = "central"
+    missing_flow_slots: Annotated[tuple[SlotIndex, ...], Field(max_length=24)] = ()
+    balance_anomaly_slots: Annotated[tuple[SlotIndex, ...], Field(max_length=24)] = ()
+
+
+class AssistantTelemetry(ReplaySelection):
+    selected_slot: SlotIndex | None = None
+
+
 class AssistantRequest(PlanningModel):
     question: Annotated[str, StringConstraints(min_length=3, max_length=1600, strip_whitespace=True)]
     site_id: Annotated[str, Field(min_length=1, max_length=120)]
     solar_option_id: Annotated[str, Field(min_length=1, max_length=120)] | None = None
     comparison: CompareRequest | None = None
+    telemetry: AssistantTelemetry | None = None
     recent_questions: Annotated[tuple[Annotated[str, StringConstraints(max_length=1600)], ...], Field(max_length=3)] = ()
     session_id: UUID4 | None = None
     selected_scenario_id: Annotated[str, Field(min_length=1, max_length=120)] | None = None

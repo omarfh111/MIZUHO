@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from datetime import date
 from os import getenv
 from pathlib import Path
 from typing import Annotated
@@ -11,6 +12,7 @@ from fastapi.responses import JSONResponse
 from pydantic import Field, TypeAdapter
 
 from .assistant_api import create_runtime, router as assistant_router
+from .agriculture import Survey
 from .catalog import DATA_DIR, load_catalog
 from .compare import InputError, compare
 from .models import (
@@ -18,6 +20,8 @@ from .models import (
 )
 from .simulator import StateError
 from .solar import compare_option
+from .weather_observations import RadiationDay, radiation_day
+from .telemetry import router as telemetry_router
 
 
 DEV_ORIGINS = ",".join(
@@ -47,6 +51,7 @@ def create_app(data_dir: Path = DATA_DIR, *, solver_timeout: float | None = None
 
     app = FastAPI(title="Mizhuo API", version="1.0.0", lifespan=lifespan)
     app.include_router(assistant_router)
+    app.include_router(telemetry_router)
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"],
                        allow_headers=["Accept", "Accept-Language", "Content-Type"])
 
@@ -68,6 +73,10 @@ def create_app(data_dir: Path = DATA_DIR, *, solver_timeout: float | None = None
     def health() -> Health:
         return Health()
 
+    @app.get("/api/weather/bouhertma")
+    def bouhertma_weather(day: date | None = None) -> RadiationDay:
+        return radiation_day(data_dir, day)
+
     @app.get("/api/scenarios")
     def scenarios(request: Request) -> list[ScenarioRecord]:
         return list(request.app.state.catalog.scenarios.values())
@@ -75,6 +84,13 @@ def create_app(data_dir: Path = DATA_DIR, *, solver_timeout: float | None = None
     @app.get("/api/sites", response_model_exclude_none=True)
     def sites(request: Request) -> Sites:
         return request.app.state.catalog.sites
+
+    @app.get("/api/sites/{site_id}/agriculture")
+    def agriculture(request: Request, site_id: str) -> Survey:
+        survey = request.app.state.catalog.agriculture.get(site_id)
+        if survey is None:
+            raise HTTPException(404, "No mapped agricultural survey for this site.")
+        return survey
 
     @app.get("/api/layers/{site_id}/{layer_id}", response_model_exclude_none=True)
     def layer(request: Request, site_id: str, layer_id: str) -> Layer:

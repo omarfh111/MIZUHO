@@ -41,7 +41,7 @@ def replay_plan(scenario: Scenario, state: State, requests: Sequence[Action]) ->
             wanted = positive_requests[0]
             plot = plots[wanted.plot_id]
             prior = delivered.get(plot.plot_id, 0)
-            if slot.slot in plot.allowed_slots:
+            if slot.gravity_available and slot.slot in plot.allowed_slots:
                 volume = min(wanted.delivered_m3, site.gravity_max_m3_per_slot, stock, plot.demand_m3 - prior)
                 if volume:
                     delivered[plot.plot_id] = prior + volume
