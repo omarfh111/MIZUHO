@@ -18,6 +18,16 @@ def test_security_workflow_keeps_write_access_and_secret_output_bounded():
     assert jobs["dependency-review"]["if"] == "github.event_name == 'pull_request'"
     assert all("permissions" not in jobs[name] for name in ("secrets", "dependency-review"))
 
+    review_checkout, detect, install_osv, compare = jobs["dependency-review"]["steps"]
+    assert review_checkout["with"]["fetch-depth"] == "0"
+    assert 'git diff --name-only "$BASE_SHA" "$GITHUB_SHA"' in detect["run"]
+    assert install_osv["if"] == compare["if"] == "steps.manifests.outputs.changed == 'true'"
+    assert re.fullmatch(r"[0-9a-f]{64}", install_osv["env"]["OSV_SHA256"])
+    assert "sha256sum --check --strict" in install_osv["run"]
+    assert 'scan "$BASE_SHA" base' in compare["run"]
+    assert 'scan "$GITHUB_SHA" candidate' in compare["run"]
+    assert "comm -13" in compare["run"]
+
     for job in jobs.values():
         for step in job["steps"]:
             if "uses" in step:
