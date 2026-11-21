@@ -519,6 +519,7 @@ class AssistantTelemetry(ReplaySelection):
 
 
 class AssistantRequest(PlanningModel):
+    provider: Literal["openai", "nvidia"] = "openai"
     question: Annotated[str, StringConstraints(min_length=3, max_length=1600, strip_whitespace=True)]
     site_id: Annotated[str, Field(min_length=1, max_length=120)]
     solar_option_id: Annotated[str, Field(min_length=1, max_length=120)] | None = None
@@ -554,6 +555,7 @@ class IndexStatus(PlanningModel):
 
 
 class AssistantHealth(PlanningModel):
+    nvidia_model: str | None = None
     status: Literal["available", "unavailable", "incomplete"]
     configured: bool
     index: IndexStatus

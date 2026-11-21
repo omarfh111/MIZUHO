@@ -1,10 +1,12 @@
 """Server-side transports for the M8 services."""
 
+import json
 import math
 import re
 import ssl
 from dataclasses import dataclass, field
 from os import getenv
+from time import monotonic
 from urllib.parse import urlsplit
 
 import httpx
@@ -13,6 +15,7 @@ DEFAULT_COLLECTION = "mizhuo_m8_evidence_v1"
 MODEL = "gpt-6-luna"
 EMBEDDING_MODEL = "text-embedding-3-small"
 DIMENSIONS = 1536
+NVIDIA_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b"
 
 
 class ServiceError(Exception):
@@ -28,6 +31,7 @@ class Services:
     qdrant_key: str = field(repr=False)
     qdrant_url: str = field(repr=False)
     collection: str = DEFAULT_COLLECTION
+    nvidia_key: str = field(default="", repr=False)
 
     @classmethod
     def from_env(cls) -> "Services | None":
@@ -48,7 +52,11 @@ class Services:
             raise ValueError("Invalid Qdrant evidence collection name.")
         if any(not 33 <= ord(char) <= 126 for value in (openai_key, qdrant_key) for char in value):
             raise ValueError("Invalid API credential format.")
-        return cls(openai_key, qdrant_key, url, collection)
+        nvidia_key = getenv("LLM_API_KEY", "").strip()
+        if (getenv("LLM_MODEL", NVIDIA_MODEL) != NVIDIA_MODEL
+                or any(not 33 <= ord(char) <= 126 for char in nvidia_key)):
+            nvidia_key = ""
+        return cls(openai_key, qdrant_key, url, collection, nvidia_key)
 
 
 class Providers:
@@ -96,6 +104,89 @@ class Providers:
         if data.get("model") != MODEL or data.get("status") != "completed" or not isinstance(data.get("output"), list):
             raise ServiceError("OpenAI Responses")
         return data
+
+    @property
+    def nvidia_model(self) -> str | None:
+        return NVIDIA_MODEL if self.settings.nvidia_key else None
+
+    def respond_nvidia(self, body: dict, *, timeout: float) -> dict:
+        if not self.nvidia_model:
+            raise ServiceError("NVIDIA configuration")
+        schema = json.dumps(body["text"]["format"]["schema"], separators=(",", ":"))
+        messages = [{"role": "system", "content": body["instructions"] +
+                     "\nUse JSON null for an unspecified optional tool argument. After receiving sufficient "
+                     "tool evidence, finish with only a JSON object matching this schema: " + schema}]
+        for item in body["input"]:
+            if item.get("type") == "function_call":
+                if messages[-1]["role"] != "assistant":
+                    messages.append({"role": "assistant", "content": None, "tool_calls": []})
+                messages[-1]["tool_calls"].append({"id": item["call_id"], "type": "function",
+                    "function": {"name": item["name"], "arguments": item["arguments"]}})
+            elif item.get("type") == "function_call_output":
+                messages.append({"role": "tool", "tool_call_id": item["call_id"], "content": item["output"]})
+            elif item.get("role") == "user":
+                messages.append({"role": "user", "content": item["content"]})
+        payload = {"model": NVIDIA_MODEL, "messages": messages, "temperature": 0, "stream": False,
+                   "max_tokens": body["max_output_tokens"], "chat_template_kwargs": {"enable_thinking": False},
+                   "tools": [{"type": "function", "function": {k: tool[k] for k in ("name", "description", "parameters")}}
+                             for tool in body["tools"]]}
+        deadline = monotonic() + timeout
+        url = "https://integrate.api.nvidia.com/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {self.settings.nvidia_key}"}
+        data = self._request("NVIDIA", "POST", url, headers, payload, timeout)
+        try:
+            choice = data["choices"][0]
+            message = choice["message"]
+            if data.get("model") != NVIDIA_MODEL or message["role"] != "assistant":
+                raise ValueError
+            calls = message.get("tool_calls") or []
+            if calls:
+                output = []
+                for call in calls:
+                    name, arguments = call["function"]["name"], call["function"]["arguments"]
+                    if call["type"] != "function" or not all(isinstance(x, str) and x for x in (call["id"], name, arguments)):
+                        raise ValueError
+                    # Some NVIDIA tool responses encode an absent optional argument as a string.
+                    # Only normalize schema-declared nullable fields; M8 validates everything else.
+                    spec = next((tool for tool in body["tools"] if tool["name"] == name), None)
+                    if spec and len(arguments) <= 4000:
+                        parsed = json.loads(arguments)
+                        if isinstance(parsed, dict):
+                            for key, prop in spec["parameters"]["properties"].items():
+                                if "null" in prop["type"] and parsed.get(key) in ("None", "null"):
+                                    parsed[key] = None
+                            arguments = json.dumps(parsed, ensure_ascii=False)
+                    output.append({"type": "function_call", "name": name, "arguments": arguments, "call_id": call["id"]})
+                if len({item["call_id"] for item in output}) != len(output) or choice["finish_reason"] not in ("stop", "tool_calls"):
+                    raise ValueError
+                return {"output": output}
+            content = message["content"]
+            if choice["finish_reason"] != "stop" or not isinstance(content, str) or not content.strip():
+                raise ValueError
+            try:
+                parsed = json.loads(content)
+            except ValueError:
+                parsed = None
+            if not isinstance(parsed, dict) or not isinstance(parsed.get("paragraphs"), list):
+                # Tool mode can finish in plain prose. Ask for a constrained final answer
+                # from the original evidence without forwarding the unverified draft.
+                remaining = deadline - monotonic()
+                if remaining < .25:
+                    raise ServiceError("NVIDIA response")
+                del payload["tools"]
+                fmt = body["text"]["format"]
+                payload["response_format"] = {"type": "json_schema", "json_schema": {
+                    "name": "grounded_answer", "strict": True, "schema": fmt["schema"]}}
+                data = self._request("NVIDIA", "POST", url, headers, payload, remaining)
+                final = data["choices"][0]
+                if data["model"] != NVIDIA_MODEL or final["finish_reason"] != "stop" or final["message"]["role"] != "assistant":
+                    raise ValueError
+                content = final["message"]["content"]
+                if not isinstance(json.loads(content), dict):
+                    raise ValueError
+            return {"output": [{"type": "message", "content": [{"type": "output_text", "text": content}]}]}
+        except (AttributeError, IndexError, KeyError, TypeError, ValueError):
+            raise ServiceError("NVIDIA response") from None
 
     def qdrant(self, method: str, path: str = "", body: dict | None = None, *, timeout: float = 8):
         origin = self.settings.qdrant_url

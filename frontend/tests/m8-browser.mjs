@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 
 const base = new URL(process.env.MIZHUO_TEST_URL ?? 'http://127.0.0.1:5173/');
+const provider = process.env.MIZHUO_TEST_PROVIDER ?? 'openai';
+assert.ok(['openai', 'nvidia'].includes(provider), 'Choose openai or nvidia for the live walkthrough.');
 base.searchParams.set('intro', '0');
 const browser = await chromium.launch({
   ...(process.env.MIZHUO_CHROME_PATH ? { executablePath: process.env.MIZHUO_CHROME_PATH } : { channel: 'chrome' }),
@@ -40,10 +42,12 @@ try {
   await panel.getByRole('button', { name: 'Retry evidence connection' }).click();
   await unavailable.waitFor({ state: 'hidden' });
   await visible(panel.getByText('Current comparison available'));
+  if (provider === 'nvidia') await panel.getByLabel('Answer model').selectOption(provider);
   const allocationPending = waitForChat(page);
   await panel.getByRole('button', { name: /Why did grower A receive/ }).click();
   const allocation = await allocationPending;
   assert.equal(allocation.status(), 200);
+  assert.equal(allocation.request().postDataJSON().provider, provider);
   assert.ok((await allocation.json()).tools_used.includes('explain_decision'));
   assert.equal(allocation.request().postDataJSON().comparison.scenario_id, 'mini');
   const session = allocation.request().postDataJSON().session_id;
@@ -59,6 +63,7 @@ try {
   await panel.getByRole('button', { name: 'Send question' }).click();
   const solar = await solarPending;
   assert.equal(solar.status(), 200);
+  assert.equal(solar.request().postDataJSON().provider, provider);
   assert.equal(solar.request().postDataJSON().session_id, session);
   const citation = panel.locator('details').filter({ hasText: /ANME · Solar PV potential in Tunisia/ }).first();
   await visible(panel.locator('.assistant-paragraph > p').filter({ hasText: /verified passage from ANME/ }));
@@ -86,6 +91,20 @@ try {
   await visible(panel.getByRole('article').last().locator('.assistant-paragraph > p').filter({ hasText: /from ANME/ }));
 
   await page.keyboard.press('Escape');
+  if (provider === 'nvidia') {
+    const twin = page.getByRole('region', { name: 'Operational digital twin' });
+    await twin.getByText('Virtual sensors and event injection', { exact: true }).click();
+    await twin.getByLabel('Water-balance discrepancy').check();
+    await twin.getByText(/Unexplained water balance/).waitFor();
+    await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
+    await panel.getByRole('textbox', { name: 'Your question' }).fill('What water-balance anomaly do the virtual meters show at the selected replay hour?');
+    const pending = waitForChat(page);
+    await panel.getByRole('button', { name: 'Send question' }).click();
+    const answer = await (await pending).json();
+    assert.ok(answer.tools_used.includes('get_sensor_anomalies'));
+    assert.ok(answer.facts.some((f) => f.provenance === 'simulated' && /13 m³/.test(f.text)));
+    await page.keyboard.press('Escape');
+  }
   await visible(page.getByText(/Simulated plan approved/));
   await page.getByRole('button', { name: 'Replay the intro' }).click();
   await page.getByRole('button', { name: 'Skip intro' }).click();
@@ -100,6 +119,20 @@ try {
   await visible(panel.getByText('Historical result · earlier inputs').first());
   await visible(panel.getByText(/ANME · Solar PV potential in Tunisia/).first());
 
+  if (provider === 'nvidia') {
+    await page.keyboard.press('Escape');
+    await page.getByRole('link', { name: 'Site map', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Pilot site' }).selectOption('TN-32-BALTABOUAWENE-ASSILA');
+    await page.getByRole('region', { name: 'Agricultural survey' }).waitFor();
+    await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
+    await panel.getByLabel('Answer model').selectOption(provider);
+    await panel.getByRole('textbox', { name: 'Your question' }).fill('What does WaPOR estimate for parcel P-01?');
+    const pending = waitForChat(page);
+    await panel.getByRole('button', { name: 'Send question' }).click();
+    const answer = await (await pending).json();
+    assert.ok(answer.tools_used.includes('get_agricultural_insights'));
+    assert.ok(answer.facts.some((f) => f.provenance === 'estimated' && /P-01.*FAO WaPOR AETI/.test(f.text)));
+  }
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
   mobile.on('pageerror', (error) => errors.push(error.message));
   const offline = new URL(base);

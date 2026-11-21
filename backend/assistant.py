@@ -101,7 +101,8 @@ class GraphState(TypedDict):
 
 def think(state: GraphState) -> dict:
     turn = state["turn"]
-    data = turn.providers.respond({
+    respond = turn.providers.respond_nvidia if turn.request.provider == "nvidia" else turn.providers.respond
+    data = respond({
         "instructions": INSTRUCTIONS,
         "input": state["messages"],
         "tools": FUNCTIONS,
@@ -216,7 +217,7 @@ def finalize(turn: Turn, answer: dict) -> AssistantAnswer:
         for paragraph in paragraphs:
             used.update((key, turn.facts[key]) for key in paragraph.fact_ids)
         used.update(selected_facts)
-        if not cited and not paragraphs:
+        if not cited:
             cited.update(turn.evidence_matches)
         if not paragraphs and used:
             paragraphs.append(GroundedParagraph(
