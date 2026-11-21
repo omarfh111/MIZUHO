@@ -28,7 +28,7 @@ try {
   await page.getByRole('button', { name: 'Source · Solar potential' }).click();
   await visible(page.getByText('1,450 kWh per kilowatt-peak', { exact: false }));
   await page.keyboard.press('Escape');
-  await page.getByRole('link', { name: 'Simulation', exact: true }).click();
+  await page.getByRole('link', { name: 'Irrigation planning', exact: true }).click();
   await page.getByRole('combobox', { name: 'Scenario' }).selectOption('mini');
   await page.getByRole('button', { name: 'Calculate schedules' }).click();
   await visible(page.getByText('Group minimum · 50 %'));
@@ -113,7 +113,7 @@ try {
   await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
   await visible(panel.getByText(/ANME · Solar PV potential in Tunisia/).first());
   await page.keyboard.press('Escape');
-  await page.getByLabel(/Measured water stock/).fill('9');
+  await page.getByLabel(/Starting water stock/).fill('9');
   await visible(page.getByText(/Result out of date/));
   await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
   await visible(page.getByRole('dialog').getByText('Site and evidence'));
@@ -122,8 +122,8 @@ try {
 
   if (provider === 'nvidia') {
     await page.keyboard.press('Escape');
-    await page.getByRole('link', { name: 'Site map', exact: true }).click();
-    await page.getByRole('combobox', { name: 'Pilot site' }).selectOption('TN-32-BALTABOUAWENE-ASSILA');
+    await page.getByRole('button', { name: 'Back to map', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Agricultural site' }).selectOption('TN-32-BALTABOUAWENE-ASSILA');
     await page.getByRole('region', { name: 'Agricultural survey' }).waitFor();
     await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
     await panel.getByLabel('Answer model').selectOption(provider);
@@ -134,7 +134,7 @@ try {
     assert.ok(answer.tools_used.includes('get_agricultural_insights'));
     assert.ok(answer.facts.some((f) => f.provenance === 'estimated' && /P-01.*FAO WaPOR AETI/.test(f.text)));
     await page.keyboard.press('Escape');
-    await page.getByRole('combobox', { name: 'Pilot site' }).selectOption('jendouba-pilote');
+    await page.getByRole('combobox', { name: 'Agricultural site' }).selectOption('jendouba-pilote');
     await page.getByRole('button', { name: 'Compare solar options' }).click();
     const comparison = page.getByRole('dialog', { name: 'Compare solar options' });
     const archivePending = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/solar/compare-archive');
@@ -167,7 +167,7 @@ try {
     assert.ok(selectedCanopy.text.includes(canopy.profile_date));
   }
   if (await panel.isVisible()) await page.keyboard.press('Escape');
-  await page.getByRole('link', { name: 'Tunisia', exact: true }).click();
+  await page.getByRole('link', { name: 'Land & agriculture', exact: true }).click();
   await page.getByRole('searchbox', { name: 'Search cities' }).fill('Tozeur');
   const archive = await (await page.request.get(new URL('/api/tunisia', base).href)).json();
   const tozeur = archive.cities.find(city => /tozeur/i.test(city.name));
@@ -203,6 +203,31 @@ try {
     fact.text.includes(`${climate.temperature_mean_c} °C`) && fact.provenance === 'estimated'));
   assert.ok(cityAnswer.missing_information.some(gap => gap.includes('validated farm demand')));
   await visible(panel.getByRole('link', { name: 'Open dataset' }).first());
+  const regionalURL = new URL(base);
+  regionalURL.searchParams.set('site', 'korba-cap-bon');
+  regionalURL.hash = 'simulation';
+  await page.goto(regionalURL.href);
+  await page.getByRole('button', { name: 'Load example assumptions' }).click();
+  const planPending = page.waitForResponse(r => new URL(r.url()).pathname.endsWith('/planning') && r.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Compare regional plans' }).click();
+  const computed = await (await planPending).json();
+  await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
+  await visible(panel.getByText('Regional comparison available'));
+  if (provider === 'nvidia') await panel.getByLabel('Answer model').selectOption(provider);
+  await panel.getByRole('textbox', { name: 'Your question' }).fill('Explain the water allocation to the west sector in my current regional plan.');
+  const regionalPending = waitForChat(page);
+  await panel.getByRole('button', { name: 'Send question' }).click();
+  const regionResponse = await regionalPending;
+  assert.equal(regionResponse.status(), 200);
+  assert.equal(regionResponse.request().postDataJSON().zone_plan.comparison_id, computed.comparison_id);
+  const regionAnswer = await regionResponse.json();
+  const west = computed.comparison.optimized.plot_results.find(plot => plot.plot_id === 'west');
+  assert.ok(regionAnswer.facts.some(f => f.provenance === 'simulated' && !f.source_url &&
+    f.text.includes(`Hypothetical west sector: ${west.delivered_on_time_m3} m³`)));
+  await page.keyboard.press('Escape');
+  await page.getByRole('spinbutton', { name: 'Withdrawal limit' }).fill('0');
+  await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
+  await visible(panel.getByText('Historical result · earlier inputs'));
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
   mobile.on('pageerror', (error) => errors.push(error.message));
   const offline = new URL(base);
@@ -214,6 +239,7 @@ try {
   assert.deepEqual(errors, []);
   console.log('Chrome passed live allocation, ANME citation, session continuity, stale history, approval, and mobile offline fallback.');
   console.log('Chrome passed the date-filtered city analysis and live sourced climate answer.');
+  console.log('Chrome passed regional planning, verified sector attribution and edit invalidation.');
   if (provider === 'nvidia') console.log('Chrome passed live Nemotron explanations for Assila WaPOR, the replay anomaly, and staged PVGIS.');
 } finally {
   await browser.close();

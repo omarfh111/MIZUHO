@@ -255,7 +255,7 @@ export default function Simulation({ site, visible, scenarios, mode, solar, onCl
           }}>{scenarios.map(({ id, label }) => <option value={id} key={id}>{label}</option>)}</select>
           {fieldError('scenario_id') && <small className="field-error">{fieldError('scenario_id')}</small>}
         </label>
-        <Field id="tank-stock" label={scenario.provenance === 'simulated' ? 'Measured water stock (simulated input)' : 'Starting water stock'} unit="m³" input={inputs.stock}
+        <Field id="tank-stock" label={scenario.provenance === 'simulated' ? 'Starting water stock (simulated input)' : 'Starting water stock'} unit="m³" input={inputs.stock}
           error={fieldError('state.tank_stock_m3')} change={(stock) => update({ stock })} />
         <Field id="remaining-quota" label="Remaining quota" unit="m³" input={inputs.quota}
           error={fieldError('state.quota_remaining_m3')} change={(quota) => update({ quota })} />

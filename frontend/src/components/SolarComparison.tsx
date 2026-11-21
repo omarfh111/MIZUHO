@@ -13,6 +13,7 @@ interface Props {
   close: () => void;
   onUse: (option: SolarOption) => void;
   onEvidence: (source: string) => void;
+  startWithArchive?: boolean;
 }
 
 function Profile({ profile, max, label }: { profile: number[]; max: number; label: string }) {
@@ -25,7 +26,7 @@ function Profile({ profile, max, label }: { profile: number[]; max: number; labe
   </div>;
 }
 
-export default function SolarComparison({ site, options, mode, selectedOption, close, onUse, onEvidence }: Props) {
+export default function SolarComparison({ site, options, mode, selectedOption, close, onUse, onEvidence, startWithArchive }: Props) {
   const [results, setResults] = useState<SolarOption[] | null>(null);
   const [selected, setSelected] = useState(selectedOption?.id ?? options[0]);
   const [price, setPrice] = useState('');
@@ -35,7 +36,7 @@ export default function SolarComparison({ site, options, mode, selectedOption, c
   const [error, setError] = useState('');
   const [priceError, setPriceError] = useState('');
   const [compared, setCompared] = useState(options.slice(0, 2));
-  const [archive, setArchive] = useState(selectedOption?.source_id === 'pvgis-sarah3-jendouba-2023');
+  const [archive, setArchive] = useState(selectedOption ? selectedOption.source_id === 'pvgis-sarah3-jendouba-2023' : Boolean(startWithArchive));
   useEffect(() => {
     const controller = new AbortController();
     const body = { site_id: site, option_ids: compared, price_tnd_per_kwh: appliedPrice };

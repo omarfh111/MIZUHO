@@ -12,6 +12,7 @@ const date = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: '
 const toRadians = Math.PI / 180;
 
 type LinkedSite = {
+  id: string;
   readonly coordinates: readonly [number, number];
   label: string;
   onOpen: () => void;
@@ -19,7 +20,7 @@ type LinkedSite = {
 
 interface Props {
   selectedCityId?: string;
-  onCityChange: (city: TunisiaCity | null) => void;
+  onCityChange: (city: TunisiaCity | null, nearbySiteIds: string[]) => void;
   selectedPeriod?: TunisiaPeriod;
   onPeriodChange?: (period: TunisiaPeriod | undefined) => void;
   sites?: readonly LinkedSite[];
@@ -398,7 +399,7 @@ function CityAnalysis({ city, analysis, retry, sites, selectedPeriod, onPeriodCh
     </div>}
     <section className="tn-field">
       <div><h3>Field sites and simulation</h3><p>{sites.length
-        ? 'Open a nearby mapped survey or the labelled planning pilot to inspect the available local inputs.'
+        ? 'Open a nearby field site to inspect its mapped data and available planning inputs.'
         : 'Parcel boundaries, irrigation allocations, and equipment measurements are unavailable for this city.'}</p></div>
       {!!sites.length && <div className="tn-site-actions">
         {sites.map(site => <button type="button" className="button button-secondary" key={site.label} onClick={site.onOpen}>
@@ -425,6 +426,8 @@ export default function TunisiaExplorer({ selectedCityId, onCityChange, selected
     return (data?.cities ?? []).filter(city => normalize(city.name).includes(needle));
   }, [data, search]);
   const nearbySites = activeCityId && data ? sites.filter(site => nearestCity(site, data.cities)?.id === activeCityId) : [];
+  const pickCity = (city: TunisiaCity | null) => onCityChange(city,
+    city && data ? sites.filter(site => nearestCity(site, data.cities)?.id === city.id).map(site => site.id) : []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -462,11 +465,11 @@ export default function TunisiaExplorer({ selectedCityId, onCityChange, selected
     </div>}
     {data && <>
       <div className="tn-map-grid">
-        <NationalMap catalog={data} selected={selected} onPick={onCityChange} />
+        <NationalMap catalog={data} selected={selected} onPick={pickCity} />
         <aside className="tn-directory" aria-label="City directory">
           <header><div><h2>Cities</h2><p>{data.cities.length} available</p></div>
             {selected && <button type="button" className="tn-country-btn" onClick={() => {
-              onCityChange(null);
+              pickCity(null);
               setSearch('');
               directoryRef.current?.focus();
             }}><ArrowLeft size={15} aria-hidden="true" /> Back to Tunisia</button>}
@@ -483,7 +486,7 @@ export default function TunisiaExplorer({ selectedCityId, onCityChange, selected
           {matching.length ? <ul className="tn-city-list">
             {matching.map(city => <li key={city.id}>
               <button type="button" aria-label={`View ${city.name}`} aria-pressed={city.id === activeCityId}
-                onClick={() => onCityChange(city)}>
+                onClick={() => pickCity(city)}>
                 <MapPin size={16} aria-hidden="true" /><span>{city.name}</span><ArrowUpRight size={15} aria-hidden="true" />
               </button>
             </li>)}
@@ -496,7 +499,7 @@ export default function TunisiaExplorer({ selectedCityId, onCityChange, selected
       </details>
       {selectedCityId && !selected && <div className="tn-unavailable" role="status">
         This city is absent from the current catalogue.
-        <button type="button" className="button button-secondary" onClick={() => onCityChange(null)}>Back to Tunisia</button>
+        <button type="button" className="button button-secondary" onClick={() => pickCity(null)}>Back to Tunisia</button>
       </div>}
       {selected && <CityAnalysis key={selected.id} city={selected} analysis={cityResult} sites={nearbySites}
         selectedPeriod={selectedPeriod} onPeriodChange={onPeriodChange} retry={() => {

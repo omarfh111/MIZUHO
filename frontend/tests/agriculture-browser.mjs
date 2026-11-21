@@ -15,7 +15,7 @@ try {
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(url.href);
-    const selector = page.getByRole('combobox', { name: 'Pilot site' });
+    const selector = page.getByRole('combobox', { name: 'Agricultural site' });
     if (viewport.width > 1000) {
       await page.route(`**/api/layers/${surveyId}/wapor`, route => route.fulfill({ status: 503 }));
       await page.route(`**/api/sites/${surveyId}/agriculture`, route => route.fulfill({ status: 503 }), { times: 1 });

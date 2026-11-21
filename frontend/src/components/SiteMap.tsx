@@ -41,7 +41,8 @@ interface Props {
 export default function SiteMap(props: Props) {
   if (props.site.properties.field_zone) {
     return <Suspense fallback={<div className="surface page-fallback" role="status">Loading agricultural zone…</div>}>
-      <FieldZoneMap site={props.site} sites={props.sites} onSelectSite={props.onSelectSite} onEvidence={props.onEvidence} />
+      <FieldZoneMap site={props.site} sites={props.sites} onSelectSite={props.onSelectSite}
+        onEvidence={props.onEvidence} onSimulate={props.onSimulate} />
     </Suspense>;
   }
   return <PilotSiteMap {...props} />;

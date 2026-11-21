@@ -1,10 +1,11 @@
-import { ArrowUpRight, BookOpenText, CloudSun, Crosshair, Droplets, Layers3, Map, MapPin } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, BookOpenText, CloudSun, Crosshair, Droplets, Layers3, Map, MapPin } from 'lucide-react';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { getFieldZone } from '../api.ts';
 import { useExperience } from '../experience/index.ts';
 import { dateLabel, value } from '../format.ts';
 import type { FieldZone, Site, TunisiaSource } from '../types.ts';
 import { landCover } from './landCover.ts';
+import { findCoverSample, sampleSurface, type SurfacePoint } from './surfaceSample.ts';
 import SitePicker from './SitePicker.tsx';
 import './field-zone.css';
 
@@ -15,6 +16,7 @@ interface Props {
   sites: Site[];
   onSelectSite: (id: string) => void;
   onEvidence: (id: string) => void;
+  onSimulate: () => void;
 }
 
 function DataSource({ source }: { source: TunisiaSource }) {
@@ -55,13 +57,15 @@ function ZoneCoverage({ cover }: { cover: FieldZone['land_cover'] }) {
   </div>;
 }
 
-export default function FieldZoneMap({ site, sites, onSelectSite, onEvidence }: Props) {
+export default function FieldZoneMap({ site, sites, onSelectSite, onEvidence, onSimulate }: Props) {
   const { active: cinematicActive } = useExperience();
   const [profile, setProfile] = useState<FieldZone>();
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [showCover, setShowCover] = useState(true);
+  const [point, setPoint] = useState<SurfacePoint | null>(null);
   const { properties } = site;
+  const sample = profile && point && sampleSurface(profile.relief, profile.land_cover, point);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -94,7 +98,9 @@ export default function FieldZoneMap({ site, sites, onSelectSite, onEvidence }: 
             }}>Retry zone</button>
           </> : !cinematicActive && 'Loading the georeferenced map…'}
         </div> : <Suspense fallback={<div className="field-map-status" role="status">Loading terrain…</div>}>
-          <CityRelief name={properties.label} relief={profile.relief} landCover={profile.land_cover} showLandCover={showCover} />
+          <CityRelief name={properties.label} relief={profile.relief} landCover={profile.land_cover} showLandCover={showCover}
+            markers={sample ? [{ ...sample, id: 'sample', label: landCover.get(sample.coverCode ?? 0)?.label ?? 'Sample' }] : []}
+            onInspect={setPoint} />
         </Suspense>}
         <footer className="map-footer">
           <span className="map-coordinates"><Crosshair size={14} />
@@ -117,14 +123,34 @@ export default function FieldZoneMap({ site, sites, onSelectSite, onEvidence }: 
           <h2><Layers3 size={18} /> Land-cover breakdown</h2>
           <ZoneCoverage cover={profile.land_cover} />
         </section>}
+        {profile && <button type="button" className="button button-primary" onClick={onSimulate}>
+          Model an irrigation plan <ArrowRight size={16} /></button>}
       </aside>
     </div>
+    {profile && <section className="surface field-inspect" aria-label="Geographic sample">
+      <label className="field"><span>Inspect mapped land cover</span>
+        <select value="" onChange={event => {
+          const near = findCoverSample(profile.land_cover, Number(event.target.value), point ?? { u: .5, v: .5 });
+          if (near) setPoint(near);
+        }}>
+          <option value="">Choose a class or click the terrain</option>
+          {[...new Set(profile.land_cover.classes)].filter((code): code is number => code !== null)
+            .sort((a, b) => a - b).map(code => <option key={code} value={code}>{landCover.get(code)?.label ?? code}</option>)}
+        </select>
+      </label>
+      <div aria-live="polite">{sample ? <>
+        <strong>{landCover.get(sample.coverCode ?? 0)?.label ?? 'Unclassified'} · {value(sample.elevation)} m</strong>
+        <span>{sample.latitude.toFixed(4)}° N · {sample.longitude.toFixed(4)}° E</span>
+      </> : <strong>Inspect a location on the relief</strong>}
+        <small>Dominant ESA WorldCover class in the display cell and interpolated Copernicus elevation.</small>
+      </div>
+    </section>}
     {profile && <div className="field-details">
       <section className="surface field-detail-card" aria-label="Water management context">
         <h2><Droplets size={20} /> Water management context</h2>
         <p className="field-question">{profile.water_question}</p>
         <p>{profile.evidence.limitation}</p>
-        <h3>Inputs needed before planning</h3>
+        <h3>Field verification needed for an operational plan</h3>
         <ul>{profile.missing_inputs.map(input => <li key={input}>{input}</li>)}</ul>
       </section>
       <section className="surface field-detail-card" aria-label="Climate archive">

@@ -61,11 +61,11 @@ try {
     await twin.getByText(/Unexplained water balance/).waitFor();
     await twin.getByText('Day-ahead load forecast', { exact: true }).click();
     await twin.getByText(/Held-out mean absolute error/).waitFor();
-    await page.getByLabel(/Measured water stock/).fill('9');
+    await page.getByLabel(/Starting water stock/).fill('9');
     await twin.waitFor({ state: 'detached' });
     await page.getByText(/Result out of date/).waitFor();
     if (width > 700) {
-      await page.getByRole('link', { name: 'Site map', exact: true }).click();
+      await page.getByRole('button', { name: 'Back to map', exact: true }).click();
       await page.locator('.terrain-surface canvas').waitFor();
       const area = page.getByRole('combobox', { name: 'Inspect an area' });
       await area.selectOption({ label: 'Plot A' });

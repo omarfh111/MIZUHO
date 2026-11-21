@@ -72,6 +72,35 @@ svg { display: inline-block; vertical-align: middle; flex: 0 0 auto; }
 }
 .main-nav a[aria-current="page"] { color: var(--lime); background: #29382a; box-shadow: inset 0 0 0 1px #3b4b32; }
 .main-nav a:hover { color: var(--lime); }
+.land-nav { display: flex; gap: 18px; margin-top: 20px; }
+.land-nav a { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); padding: 5px 0; font-size: .8rem; font-weight: 700; }
+.land-nav a[aria-current="page"] { color: var(--lime); box-shadow: 0 2px var(--lime); }
+.theme-site { display: grid; gap: 5px; max-width: 100%; min-width: min(100%, 220px); }
+.theme-site > span { display: flex; gap: 6px; align-items: center; color: var(--lime); font-weight: 700; }
+.theme-site .site-select { margin: 0; }
+.resource-layout { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); align-items: start; gap: 16px; }
+.resource-card { padding: clamp(18px, 2.3vw, 32px); display: grid; justify-items: start; gap: 16px; }
+.resource-card h2 { display: inline-flex; align-items: center; gap: 9px; font: 650 1.3rem/1.25 var(--display); }
+.resource-card h2 svg { color: var(--teal); width: 21px; }
+.resource-card p, .resource-profile summary { color: var(--muted); font-size: .86rem; line-height: 1.55; }
+.resource-card .outage-block, .resource-metrics { width: 100%; }
+.resource-metrics { margin: 0; display: grid; gap: 12px; }
+.resource-metrics > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 9px; }
+.resource-metrics dt, .resource-metrics small { color: var(--muted); font-size: .78rem; }
+.resource-metrics dd { margin: 0; font: 600 1.3rem/1.25 var(--display); }
+.resource-profile { margin: 18px 0 12px; }
+.resource-bars { display: flex; align-items: end; gap: 3px; height: 105px; border-bottom: 1px solid var(--line); }
+.resource-bars i { flex: 1; background: var(--gold); border-radius: 3px 3px 0 0; }
+.resource-bars .hour-gap { border-top: 1px dashed var(--muted); background: transparent; }
+.resource-profile figcaption { display: flex; justify-content: space-between; color: var(--muted); margin: 5px 0 12px; font-size: .68rem; }
+.resource-profile .definition-table > div { display: contents; }
+.zone-comparison { grid-column: 1 / -1; padding: 18px 22px; min-width: 0; }
+.zone-comparison summary { cursor: pointer; color: var(--teal); font: 600 1rem/1.4 var(--display); }
+.zone-comparison > div { display: grid; gap: 14px; margin-top: 14px; }
+.zone-comparison p { color: var(--muted); font-size: .83rem; line-height: 1.5; max-width: 78ch; }
+.zone-comparison select { width: fit-content; }
+.zone-comparison table { width: 100%; border-collapse: collapse; text-align: left; font-size: .82rem; }
+.zone-comparison th, .zone-comparison td { padding: 8px 5px; border-bottom: 1px solid var(--line); }
 .topbar-meta { display: flex; justify-content: flex-end; align-items: center; gap: 11px; }
 .mode-tag, .locale {
   display: inline-flex; align-items: center; gap: 7px; padding: 8px 10px;
@@ -568,7 +597,7 @@ thead th { color: var(--muted); font-size: .72rem; }
 }
 @media (max-width: 490px) {
   .page, .topbar-inner { padding-inline: 12px; }
-  .main-nav a { gap: 5px; padding-inline: 6px; font-size: .77rem; }
+  .main-nav a { flex-direction: column; min-width: 0; gap: 5px; padding-inline: 6px; white-space: normal; text-align: center; font-size: .7rem; }
   .hero h1 { font-size: clamp(2.18rem, 8.5vw, 2.58rem); letter-spacing: -.07em; }
   .brand-mark { width: 34px; height: 34px; border-radius: 9px; }
   .brand-mark svg { width: 19px; }
