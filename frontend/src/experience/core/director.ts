@@ -13,6 +13,8 @@ export interface Director {
   mapReveal: number;
   mapLabels: number;
   clouds: number;
+  /** Full-frame mist while the camera plunges through the cloud deck. */
+  veil: number;
   drop: number;
   rain: number;
   river: number;
@@ -32,7 +34,7 @@ export interface Director {
 }
 
 export const createDirector = (): Director => ({
-  time: 0, mapReveal: 0, mapLabels: 0, clouds: 1, drop: 0, rain: 0, river: 0, dams: 0, valley: 0, reservoir: 0,
+  time: 0, mapReveal: 0, mapLabels: 0, clouds: 1, veil: 0, drop: 0, rain: 0, river: 0, dams: 0, valley: 0, reservoir: 0,
   canals: 0, solar: 0, plots: 0, labels: 0, twin: 0, exit: 0, dip: 0, pointer: { x: 0, y: 0, active: false },
 });
 
@@ -51,6 +53,7 @@ export function direct(director: Director, s: number) {
   director.time = s;
   director.mapReveal = ramp(s, -0.15, 0.75);
   director.clouds = 1 - ramp(s, 0.55, 1.05);
+  director.veil = bell(s, 0.16, 0.3, 0.36, 0.56);
   director.drop = s;
   director.rain = bell(s, 0.45, 0.9, 1.55, 2.05);
   director.mapLabels = bell(s, 1.65, 2.05, 3.35, 3.75);

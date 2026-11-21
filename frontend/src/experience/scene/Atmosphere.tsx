@@ -132,3 +132,59 @@ export function Clouds({ director, path }: { director: Director; path: (s: numbe
     </group>
   );
 }
+
+const veilVertex = /* glsl */ `
+  varying vec2 vUv;
+  void main() { vUv = uv; gl_Position = vec4(position.xy * 2., 0., 1.); }
+`;
+
+const veilFragment = /* glsl */ `
+  uniform float uTime;
+  uniform float uOpacity;
+  uniform vec3 uLit;
+  uniform vec3 uShade;
+  varying vec2 vUv;
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float noise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+    return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+  float fbm(vec2 p) { float s = 0., a = .5; for (int i = 0; i < 5; i++) { s += a * noise(p); p = p * 2.1 + 3.7; a *= .5; } return s; }
+  void main() {
+    // Falling through cloud: wisps rush upward past the lens and part at the centre.
+    vec2 p = vUv * vec2(2.2, 1.4) + vec2(0., uTime * .9);
+    float d = fbm(p) * .65 + fbm(p * 2.3 + vec2(uTime * .2, uTime * 1.6)) * .35;
+    float centre = smoothstep(.15, .75, length(vUv - .5) * 1.6);
+    float a = smoothstep(.32, .7, d) * mix(.55, 1., centre) * uOpacity;
+    vec3 col = mix(uShade, uLit, smoothstep(.3, .9, d) * .7 + vUv.y * .3);
+    gl_FragColor = vec4(col, a);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`;
+
+/** Screen-space cloud the camera plunges through while riding the drop. */
+export function CloudVeil({ director }: { director: Director }) {
+  const ref = useRef<THREE.Mesh>(null);
+  const material = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: veilVertex,
+    fragmentShader: veilFragment,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    uniforms: {
+      uTime: shared.uTime,
+      uOpacity: { value: 0 },
+      uLit: { value: new THREE.Color('#fff1de') },
+      uShade: { value: new THREE.Color('#6f8a90') },
+    },
+  }), []);
+  useEffect(() => () => material.dispose(), [material]);
+  useFrame(() => {
+    material.uniforms.uOpacity.value = director.veil;
+    if (ref.current) ref.current.visible = director.veil > 0.002;
+  });
+  return (
+    <mesh ref={ref} material={material} frustumCulled={false} renderOrder={20}>
+      <planeGeometry args={[1, 1]} />
+    </mesh>
+  );
+}
