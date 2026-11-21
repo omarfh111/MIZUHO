@@ -29,7 +29,74 @@
 .field-sources details { font-size: .8rem; }
 .field-sources details > :not(summary) { display: block; margin: 6px 0; overflow-wrap: anywhere; }
 .field-sources summary { cursor: pointer; }
+.field-inspect {
+  margin-top: 16px; padding: 18px 24px; display: flex; align-items: center;
+  flex-wrap: wrap; gap: 12px 28px;
+}
+.field-inspect > div { display: grid; gap: 4px; font-size: .84rem; }
+.field-inspect > div span, .field-inspect small { color: var(--muted); }
+.region-planning { display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, .44fr); gap: 16px; }
+.region-location { grid-column: 1 / -1; }
+.region-planning:has(.region-summary) .region-location { grid-column: auto; }
+.region-location .city-relief-stage { aspect-ratio: 2; min-height: 300px; max-height: 510px; }
+.region-title { display: flex; gap: 12px 22px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.region-title > div:first-child { flex: 1 1 240px; }
+.region-title p { margin: 7px 0 14px; }
+.region-title button { flex-shrink: 0; }
+.region-replay { margin-top: 16px; }
+.region-transport { display: flex; align-items: center; gap: 12px; }
+.region-transport .button { padding-inline: 12px; }
+.region-transport input { flex: 1 1 auto; width: 0; min-width: 48px; accent-color: var(--lime); }
+.region-transport select { padding: 5px; color: var(--text); background: var(--panel); }
+.region-transport strong { font-variant-numeric: tabular-nums; }
+.region-replay dl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px 12px; }
+.region-replay dl div { display: grid; gap: 4px; }
+.region-replay dd { text-align: left; }
+.region-replay small { color: var(--muted); }
+.region-summary { align-self: start; }
+.region-summary table { width: 100%; border-collapse: collapse; margin-top: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+.region-summary th, .region-summary td { padding: 9px 4px; border-bottom: 1px solid var(--line-soft); font-size: .8rem; }
+.region-summary th { color: var(--muted); font-weight: 600; }
+.region-summary th:first-child { text-align: left; }
+.region-summary td:last-child { color: var(--lime); font-weight: 700; }
+.region-summary p { margin-top: 10px; }
+.region-summary .region-sector-note strong { display: block; color: var(--text); }
+.region-review { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 2px; }
+.region-review .button { margin-top: 8px; }
+.region-review strong { color: var(--teal); }
+.region-form { grid-column: 1 / -1; }
+.region-form fieldset { border: 0; border-top: 1px solid var(--line); padding: 14px 0; margin: 0; min-width: 0; }
+.region-form legend { color: var(--text); font-weight: 750; padding: 0 12px 0 0; display: flex; align-items: center; gap: 7px; }
+.region-form .region-assumption-note { color: var(--muted); border-left: 2px solid var(--lime); padding-left: 12px; margin: 2px 0 19px; }
+.region-inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); gap: 12px; }
+.region-window, .region-weather { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px 24px; }
+.region-window label, .region-weather .field { flex: 1 1 180px; max-width: 340px; }
+.region-weather-day { flex: 1 1 245px; min-width: 0; }
+.region-irradiation { display: flex; align-items: flex-end; gap: 2px; height: 32px; width: min(100%, 300px); margin-bottom: 4px; }
+.region-irradiation i { flex: 1 1 auto; min-height: 1px; background: #eac56e; border-radius: 2px 2px 0 0; }
+.region-weather-day span { font-size: .77rem; color: var(--muted); }
+.region-weather-day a { color: var(--lime); }
+.region-outages { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; }
+.region-outages button { padding: 6px 2px; background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; }
+.region-outages button[aria-pressed="true"] { background: #5b372b; color: #ffcfb1; border-color: #ae7155; }
+.region-form p.region-run-status { margin: 7px 0 0; }
+.region-form p.region-run-status:empty { display: none; }
+.region-estimator { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 3px 0 20px; }
+.region-estimator summary { color: var(--lime); cursor: pointer; font-weight: 700; }
+.region-estimator p { margin: 8px 0; }
+.region-estimator a { color: var(--lime); }
+.region-estimator .region-inputs { margin: 16px 0 10px; }
+.region-estimate-result { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 18px; margin-top: 12px; }
+.region-estimate-result > div { display: grid; gap: 3px; }
+.region-estimate-result strong { font-size: 1.2rem; color: var(--teal); }
+.region-estimate-result span { color: var(--muted); font-size: .8rem; }
+.region-demand-origin { display: grid; gap: 3px; margin-top: 5px; color: var(--muted); }
+.region-demand-origin .text-button { justify-self: start; font-size: .75rem; }
 @media (max-width: 760px) {
   .field-details, .field-sources ul { grid-template-columns: minmax(0, 1fr); }
   .field-map .city-relief { padding-inline: 8px; }
+  .region-planning { grid-template-columns: minmax(0, 1fr); }
+  .region-outages { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .region-replay dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .field-inspect { padding: 14px; }
 }

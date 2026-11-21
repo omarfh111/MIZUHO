@@ -2,7 +2,7 @@ import { ArrowUp, BookOpenText, ExternalLink, LoaderCircle, Sparkles } from 'luc
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, askAssistant, getAssistantHealth, type DataMode } from '../api.ts';
 import { dateLabel, provenanceLabel } from '../format.ts';
-import type { AssistantAnswer, AssistantHealth, AssistantSimulationContext, Site, SolarOption, TunisiaCity, TunisiaPeriod } from '../types.ts';
+import type { AssistantAnswer, AssistantHealth, AssistantSimulationContext, RegionPlanContext, Site, SolarOption, TunisiaCity, TunisiaPeriod } from '../types.ts';
 import { Modal } from './EvidencePanel.tsx';
 
 const suggestions = [
@@ -89,8 +89,9 @@ interface Turn {
   error?: string;
 }
 
-export default function AssistantPanel({ site, city, period, mode, solar, simulation, open, close }: {
+export default function AssistantPanel({ site, city, period, mode, solar, simulation, zonePlan, open, close }: {
   site?: Site; city?: TunisiaCity; period?: TunisiaPeriod; mode: DataMode; solar: SolarOption | null; simulation?: AssistantSimulationContext;
+  zonePlan?: RegionPlanContext;
   open: boolean; close: () => void;
 }) {
   const [sessionId] = useState(createSessionId);
@@ -105,7 +106,7 @@ export default function AssistantPanel({ site, city, period, mode, solar, simula
   const last = turns.at(-1);
   const pending = Boolean(last && !last.answer && !last.error);
   const available = mode !== 'demo' && (health === 'available' || health === 'incomplete');
-  const scope = JSON.stringify([site?.properties.site_id, city?.id, period, solar?.id, solar?.source_id, simulation]);
+  const scope = JSON.stringify([site?.properties.site_id, city?.id, period, solar?.id, solar?.source_id, simulation, zonePlan]);
 
   useEffect(() => {
     if (!open || mode === 'demo') return;
@@ -146,7 +147,7 @@ export default function AssistantPanel({ site, city, period, mode, solar, simula
       pvgis_option_id: archive && (solar.id === 'ombriere' || solar.id === 'toiture') ? solar.id : undefined,
       comparison: simulation?.comparison, selected_scenario_id: simulation?.scenarioId,
       simulation_revision: simulation?.revision, simulation_pending: simulation?.pending,
-      telemetry: simulation?.telemetry,
+      telemetry: simulation?.telemetry, zone_plan: zonePlan,
     }, controller.signal).then((answer) => finish({ ...turn, answer })).catch((error) => {
       const message = error instanceof ApiError && error.status === 429
         ? 'The assistant is busy. Try again shortly.' : 'The assistant could not answer. Try again in a moment.';
@@ -158,7 +159,8 @@ export default function AssistantPanel({ site, city, period, mode, solar, simula
   return <Modal title="Mizhuo assistant" icon={<Sparkles size={23} />} close={close} kind="assistant-modal">
     <div className="assistant-header">
       <span className="assistant-site">{city?.name ?? site?.properties.label}</span>
-      <span className="assistant-context">{city ? 'City archive and evidence' : simulation?.comparison ? 'Current comparison available' : 'Site and evidence'}</span>
+      <span className="assistant-context">{city ? 'City archive and evidence' : zonePlan ? 'Regional comparison available' :
+        simulation?.comparison ? 'Current comparison available' : 'Site and evidence'}</span>
       {period && <span className="assistant-context">{dateLabel(period.start)} – {dateLabel(period.end)}</span>}
       {available && health === 'incomplete' && <span className="assistant-context">Evidence index incomplete</span>}
       {available && nvidia && <label className="field"><span>Answer model</span>
@@ -179,7 +181,7 @@ export default function AssistantPanel({ site, city, period, mode, solar, simula
           <h3>{city || site?.properties.field_zone ? `Ask about ${city?.name ?? site?.properties.label}` : 'Ask about a plan or its evidence'}</h3>
           <p>{city || site?.properties.field_zone ? 'Explore archived climate, sampled terrain, and the data needed to plan irrigation.' :
             'Explore the assumptions, official sources, or trade-offs behind an irrigation decision.'}</p>
-          <div className="assistant-suggestions">{(city ? citySuggestions : site?.properties.field_zone ? fieldZoneSuggestions :
+          <div className="assistant-suggestions">{(city ? citySuggestions : zonePlan ? ['Why did the two sectors receive these volumes?', ...fieldZoneSuggestions] : site?.properties.field_zone ? fieldZoneSuggestions :
             site?.properties.survey_available ? surveySuggestions : suggestions).map((suggestion) =>
             <button key={suggestion} type="button" onClick={() => send(suggestion)}>{suggestion}</button>)}</div>
         </div>}

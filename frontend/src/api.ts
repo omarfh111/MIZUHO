@@ -1,6 +1,7 @@
 import type { FeatureCollection, Geometry, Position } from 'geojson';
 import type { Replay, ReplayBody } from './twin.ts';
-import type { FieldZone, TunisiaCatalog, TunisiaCityAnalysis, TunisiaPeriod } from './types.ts';
+import type { FieldZone, RegionalDemandBasis, RegionalDemandEstimate, RegionalPlanningContext, RegionPlanRequest,
+  RegionalPlanningResult, TunisiaCatalog, TunisiaCityAnalysis, TunisiaPeriod } from './types.ts';
 import { demoEvidence, demoLayers, demoScenarios, demoSiteId, demoSites, demoSolar } from './demo/catalog.ts';
 import { demoCompare } from './demo/planner.ts';
 import type { AssistantAnswer, AssistantHealth, AssistantRequest, Citation, CompareRequest, Comparison, Evidence, Layer, LayerId, Plan, Scenario, SiteProperties, Sites, SolarOption, SolarRequest } from './types.ts';
@@ -71,6 +72,18 @@ export function getTunisia(signal: AbortSignal): Promise<TunisiaCatalog> {
 
 export function getFieldZone(siteId: string, signal: AbortSignal): Promise<FieldZone> {
   return request(`sites/${encodeURIComponent(siteId)}/field-zone`, signal);
+}
+
+export function getRegionalPlanning(siteId: string, signal: AbortSignal): Promise<RegionalPlanningContext> {
+  return request(`sites/${encodeURIComponent(siteId)}/planning`, signal);
+}
+
+export function runRegionalPlanning(siteId: string, inputs: RegionPlanRequest, signal: AbortSignal): Promise<RegionalPlanningResult> {
+  return request(`sites/${encodeURIComponent(siteId)}/planning`, signal, inputs, 60000);
+}
+
+export function estimateRegionalDemand(siteId: string, basis: RegionalDemandBasis, signal: AbortSignal) {
+  return request<RegionalDemandEstimate>(`sites/${encodeURIComponent(siteId)}/demand-estimate`, signal, basis);
 }
 
 export function getTunisiaCity(cityId: string, signal: AbortSignal, period?: TunisiaPeriod): Promise<TunisiaCityAnalysis> {
