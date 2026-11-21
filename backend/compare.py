@@ -95,7 +95,6 @@ def effective_scenario(catalog: Catalog, request: CompareRequest, weather: Liter
     if scenario is None:
         raise InputError("scenario_id", "Unknown scenario.")
     state = request.state
-    validate_state(scenario, state)
     outages = set(request.outage_slots)
     if len(outages) != len(request.outage_slots) or any(slot >= len(scenario.slots) for slot in outages):
         raise InputError("outage_slots", "Outage slots must be distinct and within the scenario horizon.")
@@ -162,7 +161,10 @@ def effective_scenario(catalog: Catalog, request: CompareRequest, weather: Liter
         raise InputError(("overrides", "demand_by_plot_m3"), "Demand overrides must refer to a registered scenario plot.")
     plots = []
     for plot in scenario.plots:
-        demand = params.demand_by_plot_m3.get(plot.plot_id, plot.demand_m3)
+        demand = params.demand_by_plot_m3.get(plot.plot_id)
+        if demand is None:
+            plots.append(plot)
+            continue
         if demand < max(plot.minimum_m3, state.delivered_by_plot_m3.get(plot.plot_id, 0)):
             raise InputError(("overrides", "demand_by_plot_m3", plot.plot_id),
                              "Demand must cover the minimum target and all completed deliveries.")
@@ -173,7 +175,9 @@ def effective_scenario(catalog: Catalog, request: CompareRequest, weather: Liter
         # Each slot is exactly one hour, so the motor ceiling bounds total PV + grid Wh.
         capacity = min(capacity, params.pump_power_cap_w // site.pump_wh_per_m3)
     site = site.model_copy(update={"pump_max_m3_per_slot": capacity})
-    return scenario.model_copy(update={"site": site, "slots": tuple(slots), "plots": tuple(plots)})
+    effective = scenario.model_copy(update={"site": site, "slots": tuple(slots), "plots": tuple(plots)})
+    validate_state(effective, state)
+    return effective
 
 
 def compare_incident(catalog: Catalog, request: CompareRequest, disrupted: Scenario, budget: float) -> Comparison:

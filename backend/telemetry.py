@@ -1,6 +1,6 @@
 """Project validated hourly water and energy balances into simulated meter observations."""
 
-from datetime import datetime, time, timedelta
+from datetime import UTC, datetime, time, timedelta
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
 
@@ -212,6 +212,11 @@ def forecast(request: Request, body: ForecastRequest):
     from tools.m2m3.mizu_m2m3.forecast import forecast_load
 
     known_site(request.app.state.catalog, body.site_id)
+    # Normalize before Pandas parses the value so an out-of-range offset cannot wrap to a different year.
+    try:
+        body.as_of.astimezone(UTC).astimezone(ZoneInfo("Africa/Tunis"))
+    except OverflowError as error:
+        raise InputError("as_of", "The timestamp must fit in the UTC and Africa/Tunis datetime ranges.") from error
     try:
         return forecast_load(body.site_id, body.as_of.isoformat())
     except ValueError as error:

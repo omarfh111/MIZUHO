@@ -1,7 +1,7 @@
 """Turn hourly physical states into virtual observations for M3."""
 
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from .anomalies import analyze_telemetry
 
@@ -46,7 +46,11 @@ def project_telemetry(states, reference, missing_flow_slots=(), *, initial_stock
         timestamp = datetime.fromisoformat(state["timestamp"])
         if timestamp.tzinfo is None or timestamp.minute or timestamp.second or timestamp.microsecond:
             raise ValueError(f"{prefix}.timestamp: provide a timezone-aware hourly timestamp")
-        utc_time = timestamp.astimezone(timezone.utc)
+        try:
+            utc_time = timestamp.astimezone(timezone.utc)
+            utc_time + timedelta(hours=1)
+        except OverflowError as error:
+            raise ValueError(f"{prefix}.timestamp: the hourly interval is outside the UTC datetime range") from error
         if previous_timestamp and (utc_time - previous_timestamp).total_seconds() != (slot - previous_slot) * 3600:
             raise ValueError(f"{prefix}.timestamp: the time difference must match the slot difference")
 
