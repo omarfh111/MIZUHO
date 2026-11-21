@@ -68,6 +68,21 @@ export function getOutageCase(siteId: string, plan: StressPlan, target: number, 
     { plan, target_percent: target, start, duration, ...settings }, 120000);
 }
 
+export interface RotationHour {
+  hour: number; pump_m3: number; plot_id: string | null; delivery_m3: number;
+}
+
+export interface RotationResult {
+  provenance: 'simulated';
+  operator: Plan;
+  optimized: Plan;
+  hours: (RotationHour & { feasible_pump_m3: number; feasible_delivery_m3: number })[];
+}
+
+export function compareRotation(siteId: string, plan: StressPlan, hours: RotationHour[], signal: AbortSignal) {
+  return request<RotationResult>(`sites/${encodeURIComponent(siteId)}/operator-rotation`, signal, { plan, hours });
+}
+
 export interface HouseholdInputs {
   start_hour: number; duration_hours: number; households: number; essential_w_per_home: number;
   lighting_w_per_home: number; lights_from_hour: number; lights_until_hour: number;

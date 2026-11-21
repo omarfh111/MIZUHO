@@ -1,0 +1,12 @@
+.operator-rotation { min-width: 0; grid-column: 1 / -1; padding: 1rem 1.25rem; }
+.operator-rotation summary { cursor: pointer; font: 650 1.05rem var(--display); color: var(--text); }
+.operator-rotation p, .operator-rotation caption { font-size: .86rem; color: var(--muted); }
+.rotation-hour { display: flex; align-items: flex-end; flex-wrap: wrap; gap: .65rem; margin: .75rem 0; }
+.rotation-hour label { display: grid; gap: .25rem; font-size: .8rem; color: var(--muted); flex: 1 1 6.5rem; min-width: 0; }
+.rotation-hour :is(input, select) { width: 100%; box-sizing: border-box; min-height: 38px; padding: .4rem .5rem; border: 1px solid var(--line); border-radius: 6px; background: var(--background); color: var(--text); }
+.rotation-controls { display: flex; gap: .5rem; flex-wrap: wrap; margin: .8rem 0; }
+.operator-rotation table { width: 100%; border-collapse: collapse; font-size: .84rem; font-variant-numeric: tabular-nums; }
+.operator-rotation caption { text-align: left; padding: .4rem 0; }
+.operator-rotation :is(th, td) { text-align: right; border-bottom: 1px solid var(--line); padding: .45rem .25rem; }
+.operator-rotation :is(th, td):first-child { text-align: left; }
+@media (max-width: 550px) { .rotation-hour label { flex-basis: 42%; } }
