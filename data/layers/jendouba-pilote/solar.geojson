@@ -1,0 +1,18 @@
+{
+  "type": "FeatureCollection",
+  "date": "2026-11-21",
+  "status": "simulated",
+  "source_id": "solar",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {"type":"Point","coordinates":[8.763729411764707,36.50144074074074]},
+      "properties": {"option_id":"toiture","label":"Pump station rooftop","source_id":"solar"}
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type":"Point","coordinates":[8.775200000000002,36.502675308641976]},
+      "properties": {"option_id":"ombriere","label":"Solar canopy","source_id":"solar"}
+    }
+  ]
+}

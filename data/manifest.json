@@ -1,0 +1,20 @@
+{
+  "version": "m6-v1",
+  "timezone": "Africa/Tunis",
+  "coordinates": "WGS84 longitude, latitude",
+  "datasets": {
+    "scenarios": {"provenance":"simulated","origin":"Frozen M7 demo catalog and v5 miniature fixtures"},
+    "layers": {
+      "provenance": "simulated",
+      "origin": "Frozen M7 demo catalog",
+      "missing": ["Local wind observations","Local WaPOR extract"]
+    },
+    "energy": {
+      "provenance": "simulated",
+      "origin": "Frozen M7 synthetic hourly profiles",
+      "missing": ["PVGIS response","Annual site load and installation costs"]
+    },
+    "weather": {"provenance":"simulated","origin":"Locked v5 day-ahead acceptance cases"},
+    "telemetry": {"provenance":"simulated","origin":"Independent example readings for the v5 efficiency alert"}
+  }
+}

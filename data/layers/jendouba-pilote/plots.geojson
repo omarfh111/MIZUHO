@@ -1,0 +1,133 @@
+{
+  "type": "FeatureCollection",
+  "date": "2026-11-21",
+  "status": "simulated",
+  "source_id": "wapor",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [8.76564117647059,36.503045679012345],
+            [8.769170588235294,36.50366296296296],
+            [8.769758823529413,36.50193456790124],
+            [8.766082352941178,36.50144074074074],
+            [8.76564117647059,36.503045679012345]
+          ]
+        ]
+      },
+      "properties": {
+        "plot_id": "A",
+        "label": "Plot A",
+        "crop": "Olive trees",
+        "status": "simulated",
+        "source_id": "wapor",
+        "date": "2026-11-21",
+        "signal": "Moderate water demand",
+        "period": "Demo day"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [8.769758823529413,36.50378641975309],
+            [8.773435294117649,36.50415679012346],
+            [8.773876470588236,36.50242839506173],
+            [8.77049411764706,36.50193456790124],
+            [8.769758823529413,36.50378641975309]
+          ]
+        ]
+      },
+      "properties": {
+        "plot_id": "B",
+        "label": "Plot B",
+        "crop": "Durum wheat",
+        "status": "simulated",
+        "source_id": "wapor",
+        "date": "2026-11-21",
+        "signal": "Moderate water demand",
+        "period": "Demo day"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [8.766229411764707,36.50082345679012],
+            [8.769317647058825,36.50131728395062],
+            [8.770052941176472,36.4990950617284],
+            [8.766817647058824,36.49847777777778],
+            [8.766229411764707,36.50082345679012]
+          ]
+        ]
+      },
+      "properties": {
+        "plot_id": "C",
+        "label": "Plot C",
+        "crop": "Vegetables",
+        "status": "simulated",
+        "source_id": "wapor",
+        "date": "2026-11-21",
+        "signal": "Priority water demand",
+        "period": "Demo day"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [8.77034705882353,36.5011938271605],
+            [8.774170588235295,36.50193456790124],
+            [8.774905882352941,36.499712345679015],
+            [8.771082352941177,36.498971604938276],
+            [8.77034705882353,36.5011938271605]
+          ]
+        ]
+      },
+      "properties": {
+        "plot_id": "D",
+        "label": "Plot D",
+        "crop": "Citrus",
+        "status": "simulated",
+        "source_id": "wapor",
+        "date": "2026-11-21",
+        "signal": "Moderate water demand",
+        "period": "Demo day"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [8.767700000000001,36.49786049382716],
+            [8.770935294117647,36.49847777777778],
+            [8.771817647058825,36.496996296296295],
+            [8.768582352941177,36.496502469135805],
+            [8.767700000000001,36.49786049382716]
+          ]
+        ]
+      },
+      "properties": {
+        "plot_id": "E",
+        "label": "Plot E",
+        "crop": "Forage",
+        "status": "simulated",
+        "source_id": "wapor",
+        "date": "2026-11-21",
+        "signal": "Low water demand",
+        "period": "Demo day"
+      }
+    }
+  ]
+}

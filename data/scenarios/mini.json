@@ -1,0 +1,46 @@
+{
+  "id": "mini",
+  "label": "A/B demo",
+  "description": "Two plots, three hours and 10 m³ to share.",
+  "site_id": "jendouba-pilote",
+  "provenance": "simulated",
+  "slots": [
+    {"slot":0,"grid_available":true,"grid_cap_w":5000,"solar_wh":5000},
+    {"slot":1,"grid_available":false,"grid_cap_w":5000,"solar_wh":0},
+    {"slot":2,"grid_available":false,"grid_cap_w":5000,"solar_wh":0}
+  ],
+  "plots": [
+    {
+      "plot_id": "A",
+      "farmer_id": "EXP-01",
+      "crop": "Olive trees",
+      "surface_m2": 500,
+      "demand_m3": 10,
+      "minimum_m3": 10,
+      "allowed_slots": [1,2],
+      "deadline_slot": 2,
+      "past_deferrals": 0
+    },
+    {
+      "plot_id": "B",
+      "farmer_id": "EXP-02",
+      "crop": "Durum wheat",
+      "surface_m2": 600,
+      "demand_m3": 10,
+      "minimum_m3": 10,
+      "allowed_slots": [1,2],
+      "deadline_slot": 2,
+      "past_deferrals": 0
+    }
+  ],
+  "site": {"tank_capacity_m3":10,"pump_max_m3_per_slot":10,"pump_wh_per_m3":500,"gravity_max_m3_per_slot":10},
+  "state": {
+    "current_slot": 1,
+    "tank_stock_m3": 10,
+    "quota_remaining_m3": 0,
+    "delivered_by_plot_m3": {},
+    "delivered_on_time_by_plot_m3": {}
+  },
+  "fixed_pump_m3": [0,10,10],
+  "fixed_deliveries": [[],[{"plot_id":"A","delivered_m3":10}],[{"plot_id":"B","delivered_m3":10}]]
+}

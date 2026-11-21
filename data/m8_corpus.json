@@ -1,0 +1,53 @@
+[
+  {
+    "source_id": "solar", "file": "anme.md", "section": "Photovoltaic potential and annual solar output by region",
+    "search_terms": [
+      "rendement solaire photovoltaïque annuel nord-ouest kilowattheure kilowatt-crête",
+      "الوكالة الوطنية للتحكم في الطاقة الطاقة الشمسية الكهروضوئية المردود الشمسي السنوي الشمال الغربي كيلوواط ذروة"
+    ]
+  },
+  {
+    "source_id": "wapor", "file": "fao.md", "section": "Jendouba evapotranspiration and irrigation advisory pilot", "published_date": "2026-04-03",
+    "search_terms": [
+      "WaPOR satellite evapotranspiration données satellitaires résolution spatiale fréquence décadaire quotidienne",
+      "وابور منظمة الأغذية والزراعة جندوبة التبخر والنتح الدقة المكانية بيانات الأقمار الصناعية يومية"
+    ]
+  },
+  {
+    "source_id": "ins-households", "file": "ins.md", "section": "Section 8, Table 6 · Main household water source",
+    "search_terms": [
+      "census households recensement tableau RGPH ménages source principale eau",
+      "المعهد الوطني للإحصاء التعداد السكان المساكن نشرة الجدول السادس الأسر المصدر الرئيسي مياه الصوناد"
+    ]
+  },
+  {
+    "source_id": "sonede-distribution", "file": "sonede.md", "section": "Public drinking-water distribution volume",
+    "search_terms": [
+      "utility drinking water million cubic meters eau potable volume distribué millions mètres cubes",
+      "الشركة الوطنية لاستغلال وتوزيع المياه الصوناد مياه الشرب الموزعة حجم التوزيع مليون متر مكعب"
+    ]
+  },
+  {
+    "source_id": "groundwater-kebili", "file": "kebili.md", "section": "Open dataset description · deep groundwater aquifers in Kébili",
+    "search_terms": [
+      "données ouvertes jeu de données caractéristiques nappes profondes Kébili",
+      "قبلي بيانات مفتوحة خصائص الطبقات المائية العميقة استغلال المياه الجوفية"
+    ]
+  },
+  {
+    "source_id": "dgre-aquifers", "file": "dgre.md", "section": "Deep aquifer water abstraction and exploitation ratio",
+    "search_terms": [
+      "national historical deep groundwater abstraction données nationales prélèvements taux exploitation nappes profondes",
+      "الإدارة العامة للموارد المائية مؤشرات التنمية المستدامة معدل الاستغلال الوطني المياه الجوفية العميقة"
+    ]
+  },
+  {
+    "source_id": "world-bank-irrigation", "file": "world-bank.md", "section": "Irrigation Water Security, Resilience and Value-Addition Project",
+    "search_terms": [
+      "Banque mondiale sécurité hydrique réhabilitation périmètres irrigués jendouba béja bizerte siliana",
+      "البنك الدولي الأمن المائي إعادة تأهيل شبكات الري جندوبة باجة بنزرت سليانة"
+    ]
+  },
+  {"source_id": "jendouba-borehole", "section": "Local measurements", "unavailable_reason": "No observed water level, pumping test or metered withdrawals are available for a pilot borehole."},
+  {"source_id": "site-pvgis", "section": "Local photovoltaic evidence", "unavailable_reason": "No verified PVGIS export, measured site load, or annual costs are available for the demo options."}
+]

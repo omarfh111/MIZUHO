@@ -1,0 +1,256 @@
+{
+  "version": "m6-v1",
+  "request": {
+    "scenario_id": "mini",
+    "state": {
+      "current_slot": 1,
+      "tank_stock_m3": 10,
+      "quota_remaining_m3": 0,
+      "delivered_by_plot_m3": {
+        "A": 0,
+        "B": 0
+      },
+      "delivered_on_time_by_plot_m3": {
+        "A": 0,
+        "B": 0
+      }
+    },
+    "outage_slots": [
+      1,
+      2
+    ],
+    "solar_option_id": null
+  },
+  "response": {
+    "baseline": {
+      "status": "FEASIBLE",
+      "actions": [
+        {
+          "slot": 1,
+          "pump_m3": 0,
+          "deliveries": [
+            {
+              "plot_id": "A",
+              "delivered_m3": 10
+            }
+          ],
+          "tank_stock_m3": 0,
+          "quota_remaining_m3": 0,
+          "grid_wh": 0
+        },
+        {
+          "slot": 2,
+          "pump_m3": 0,
+          "deliveries": [],
+          "tank_stock_m3": 0,
+          "quota_remaining_m3": 0,
+          "grid_wh": 0
+        }
+      ],
+      "plot_results": [
+        {
+          "plot_id": "A",
+          "farmer_id": "EXP-01",
+          "delivered_m3": 10,
+          "delivered_on_time_m3": 10,
+          "deficit_m3": 0,
+          "cover_bp": 10000,
+          "reason_code": "covered",
+          "demand_m3": 10,
+          "minimum_m3": 10,
+          "coverage_bp": 10000,
+          "reason": null
+        },
+        {
+          "plot_id": "B",
+          "farmer_id": "EXP-02",
+          "delivered_m3": 0,
+          "delivered_on_time_m3": 0,
+          "deficit_m3": 10,
+          "cover_bp": 0,
+          "reason_code": "shortfall",
+          "demand_m3": 10,
+          "minimum_m3": 10,
+          "coverage_bp": 0,
+          "reason": "Minimum volume unmet within the allowed window."
+        }
+      ],
+      "metrics": {
+        "withdrawn_m3": 0,
+        "delivered_m3": 10,
+        "grid_wh": 0,
+        "pump_wh": 0,
+        "peak_grid_w": 0,
+        "worst_coverage_bp": 0,
+        "delivered_on_time_m3": 10,
+        "tank_stock_m3": 0,
+        "quota_remaining_m3": 0
+      },
+      "warnings": [
+        {
+          "message": "The plan falls short of at least one minimum delivery target.",
+          "type": "timely_coverage_shortfall",
+          "source_id": null,
+          "period": null,
+          "value": null,
+          "reference": null,
+          "unit": null
+        },
+        {
+          "message": "Available water stock and withdrawal quota are below the minimum demand.",
+          "type": "stock_and_quota_below_minimum",
+          "source_id": null,
+          "period": null,
+          "value": null,
+          "reference": null,
+          "unit": null
+        },
+        {
+          "message": "Water stock and remaining pumping capacity are below the minimum demand.",
+          "type": "pumping_capacity_below_minimum",
+          "source_id": null,
+          "period": null,
+          "value": null,
+          "reference": null,
+          "unit": null
+        },
+        {
+          "message": "Available water and pumping capacity cannot meet a deadline.",
+          "type": "pumping_capacity_before_deadline",
+          "source_id": null,
+          "period": null,
+          "value": null,
+          "reference": null,
+          "unit": null
+        },
+        {
+          "message": "Insufficient data to assess energy use per m³.",
+          "type": "insufficient",
+          "source_id": null,
+          "period": null,
+          "value": null,
+          "reference": null,
+          "unit": null
+        }
+      ]
+    },
+    "optimized": {
+      "status": "OPTIMAL",
+      "actions": [
+        {
+          "slot": 1,
+          "pump_m3": 0,
+          "deliveries": [
+            {
+              "plot_id": "B",
+              "delivered_m3": 5
+            }
+          ],
+          "tank_stock_m3": 5,
+          "quota_remaining_m3": 0,
+          "grid_wh": 0
+        },
+        {
+          "slot": 2,
+          "pump_m3": 0,
+          "deliveries": [
+            {
+              "plot_id": "A",
+              "delivered_m3": 5
+            }
+          ],
+          "tank_stock_m3": 0,
+          "quota_remaining_m3": 0,
+          "grid_wh": 0
+        }
+      ],
+      "plot_results": [
+        {
+          "plot_id": "A",
+          "farmer_id": "EXP-01",
+          "delivered_m3": 5,
+          "delivered_on_time_m3": 5,
+          "deficit_m3": 5,
+          "cover_bp": 5000,
+          "reason_code": "shortfall",
+          "demand_m3": 10,
+          "minimum_m3": 10,
+          "coverage_bp": 5000,
+          "reason": "Minimum volume unmet within the allowed window."
+        },
+        {
+          "plot_id": "B",
+          "farmer_id": "EXP-02",
+          "delivered_m3": 5,
+          "delivered_on_time_m3": 5,
+          "deficit_m3": 5,
+          "cover_bp": 5000,
+          "reason_code": "shortfall",
+          "demand_m3": 10,
+          "minimum_m3": 10,
+          "coverage_bp": 5000,
+          "reason": "Minimum volume unmet within the allowed window."
+        }
+      ],
+      "metrics": {
+        "withdrawn_m3": 0,
+        "delivered_m3": 10,
+        "grid_wh": 0,
+        "pump_wh": 0,
+        "peak_grid_w": 0,
+        "worst_coverage_bp": 5000,
+        "delivered_on_time_m3": 10,
+        "tank_stock_m3": 0,
+        "quota_remaining_m3": 0
+      },
+      "warnings": [
+        {
+          "message": "The plan falls short of at least one minimum delivery target.",
+          "type": "timely_coverage_shortfall",
+          "source_id": null,
+          "period": null,
+          "value": null,
+          "reference": null,
+          "unit": null
+        },
+        {
+          "message": "Available water stock and withdrawal quota are below the minimum demand.",
+          "type": "stock_and_quota_below_minimum",
+          "source_id": null,
+          "period": null,
+          "value": null,
+          "reference": null,
+          "unit": null
+        },
+        {
+          "message": "Water stock and remaining pumping capacity are below the minimum demand.",
+          "type": "pumping_capacity_below_minimum",
+          "source_id": null,
+          "period": null,
+          "value": null,
+          "reference": null,
+          "unit": null
+        },
+        {
+          "message": "Available water and pumping capacity cannot meet a deadline.",
+          "type": "pumping_capacity_before_deadline",
+          "source_id": null,
+          "period": null,
+          "value": null,
+          "reference": null,
+          "unit": null
+        },
+        {
+          "message": "Insufficient data to assess energy use per m³.",
+          "type": "insufficient",
+          "source_id": null,
+          "period": null,
+          "value": null,
+          "reference": null,
+          "unit": null
+        }
+      ]
+    },
+    "weather_comparison": null
+  }
+}
