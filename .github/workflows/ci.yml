@@ -79,7 +79,7 @@ jobs:
         env:
           VITE_DATA_MODE: live
         run: npm --prefix frontend run build
-      - name: Exercise survey, sensor playback and incident recovery in Chrome
+      - name: Exercise the national explorer and irrigation workflows in Chrome
         shell: bash
         run: |
           python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 &

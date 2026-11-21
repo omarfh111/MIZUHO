@@ -18,6 +18,9 @@
     "telemetry": {"provenance":"simulated","origin":"M4 hourly physical replay and M3 virtual instruments; separate simulated load history for forecasting"},
     "assila_boundaries": {"provenance":"observed","origin":"OpenStreetMap mapped geometry; see agriculture/assila/sources.json"},
     "assila_water_use": {"provenance":"estimated","origin":"FAO WaPOR raster extraction and NASA POWER temperature analysis; see agriculture/assila/sources.json"},
+    "tunisia_city_locations": {"provenance":"observed","origin":"GeoNames administrative seats and geoBoundaries simplified ADM1 geometry; see tunisia/README.md"},
+    "tunisia_city_relief": {"provenance":"estimated","origin":"Copernicus GLO-90 digital surface model sampled on a 15 × 15 grid at each city; see tunisia/README.md"},
+    "tunisia_city_climate": {"provenance":"estimated","origin":"NASA POWER 2025 gridded daily archive, aggregated over the selected dates; see tunisia/README.md"},
     "pvgis": {"provenance":"estimated","origin":"EC JRC PVGIS-SARAH3 2023 reference-point profiles in tools/m2m3/data/energy; load comparison is simulated"},
     "bouhertma": {"provenance":"observed","origin":"Archived FieldClimate station CSV; see weather/BOUHERTMA.md for time and coverage limitations"}
   }

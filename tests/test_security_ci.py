@@ -79,8 +79,10 @@ def test_dependency_scan_uses_only_manifests_tracked_at_each_revision(workflow, 
     base = commit("Base revision")
     (repo / "frontend").mkdir()
     (repo / "frontend" / "package-lock.json").write_text("{}\n", encoding="utf-8")
-    run_git("add", "frontend/package-lock.json")
-    candidate = commit("Add frontend manifest")
+    (repo / "tools" / "tunisia").mkdir(parents=True)
+    (repo / "tools" / "tunisia" / "requirements.txt").write_text("Pillow==13.0.0\n", encoding="utf-8")
+    run_git("add", "frontend/package-lock.json", "tools/tunisia/requirements.txt")
+    candidate = commit("Add frontend and atlas manifests")
 
     runner = tmp_path / "runner"
     runner.mkdir()
@@ -101,4 +103,4 @@ def test_dependency_scan_uses_only_manifests_tracked_at_each_revision(workflow, 
         assert files == ["base/requirements.txt"]
     else:
         assert (runner / "dependencies-base" / "advisories.tsv").read_text(encoding="utf-8") == ""
-        assert files == ["candidate/frontend/package-lock.json"]
+        assert files == ["candidate/frontend/package-lock.json", "candidate/tools/tunisia/requirements.txt"]
