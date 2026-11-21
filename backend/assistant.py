@@ -33,6 +33,8 @@ associations and missing farming inputs. Water use from satellites is distinct f
 Use explain_decision for allocation reasons, get_simulation_results for actual or
 reduced-quota results, get_site_data with include_solar=true for solar profiles and output, and search_evidence when external evidence is
 requested or relied on. For photovoltaic potential search for ANME in Tunisia and cite the relevant verified passage.
+For an active regional replay, use explain_decision or get_simulation_results with scenario_id=null.
+The sunlight archive is regional. Water allocations and equipment in the replay are explicit modelling assumptions.
 An option selected in the interface is a modeled comparison, not a field-verified recommendation.
 You may call multiple complementary tools. If a hypothetical quota is unspecified, ask for the target quota;
 never invent assumptions or measured borehole data. A source describing national or regional potential is
@@ -293,7 +295,7 @@ def run_assistant(request: AssistantRequest, catalog: Catalog, corpus: Corpus, p
     sites = {feature.properties.site_id for feature in catalog.sites.features}
     city = None
     if request.city_id:
-        if (request.site_id or request.comparison or request.telemetry or request.solar_option_id
+        if (request.site_id or request.comparison or request.zone_plan or request.telemetry or request.solar_option_id
                 or request.pvgis_option_id or request.selected_scenario_id or request.simulation_pending):
             raise InputError("city_id", "Open a registered farm site to ask about its planning or sensor data.")
         try:
@@ -324,6 +326,12 @@ def run_assistant(request: AssistantRequest, catalog: Catalog, corpus: Corpus, p
         except ValueError:
             raise InputError("pvgis_option_id", "No matching archived solar profile for this site.") from None
     comparison = request.comparison
+    if request.zone_plan:
+        profile = catalog.zone_planning.get(request.site_id or "")
+        if (profile is None or all(day.date != request.zone_plan.inputs.date for day in profile.days)
+                or comparison or request.telemetry or request.solar_option_id or request.pvgis_option_id
+                or request.selected_scenario_id or request.simulation_pending):
+            raise InputError("zone_plan", "Select a calculated regional plan for this site and archive date.")
     if request.telemetry and comparison is None:
         raise InputError("telemetry", "A sensor replay requires an active comparison.")
     if request.selected_scenario_id is not None:
@@ -353,6 +361,7 @@ def answer_turn(turn: Turn, prior_answers: list[dict]) -> AssistantAnswer:
         "site": request.site_id, "selected_solar": request.solar_option_id,
         "selected_pvgis": request.pvgis_option_id,
         "active_scenario": request.comparison.scenario_id if request.comparison else None,
+        "active_regional_replay": request.zone_plan.inputs.date.isoformat() if request.zone_plan else None,
         "selected_scenario": request.selected_scenario_id,
         "sensor_replay": ({"plan": request.telemetry.plan, "selected_slot": request.telemetry.selected_slot}
                           if request.telemetry else None),
