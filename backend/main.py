@@ -19,12 +19,14 @@ from .compare import InputError, compare
 from .field_zones import FieldZone
 from .models import (
     CompareRequest, Comparison, Evidence, Health, Layer, ScenarioRecord, Sites, SolarComparison, SolarRequest,
+    DemandEstimateRequest, ZonePlanRequest,
 )
 from .simulator import StateError
 from .solar import compare_option
 from .weather_observations import RadiationDay, radiation_day
 from .telemetry import router as telemetry_router
 from .tunisia import router as tunisia_router
+from .zone_planning import DemandEstimate, ZonePlanningProfile, ZonePlanResult, compare_zone, estimate_demand
 
 
 DEV_ORIGINS = ",".join(
@@ -104,6 +106,24 @@ def create_app(data_dir: Path = DATA_DIR, *, solver_timeout: float | None = None
         if survey is None:
             raise HTTPException(404, "No mapped agricultural survey for this site.")
         return survey
+
+    @app.get("/api/sites/{site_id}/planning")
+    def zone_planning_profile(request: Request, site_id: str) -> ZonePlanningProfile:
+        """Get archived civil-day irradiation and cropland pixel anchors for two hypothetical delivery sectors."""
+        profile = request.app.state.catalog.zone_planning.get(site_id)
+        if profile is None:
+            raise HTTPException(404, "No regional planning archive for this site.")
+        return profile
+
+    @app.post("/api/sites/{site_id}/planning")
+    def zone_planning_comparison(request: Request, site_id: str, body: ZonePlanRequest) -> ZonePlanResult:
+        """Replay a fixed rotation and a CP-SAT schedule under the same user-specified operating assumptions."""
+        return compare_zone(zone_planning_profile(request, site_id), body, budget)
+
+    @app.post("/api/sites/{site_id}/demand-estimate")
+    def zone_demand_estimate(request: Request, site_id: str, body: DemandEstimateRequest) -> DemandEstimate:
+        """Estimate one hypothetical sector's daily gross irrigation volume using the supplied agronomic assumptions."""
+        return estimate_demand(zone_planning_profile(request, site_id), body)
 
     @app.get("/api/layers/{site_id}/{layer_id}", response_model_exclude_none=True)
     def layer(request: Request, site_id: str, layer_id: str) -> Layer:

@@ -225,6 +225,49 @@ class CompareRequest(PlanningModel):
     incident: Incident | None = None
 
 
+HourOfDay = Annotated[int, Field(strict=True, ge=0, le=23)]
+ZoneAmount = Annotated[int, Field(strict=True, ge=0, le=100_000)]
+
+
+class DemandEstimateRequest(PlanningModel):
+    date: Date
+    area_m2: Annotated[float, Field(strict=True, gt=0, le=10_000_000, allow_inf_nan=False)]
+    crop_coefficient: Annotated[float, Field(strict=True, gt=0, le=3, allow_inf_nan=False)]
+    effective_rain_fraction: Annotated[float, Field(strict=True, ge=0, le=1, allow_inf_nan=False)]
+    application_efficiency: Annotated[float, Field(strict=True, gt=0, le=1, allow_inf_nan=False)]
+
+
+class ZonePlanRequest(PlanningModel):
+    """Explicit operating assumptions for a historical regional solar replay."""
+
+    date: Date
+    tank_capacity_m3: ZoneAmount
+    initial_stock_m3: ZoneAmount
+    withdrawal_limit_m3: ZoneAmount
+    pump_flow_m3_h: ZoneAmount
+    pump_wh_per_m3: Annotated[int, Field(strict=True, gt=0, le=100_000)]
+    gravity_flow_m3_h: ZoneAmount
+    grid_cap_w: Annotated[int, Field(strict=True, ge=0, le=1_000_000_000)]
+    pv_capacity_kwp: Annotated[float, Field(strict=True, ge=0, le=10_000, allow_inf_nan=False)]
+    pv_performance_ratio: Annotated[float, Field(strict=True, gt=0, le=1, allow_inf_nan=False)]
+    demand_west_m3: ZoneAmount
+    demand_east_m3: ZoneAmount
+    demand_basis: dict[Literal["west", "east"], DemandEstimateRequest] = Field(default_factory=dict)
+    delivery_start_hour: HourOfDay
+    delivery_end_hour: HourOfDay
+    outage_hours: Annotated[tuple[HourOfDay, ...], Field(max_length=24)]
+
+    @model_validator(mode="after")
+    def validate_inputs(self) -> Self:
+        if self.initial_stock_m3 > self.tank_capacity_m3:
+            raise ValueError("Initial stock exceeds the assumed tank capacity.")
+        if self.delivery_start_hour > self.delivery_end_hour:
+            raise ValueError("The delivery window must end on or after its start hour on the same day.")
+        if len(set(self.outage_hours)) != len(self.outage_hours):
+            raise ValueError("Outage hours must be distinct.")
+        return self
+
+
 Price = Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0, le=1_000_000_000)]
 Longitude = Annotated[float, Field(strict=True, ge=-180, le=180)]
 Latitude = Annotated[float, Field(strict=True, ge=-90, le=90)]
@@ -525,6 +568,11 @@ class AssistantCityPeriod(PlanningModel):
     end: Date
 
 
+class RegionalPlanContext(PlanningModel):
+    inputs: ZonePlanRequest
+    comparison_id: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+
+
 class AssistantRequest(PlanningModel):
     provider: Literal["openai", "nvidia"] = "openai"
     question: Annotated[str, StringConstraints(min_length=3, max_length=1600, strip_whitespace=True)]
@@ -534,6 +582,7 @@ class AssistantRequest(PlanningModel):
     solar_option_id: Annotated[str, Field(min_length=1, max_length=120)] | None = None
     pvgis_option_id: Literal["ombriere", "toiture"] | None = None
     comparison: CompareRequest | None = None
+    zone_plan: RegionalPlanContext | None = None
     telemetry: AssistantTelemetry | None = None
     recent_questions: Annotated[tuple[Annotated[str, StringConstraints(max_length=1600)], ...], Field(max_length=3)] = ()
     session_id: UUID4 | None = None

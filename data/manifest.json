@@ -22,6 +22,9 @@
     "tunisia_city_relief": {"provenance":"estimated","origin":"Copernicus GLO-90 digital surface model sampled on a 15 × 15 grid at each city; see tunisia/README.md"},
     "tunisia_city_climate": {"provenance":"estimated","origin":"NASA POWER 2025 gridded daily archive, aggregated over the selected dates; see tunisia/README.md"},
     "agricultural_zone_profiles": {"provenance":"estimated","origin":"ESA WorldCover 2021 crop and landscape classification, Copernicus GLO-90 terrain and NASA POWER 2025 summaries for three published research windows; see field_zones/README.md"},
+    "regional_planning_irradiation": {"provenance":"estimated","origin":"NASA POWER hourly irradiation at each study point, 15 January and 15 July 2025, converted from UTC to Africa/Tunis; see zone_planning/README.md"},
+    "regional_reference_et": {"provenance":"estimated","origin":"MIZUHO applies FAO-56 Penman–Monteith to archived NASA POWER radiation, air temperature, dew point, wind and surface pressure. Sector area, crop coefficient, effective rainfall and efficiency are explicit assumptions."},
+    "regional_irrigation_plans": {"provenance":"simulated","origin":"M4/M5 fixed and optimized schedules use archived regional sunlight and explicitly entered station and demand assumptions. West and east anchors are classified cropland cells."},
     "pvgis": {"provenance":"estimated","origin":"EC JRC PVGIS-SARAH3 2023 reference-point profiles in tools/m2m3/data/energy; load comparison is simulated"},
     "bouhertma": {"provenance":"observed","origin":"Archived FieldClimate station CSV; see weather/BOUHERTMA.md for time and coverage limitations"}
   }
