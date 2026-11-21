@@ -20,6 +20,7 @@ type LinkedSite = {
 
 interface Props {
   selectedCityId?: string;
+  onCityResolved: (city: TunisiaCity) => void;
   onCityChange: (city: TunisiaCity | null, nearbySiteIds: string[]) => void;
   selectedPeriod?: TunisiaPeriod;
   onPeriodChange?: (period: TunisiaPeriod | undefined) => void;
@@ -410,7 +411,7 @@ function CityAnalysis({ city, analysis, retry, sites, selectedPeriod, onPeriodCh
   </section>;
 }
 
-export default function TunisiaExplorer({ selectedCityId, onCityChange, selectedPeriod, onPeriodChange, sites = [] }: Props) {
+export default function TunisiaExplorer({ selectedCityId, onCityResolved, onCityChange, selectedPeriod, onPeriodChange, sites = [] }: Props) {
   const [catalog, setCatalog] = useState<Result<TunisiaCatalog>>();
   const [catalogAttempt, retryCatalog] = useState(0);
   const [cityAnalysis, setCityAnalysis] = useState<{ id: string; result: Result<TunisiaCityAnalysis> }>();
@@ -420,6 +421,7 @@ export default function TunisiaExplorer({ selectedCityId, onCityChange, selected
   const data = catalog?.value;
   const selected = data?.cities.find(city => city.id === selectedCityId);
   const activeCityId = selected?.id;
+  useEffect(() => { if (selected) onCityResolved(selected); }, [selected, onCityResolved]);
   const cityResult = cityAnalysis?.id === activeCityId ? cityAnalysis?.result : undefined;
   const matching = useMemo(() => {
     const needle = normalize(search.trim());

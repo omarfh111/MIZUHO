@@ -32,6 +32,7 @@ export default function App() {
   const [assistantSimulation, setAssistantSimulation] = useState<AssistantSimulationContext>();
   const [zonePlan, setZonePlan] = useState<RegionPlanContext>();
   const [city, setCity] = useState<TunisiaCity | null>(null);
+  const [cityId, setCityId] = useState(() => new URLSearchParams(window.location.search).get('city') ?? '');
   const [period, setPeriod] = useState<TunisiaPeriod>();
   const applySite = useCallback((id: string) => {
     setSiteId(id);
@@ -48,11 +49,17 @@ export default function App() {
     window.history.replaceState(null, '', url);
   }, [applySite, siteId]);
   const selectCity = useCallback((next: TunisiaCity | null, nearby: string[]) => {
-    if (next?.id === city?.id) return;
+    const id = next?.id ?? '';
+    if (id === cityId) return;
+    setCityId(id);
     setCity(next);
     setPeriod(undefined);
     if (next) selectSite(nearby.length === 1 ? nearby[0] : nearby.includes(siteId) ? siteId : '');
-  }, [city?.id, siteId, selectSite]);
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set('city', id);
+    else url.searchParams.delete('city');
+    window.history.replaceState(null, '', url);
+  }, [cityId, siteId, selectSite]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -69,27 +76,34 @@ export default function App() {
   }, [attempt]);
 
   useEffect(() => {
-    const followSite = () => {
+    const followLocation = () => {
+      const query = new URLSearchParams(window.location.search);
+      const restoredCity = query.get('city') ?? '';
+      if (restoredCity !== cityId) {
+        setCityId(restoredCity);
+        setCity(null);
+        setPeriod(undefined);
+      }
       if (!catalog) return;
-      const requested = new URLSearchParams(window.location.search).get('site');
+      const requested = query.get('site');
       const next = requested === null ? catalog.sites.features[0]?.properties.site_id :
         catalog.sites.features.find(s => s.properties.site_id === requested)?.properties.site_id;
       if ((next ?? '') !== siteId) applySite(next ?? '');
     };
-    window.addEventListener('popstate', followSite);
-    return () => window.removeEventListener('popstate', followSite);
-  }, [applySite, catalog, siteId]);
+    window.addEventListener('popstate', followLocation);
+    return () => window.removeEventListener('popstate', followLocation);
+  }, [applySite, catalog, siteId, cityId]);
 
   useEffect(() => {
     const followHash = () => {
       const next = currentPage();
       setPage(next);
       if (next === 'simulation') setVisitedSimulation(true);
-      if (next !== page) window.scrollTo(0, 0);
+      window.scrollTo(0, 0);
     };
     window.addEventListener('hashchange', followHash);
     return () => window.removeEventListener('hashchange', followHash);
-  }, [page]);
+  }, []);
 
   const navigate = (next: Page) => {
     window.location.hash = next;
@@ -143,7 +157,7 @@ export default function App() {
         <a href="#map" aria-current={page === 'map' ? 'page' : undefined}><Map size={15} /> Site map</a>
       </nav>}
       {page === 'tunisia' ? <Suspense fallback={<div className="surface page-fallback" role="status">Loading Tunisia explorer…</div>}>
-        <TunisiaExplorer selectedCityId={city?.id} selectedPeriod={period}
+        <TunisiaExplorer selectedCityId={cityId} onCityResolved={setCity} selectedPeriod={period}
           onCityChange={selectCity} onPeriodChange={setPeriod} sites={citySites} />
       </Suspense> : <section className="hero">
         <div>

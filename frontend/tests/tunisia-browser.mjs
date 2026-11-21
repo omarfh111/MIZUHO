@@ -115,11 +115,15 @@ try {
   assert.notDeepEqual(tunisProfile.relief.elevations, jendoubaProfile.relief.elevations);
   await north.getByRole('button', { name: 'Open simulated Jendouba pilot' }).click();
   await desktop.waitForURL(current => current.hash === '#map');
+  assert.equal(new URL(desktop.url()).searchParams.get('city'), jendouba.id);
   assert.equal(await desktop.getByRole('combobox', { name: 'Agricultural site' }).inputValue(), 'jendouba-pilote');
   await desktop.getByRole('link', { name: 'Tunisia', exact: true }).click();
   await analysis(desktop, jendouba.name).waitFor();
+  await desktop.reload();
+  await checkClimate(desktop, jendouba.name, jendoubaProfile);
   await desktop.getByRole('button', { name: 'Back to Tunisia' }).click();
   assert.equal(await map(desktop).getAttribute('data-view'), 'country');
+  assert.equal(new URL(desktop.url()).searchParams.has('city'), false);
   assert.deepEqual(errors, []);
   await desktop.close();
 
