@@ -76,6 +76,20 @@ export const PLACES: PlaceMarker[] = [
   { id: 'jendouba', label: 'Jendouba', kind: 'city', at: [8.78, 36.5] },
 ];
 
+export interface EnergySite {
+  id: string;
+  label: string;
+  kind: 'wind' | 'solar';
+  at: LonLat;
+}
+
+/** Operating renewable plants, at approximate positions. */
+export const ENERGY_SITES: EnergySite[] = [
+  { id: 'sidi-daoud', label: 'Sidi Daoud wind farm', kind: 'wind', at: [10.9, 37.02] },
+  { id: 'bizerte', label: 'Bizerte wind farms', kind: 'wind', at: [9.72, 37.2] },
+  { id: 'tozeur', label: 'Tozeur solar plant', kind: 'solar', at: [8.13, 33.92] },
+];
+
 /** Centre of the illustrative irrigated perimeter (Medjerda valley near Jendouba). */
 export const VALLEY_CENTER: LonLat = [8.77, 36.545];
 export const VALLEY_RADIUS = 3.4;

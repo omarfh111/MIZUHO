@@ -2,9 +2,10 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import type { Director } from '../core/director.ts';
+import { ENERGY_SITES, toWorld } from '../core/geo.ts';
 import type { World } from './world.ts';
 
-type Channel = 'mapLabels' | 'labels';
+type Channel = 'mapLabels' | 'labels' | 'renewables';
 
 interface Spec {
   text: string;
@@ -31,6 +32,16 @@ export function Labels({ world, director, layer }: { world: World; director: Dir
       channel: 'mapLabels' as const,
       stagger: i * 0.06,
     })),
+    ...ENERGY_SITES.map((site, i) => {
+      const { x, z } = toWorld(site.at);
+      return {
+        text: site.label,
+        className: `mx-place mx-place--${site.kind}`,
+        position: new THREE.Vector3(x, world.heightAt(x, z) + 1.2, z),
+        channel: 'renewables' as const,
+        stagger: i * 0.1,
+      };
+    }),
     ...world.valley.pois.map((poi, i) => ({
       text: poi.label,
       className: 'mx-poi',
