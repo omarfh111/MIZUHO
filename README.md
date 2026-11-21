@@ -101,6 +101,24 @@ sequenceDiagram
 
 <sub>In the A/B demo the fixed schedule delivers 10 m³ to A and 0 m³ to B during the outage; the proposed schedule delivers 5 m³ to each. When the solver returns no solution, the fixed schedule stays available.</sub>
 
+### Answering with evidence (M8)
+
+The assistant is a two-node LangGraph loop. It thinks, calls tools until it has what it needs, then answers with citations it can trace back to a source.
+
+```mermaid
+flowchart TD
+  q(["Your question"]) --> think["Think<br/>gpt-6-luna"]
+  think -->|"needs facts"| tools{{"Tools"}}
+  tools --> t1["search_evidence<br/>cited official excerpts"]
+  tools --> t2["get_site_data<br/>layers and solar options"]
+  tools --> t3["get_simulation_results<br/>run M6 plans"]
+  tools --> t4["explain_decision<br/>allocation and binding limits"]
+  t1 & t2 & t3 & t4 --> think
+  think -->|"enough to answer"| a(["Grounded answer<br/>with citations"])
+  a -.-> mem[("Session memory<br/>6 answers · resets after 1 h")]
+  mem -.-> think
+```
+
 ## Run MIZUHO
 
 Use Git, Python **3.12**, Node.js **22.12 or later**, an OpenAI project key with access to `gpt-6-luna` and `text-embedding-3-small`, and a Qdrant Cloud cluster with an API key that can read and write the evidence collection.
