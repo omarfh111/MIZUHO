@@ -12,6 +12,14 @@ export function sampleSurface(relief: ReliefGrid, cover: LandCoverGrid, point: S
   const v = Math.max(0, Math.min(1, point.v));
   const col = Math.min(cover.cols - 1, Math.floor(u * cover.cols));
   const row = Math.min(cover.rows - 1, Math.floor((1 - v) * cover.rows));
+  const [west, south, east, north] = relief.bounds;
+  return { u, v, longitude: west + u * (east - west), latitude: south + v * (north - south),
+    coverCode: cover.classes[row * cover.cols + col], elevation: surfaceElevation(relief, { u, v }) };
+}
+
+export function surfaceElevation(relief: ReliefGrid, point: SurfacePoint): number | null {
+  const u = Math.max(0, Math.min(1, point.u));
+  const v = Math.max(0, Math.min(1, point.v));
   const x = u * (relief.cols - 1);
   const y = v * (relief.rows - 1);
   const left = Math.min(Math.floor(x), relief.cols - 2);
@@ -23,11 +31,8 @@ export function sampleSurface(relief: ReliefGrid, cover: LandCoverGrid, point: S
   const indices = dx + dy <= 1 ? [index, index + 1, index + relief.cols]
     : [index + relief.cols + 1, index + relief.cols, index + 1];
   const weights = dx + dy <= 1 ? [1 - dx - dy, dx, dy] : [dx + dy - 1, 1 - dx, 1 - dy];
-  const elevation = indices.some(i => relief.elevations[i] == null) ? null :
+  return indices.some(i => relief.elevations[i] == null) ? null :
     indices.reduce((sum, i, corner) => sum + weights[corner] * relief.elevations[i]!, 0);
-  const [west, south, east, north] = relief.bounds;
-  return { u, v, longitude: west + u * (east - west), latitude: south + v * (north - south),
-    coverCode: cover.classes[row * cover.cols + col], elevation };
 }
 
 /** Find the closest mapped display cell of this class to the current inspection point. */

@@ -9,7 +9,7 @@ import { findCoverSample, sampleSurface, type SurfacePoint } from './surfaceSamp
 import SitePicker from './SitePicker.tsx';
 import './field-zone.css';
 
-const CityRelief = lazy(() => import('./CityRelief.tsx'));
+const RegionalSiteScene = lazy(() => import('./RegionalSiteScene.tsx'));
 
 interface Props {
   site: Site;
@@ -62,7 +62,7 @@ export default function FieldZoneMap({ site, sites, onSelectSite, onEvidence, on
   const [profile, setProfile] = useState<FieldZone>();
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const [showCover, setShowCover] = useState(true);
+  const [surface, setSurface] = useState<'Satellite' | 'Land cover' | 'Elevation'>('Satellite');
   const [point, setPoint] = useState<SurfacePoint | null>(null);
   const { properties } = site;
   const sample = profile && point && sampleSurface(profile.relief, profile.land_cover, point);
@@ -85,8 +85,8 @@ export default function FieldZoneMap({ site, sites, onSelectSite, onEvidence, on
             <h2>{properties.label}</h2><span className="muted small">{properties.locality}</span>
           </div></div>
           {profile && <div className="field-surface-switch" role="group" aria-label="Map surface">
-            <button type="button" aria-pressed={showCover} onClick={() => setShowCover(true)}>Land cover</button>
-            <button type="button" aria-pressed={!showCover} onClick={() => setShowCover(false)}>Elevation</button>
+            {(['Satellite', 'Land cover', 'Elevation'] as const).map(option =>
+              <button key={option} type="button" aria-pressed={surface === option} onClick={() => setSurface(option)}>{option}</button>)}
           </div>}
         </header>
         {!profile || cinematicActive ? <div className="field-map-status" role={failed ? 'alert' : 'status'}>
@@ -98,7 +98,7 @@ export default function FieldZoneMap({ site, sites, onSelectSite, onEvidence, on
             }}>Retry zone</button>
           </> : !cinematicActive && 'Loading the georeferenced map…'}
         </div> : <Suspense fallback={<div className="field-map-status" role="status">Loading terrain…</div>}>
-          <CityRelief name={properties.label} relief={profile.relief} landCover={profile.land_cover} showLandCover={showCover}
+          <RegionalSiteScene profile={profile} showLandCover={surface === 'Land cover'} satellite={surface === 'Satellite'}
             markers={sample ? [{ ...sample, id: 'sample', label: landCover.get(sample.coverCode ?? 0)?.label ?? 'Sample' }] : []}
             onInspect={setPoint} />
         </Suspense>}
@@ -106,7 +106,7 @@ export default function FieldZoneMap({ site, sites, onSelectSite, onEvidence, on
           <span className="map-coordinates"><Crosshair size={14} />
             {site.geometry.coordinates[1].toFixed(4)}° N · {site.geometry.coordinates[0].toFixed(4)}° E
           </span>
-          <span>{showCover ? 'ESA WorldCover 2021 · Copernicus DEM' : 'Copernicus DEM'}</span>
+          <span>{surface === 'Satellite' ? 'Sentinel-2 composite · 2021' : surface === 'Land cover' ? 'ESA WorldCover 2021 · Copernicus DEM' : 'Copernicus DEM'}</span>
         </footer>
       </section>
       <aside className="map-sidebar" aria-label="Site and layers">

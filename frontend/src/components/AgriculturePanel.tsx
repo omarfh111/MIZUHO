@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { getAgriculture } from '../api.ts';
 import { dateLabel, value } from '../format.ts';
-import type { AgriculturalSurvey } from '../types.ts';
+import type { AgriculturalSurvey, TunisiaRelief } from '../types.ts';
 import './agriculture.css';
 
-export default function AgriculturePanel({ siteId, plotId, onEvidence }: {
+export default function AgriculturePanel({ siteId, plotId, onEvidence, onRelief }: {
   siteId: string; plotId?: string; onEvidence: (id: string) => void;
+  onRelief?: (relief: TunisiaRelief | undefined) => void;
 }) {
   const [survey, setSurvey] = useState<AgriculturalSurvey | null>(null);
   const [failed, setFailed] = useState(false);
@@ -13,10 +14,10 @@ export default function AgriculturePanel({ siteId, plotId, onEvidence }: {
   useEffect(() => {
     const controller = new AbortController();
     getAgriculture(siteId, controller.signal).then(data => {
-      if (!controller.signal.aborted) setSurvey(data);
+      if (!controller.signal.aborted) { setSurvey(data); onRelief?.(data.relief ?? undefined); }
     }).catch(() => { if (!controller.signal.aborted) setFailed(true); });
     return () => controller.abort();
-  }, [siteId, attempt]);
+  }, [siteId, attempt, onRelief]);
   if (failed) return <div className="surface page-fallback">
     <p role="alert">Agricultural survey unavailable.</p>
     <button type="button" className="button button-secondary" onClick={() => {

@@ -183,6 +183,7 @@ export type Layer = FeatureCollection<Geometry, LayerProperties> & {
 
 export interface AgriculturalSurvey {
   site_id: string;
+  relief?: TunisiaRelief | null;
   period: string;
   resolution: string;
   interpretation: string;

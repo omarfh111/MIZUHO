@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Position } from 'geojson';
+import { backupGenerator } from './stationVariant.ts';
 
 const width = 116;
 const depth = 82;
@@ -215,7 +216,10 @@ export function buildTerrain(operational = false) {
   station.position.set(-1, .8, -4.3);
   const roof = new THREE.Mesh(new THREE.BoxGeometry(2.7, .18, 3.1), new THREE.MeshStandardMaterial({ color: '#254c60' }));
   roof.position.set(-1, 1.64, -4.3);
-  tank.add(tankBody, tankTop, tankRing, station, roof);
+  const vessel = new THREE.Group();
+  vessel.name = 'reservoir-vessel';
+  vessel.add(tankBody, tankTop, tankRing);
+  tank.add(vessel, station, roof);
   if (operational) {
     tankBody.material.transparent = true;
     tankBody.material.opacity = .23;
@@ -227,7 +231,10 @@ export function buildTerrain(operational = false) {
     const lamp = new THREE.Mesh(new THREE.SphereGeometry(.53, 12, 8), new THREE.MeshBasicMaterial({ color: '#546760' }));
     lamp.name = 'pump-indicator';
     lamp.position.set(-1, 2, -4.3);
-    tank.add(water, lamp);
+    const generator = backupGenerator();
+    generator.position.set(2, .13, -4.3);
+    vessel.add(water);
+    tank.add(lamp, generator);
   }
   group.add(tank);
   return group;
@@ -244,6 +251,7 @@ export function disposeScene(scene: THREE.Object3D) {
   const geometries = new Set<THREE.BufferGeometry>();
   const textures = new Set<THREE.Texture>();
   scene.traverse((node) => {
+    if (node instanceof THREE.InstancedMesh) node.dispose();
     const mesh = node as THREE.Mesh;
     if (mesh.geometry) geometries.add(mesh.geometry);
     if (!mesh.material) return;
