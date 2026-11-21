@@ -69,7 +69,7 @@ export const demoLayers: Record<LayerId, Layer> = {
 
 export const demoEvidence: Record<string, Evidence> = {
   'demo-site': {
-    title: 'Périmètre pilote de Jendouba', organization: 'MIZU NEXUS', date: demoDate, page: null, url: null,
+    title: 'Périmètre pilote de Jendouba', organization: 'Mizhuo', date: demoDate, page: null, url: null,
     limitation: 'Le groupement, ses parcelles et ses équipements sont fictifs. Les coordonnées situent la démonstration.',
   },
   wapor: {
@@ -88,7 +88,7 @@ export const demoEvidence: Record<string, Evidence> = {
     limitation: 'Aucun extrait local ni modèle de turbine chargé. La production est indisponible.',
   },
   telemetry: {
-    title: 'Relevés hydrauliques et énergétiques de démonstration', organization: 'MIZU NEXUS', date: demoDate,
+    title: 'Relevés hydrauliques et énergétiques de démonstration', organization: 'Mizhuo', date: demoDate,
     page: null, url: null, limitation: 'Une hausse de consommation ou un résidu d’eau déclenche une vérification. La cause demande des mesures complémentaires.',
   },
   weather: {

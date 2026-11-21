@@ -62,9 +62,9 @@ export default function App() {
     }}>Aller au contenu</a>
     <header className="topbar">
       <div className="topbar-inner">
-        <a className="brand" href="#carte" aria-label="MIZU NEXUS · Carte">
+        <a className="brand" href="#carte" aria-label="Mizhuo · Carte">
           <span className="brand-mark"><Waves size={24} strokeWidth={2.4} /></span>
-          <span>MIZU <strong>NEXUS</strong><small>OBSERVATOIRE AGRICOLE</small></span>
+          <span>Miz<strong>huo</strong><small>OBSERVATOIRE AGRICOLE</small></span>
         </a>
         <nav className="main-nav" aria-label="Navigation principale">
           <a href="#carte" aria-current={page === 'map' ? 'page' : undefined}><Map size={16} /> Carte du site</a>
@@ -111,7 +111,7 @@ export default function App() {
           <Simulation key={siteId} scenarios={scenarios} mode={catalog.mode} solar={solar} onClearSolar={() => setSolar(null)} onEvidence={setSource} />
         </Suspense> : <div className="surface page-fallback"><p>Données insuffisantes · aucun scénario pour ce site.</p></div>}
       </div>}
-      <footer className="footer"><span><Waves size={15} /> MIZU NEXUS</span>
+      <footer className="footer"><span><Waves size={15} /> Mizhuo</span>
         <span>{catalog?.mode === 'demo' ? 'Mode démonstration · couches et scénarios locaux' : 'Continuité de l’irrigation · Tunisie'}</span></footer>
     </main>
     {catalog && solarIds && <SolarComparison site={siteId} options={solarIds} mode={catalog.mode}

@@ -1,4 +1,4 @@
-# MIZU NEXUS · M7
+# Mizhuo · M7
 
 Interface de cartographie et de simulation des tours d’eau pour le périmètre pilote de Jendouba.
 
