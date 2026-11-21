@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import TypeAdapter
 
+from . import DATA_DIR
 from .agriculture import Survey, SurveyPlot, read_survey
 
 from .models import (
@@ -17,9 +18,6 @@ from .weather import validate_pair
 if TYPE_CHECKING:
     from .field_zones import FieldZone
     from .zone_planning import ZonePlanningProfile
-
-
-DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 
 @dataclass(frozen=True)

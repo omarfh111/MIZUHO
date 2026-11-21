@@ -1,0 +1,54 @@
+{
+  "gafsa-oasis": {
+    "bounds": [
+      8.74955,
+      34.35428,
+      8.85843,
+      34.44412
+    ],
+    "asset": "gafsa-oasis.webp",
+    "url": "https://titiler.terrascope.be/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=esa-worldcover-s2rgbnir-10m-2021-v2_tcc&STYLES=&TIME=2021-01-01&CRS=EPSG%3A4326&BBOX=34.35428%2C8.74955%2C34.44412%2C8.85843&WIDTH=768&HEIGHT=768&FORMAT=image%2Fpng&TRANSPARENT=true",
+    "source_sha256": "bb15c86d0ba83e7b6f215f2f7f2e07a37c27cf367778b9d48d9cd14cdd7e7281",
+    "sha256": "bd504a74f65cd3d9fe300129b803ce11bcb18b981baa290c5af936689783ef37",
+    "retrieved_at": "2026-11-21"
+  },
+  "kairouan-chebika": {
+    "bounds": [
+      9.84394,
+      35.53592,
+      9.95439,
+      35.62575
+    ],
+    "asset": "kairouan-chebika.webp",
+    "url": "https://titiler.terrascope.be/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=esa-worldcover-s2rgbnir-10m-2021-v2_tcc&STYLES=&TIME=2021-01-01&CRS=EPSG%3A4326&BBOX=35.53592%2C9.84394%2C35.62575%2C9.95439&WIDTH=768&HEIGHT=768&FORMAT=image%2Fpng&TRANSPARENT=true",
+    "source_sha256": "fb34a8c6a64f0948aad9e8d8a76bc7aa2a0feccc5733b7ea0518981edd732401",
+    "sha256": "7910d5268b38b9d6311062d2ec1e4385bdfaf9c40c97f3e2117c059de35ed465",
+    "retrieved_at": "2026-11-21"
+  },
+  "korba-cap-bon": {
+    "bounds": [
+      10.80268,
+      36.53369,
+      10.91454,
+      36.62353
+    ],
+    "asset": "korba-cap-bon.webp",
+    "url": "https://titiler.terrascope.be/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=esa-worldcover-s2rgbnir-10m-2021-v2_tcc&STYLES=&TIME=2021-01-01&CRS=EPSG%3A4326&BBOX=36.53369%2C10.80268%2C36.62353%2C10.91454&WIDTH=768&HEIGHT=768&FORMAT=image%2Fpng&TRANSPARENT=true",
+    "source_sha256": "481d48a8f0e24d9cef1675ffb3b44803d581d19124cb6b296d08758b02e87c03",
+    "sha256": "9eaf0df6513b329cd19e2c1155bff0c27aba5dcf9244c53821bccb0139cb196f",
+    "retrieved_at": "2026-11-21"
+  },
+  "TN-32-BALTABOUAWENE-ASSILA": {
+    "bounds": [
+      8.95839,
+      36.59868,
+      9.0045,
+      36.63569
+    ],
+    "asset": "TN-32-BALTABOUAWENE-ASSILA.webp",
+    "url": "https://titiler.terrascope.be/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=esa-worldcover-s2rgbnir-10m-2021-v2_tcc&STYLES=&TIME=2021-01-01&CRS=EPSG%3A4326&BBOX=36.59868%2C8.95839%2C36.63569%2C9.0045&WIDTH=768&HEIGHT=768&FORMAT=image%2Fpng&TRANSPARENT=true",
+    "source_sha256": "90401f7cd31ce62adfe1f325918444066127767fc5ebf974ea29163df14d25e6",
+    "sha256": "5e9942cf851abbe07012adb2f2e50f20b43b0c46f843e3d7417f30727cf6e51c",
+    "retrieved_at": "2026-11-21"
+  }
+}

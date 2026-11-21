@@ -50,6 +50,30 @@ def test_v5_offline_plot_contract_and_units():
         Plot(plot_id="A", farmer_id="A", demand_m3=2, minimum_m3=3, deadline_slot=1, allowed_slots=(1,))
 
 
+def test_assila_relief_and_satellite_cover_the_full_survey_window(tmp_path):
+    from hashlib import sha256
+    from urllib.parse import parse_qs, urlparse
+
+    site_dir = DATA_DIR / "agriculture" / "assila"
+    relief = read_survey(site_dir).survey.relief
+    assert relief is not None and relief.source.id == "copernicus-dem-glo90"
+    assert len({v for v in relief.elevations if v is not None}) > 10
+    west, south, east, north = relief.bounds
+    imagery = DATA_DIR.parent / "frontend" / "src" / "assets" / "site-imagery"
+    entry = json.loads((imagery / "manifest.json").read_bytes())[SITE]
+    assert tuple(entry["bounds"]) == relief.bounds
+    params = parse_qs(urlparse(entry["url"]).query)
+    assert list(map(float, params["BBOX"][0].split(","))) == [south, west, north, east]
+    assert sha256((imagery / entry["asset"]).read_bytes()).hexdigest() == entry["sha256"]
+    assert params["LAYERS"] == ["esa-worldcover-s2rgbnir-10m-2021-v2_tcc"]
+
+    copytree(site_dir, tmp_path, dirs_exist_ok=True)
+    different_location = relief.model_copy(update={"bounds": (west + 1, south, east + 1, north)})
+    (tmp_path / "relief.json").write_text(different_location.model_dump_json(), encoding="utf-8")
+    with pytest.raises(ValueError, match="elevation window"):
+        read_survey(tmp_path)
+
+
 @pytest.mark.parametrize(("field", "bad_value"), [("plot_id", "P-02"), ("site_id", "")])
 def test_corrupt_survey_is_rejected(tmp_path, field, bad_value):
     copytree(DATA_DIR / "agriculture" / "assila", tmp_path, dirs_exist_ok=True)

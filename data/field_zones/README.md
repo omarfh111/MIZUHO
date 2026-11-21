@@ -10,6 +10,22 @@ These profiles cover three agricultural settings with distinct water-management 
 
 The selector lists all three alongside Assila and the Jendouba planning pilot. The atlas links nearby registered sites. Each profile shares its evidence with the same assistant used by the pilot.
 
+## Site-specific 3D scenes
+
+The default surface is a real **Sentinel-2 annual natural-colour composite for 2021**. The satellite image, land-cover classification and Copernicus elevations share the scene's WGS84 bounds. Korba includes the lagoon and coast, Chebika covers the inland agricultural plain and El Ksar the oasis edge. The archived 768 × 768 crops remain usable offline. The source WMS request for each image, its hash and the display file hash are recorded in the [imagery manifest](../../frontend/src/assets/site-imagery/manifest.json). The WMS 1.3 EPSG:4326 request uses latitude–longitude axis order. The image spans the full displayed DEM from northwest to southeast. [ESA WorldCover data, annual composites and licence](https://esa-worldcover.org/en/data-access)
+
+The two demonstration outlets coincide with the solver's cropland service points. The layout chooses a hypothetical station on mapped cropland in the north-central part of each window, scoring local elevation and distance from the centre. The branches follow connected dry land-cover cells to each outlet. These are illustrative positions and alignments. No survey establishes hydraulic head, pipes, electrical connections, land ownership or equipment at those coordinates. Trees and built-up structures are representative class symbols. Equipment is enlarged for legibility. During playback, the simulated tank level, pump indicator, grid indicator and directional flow use the chosen plan's hourly physical results. A different sharing rule changes the deliveries without relocating the same installation.
+
+Assila uses the five original OpenStreetMap parcel boundaries and their WaPOR layer over a separately cropped Copernicus surface and Sentinel-2 image. Crop identity, water rights and delivery windows are unverified there. Jendouba retains its explicitly fictional, reproducible pilot geometry.
+
+To rebuild the Assila terrain and refresh the images, install the atlas import dependencies and run the following from the repository root. The frontend build embeds the resulting assets and makes no WMS requests during the demonstration.
+
+```powershell
+python -m pip install -r tools/tunisia/requirements.txt
+python -m tools.m1.refresh_relief
+python -m tools.field_zones.refresh_imagery
+```
+
 ## Data and refresh
 
 - **Land cover.** ESA WorldCover 2021 v200 is a satellite-derived categorical map. The importer tallies valid pixels in the source 10 m window, including water, and builds a 128 × 128 preview by dominant class. The 3D renderer projects that preview over the local relief. A tree-cover pixel can contain cultivated trees. Class shares do not measure currently irrigated hectares. [Dataset and licence](https://esa-worldcover.org/en/data-access) · [Product DOI](https://doi.org/10.5281/zenodo.7254221)
