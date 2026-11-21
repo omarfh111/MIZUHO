@@ -9,6 +9,7 @@ from typing import Annotated, Literal
 from pydantic import Field
 
 from .models import Amount, Evidence, Feature, Layer, LayerId, PlanningModel, Plot, PlotId, SiteProperties, SlotIndex
+from .tunisia import Relief
 
 Nonnegative = Annotated[float, Field(ge=0, allow_inf_nan=False)]
 AETI = "wapor3-l2-aeti-2026-07-d2"
@@ -60,6 +61,7 @@ class Survey(PlanningModel):
     source_ids: tuple[str, ...]
     variables: dict[str, SurveyVariable]
     quota_m3: Amount | None
+    relief: Relief | None = None
     optimizer_ready: Literal[False] = False
     interpretation: str = ("Parcel volumes estimate positive actual evapotranspiration minus gross rainfall. "
                            "Irrigation demand requires crop, soil storage, effective rain and application efficiency. "
@@ -153,7 +155,15 @@ def read_survey(folder: Path) -> SurveyDataset:
     }
     if any(set(variable.source_ids) - sources.keys() for variable in variables.values()):
         raise ValueError("Agricultural variable references an unknown source.")
-    survey = Survey(site_id=site_id, parcels=tuple(parcels), quota_m3=site_data["quota_m3"], period=period,
+    relief_file = folder / "relief.json"
+    relief = Relief.model_validate_json(relief_file.read_bytes()) if relief_file.is_file() else None
+    if relief:
+        west, south, east, north = relief.bounds
+        if any(not (west <= lon <= east and south <= lat <= north)
+               for layer in (boundaries, raster["features"]) for feature in layer
+               for ring in feature["geometry"]["coordinates"] for lon, lat in ring):
+            raise ValueError("The survey elevation window must contain its mapped parcels and WaPOR cells.")
+    survey = Survey(site_id=site_id, parcels=tuple(parcels), quota_m3=site_data["quota_m3"], period=period, relief=relief,
                     resolution=resolution, source_ids=tuple(sources), variables=variables)
     cells = [{**f, "properties": {"label": "WaPOR AETI", "source_id": metadata["source_id"],
                                    "eta_mm_day": f["properties"]["eta_mm_day"]}} for f in raster["features"]]

@@ -1,6 +1,6 @@
 # MIZUHO V5 integration
 
-The dashboard opens on the national map. Select a governorate capital to inspect its Copernicus relief and NASA POWER climate archive, then open a nearby registered site when available. The **Site map** also gives direct access to the fictional Jendouba irrigation group and the mapped Assila survey. The city archives, parcel survey, station observations, electricity forecast and irrigation scenarios refer to distinct places or periods. [National sources and refresh](../data/tunisia/README.md)
+The dashboard opens on the national map in **Land & agriculture**. Select a governorate capital to inspect its Copernicus relief, NASA POWER climate archive and nearby registered sites. **Site map** includes the Jendouba planning pilot, the Assila survey and three regional study windows. **Water & energy** shows the observations and estimates available at the selected location. **Irrigation planning** compares schedules at Jendouba and runs conditional scenarios against archived regional sunlight at Korba, Chebika and Gafsa. [National sources and refresh](../data/tunisia/README.md) · [Regional replay and assumptions](../data/zone_planning/README.md) · [Eight-problem evidence audit](v5-capability-audit.md)
 
 ## Integration matrix
 

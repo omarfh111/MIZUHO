@@ -9,7 +9,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, HttpUrl, model_validator
 
-from .catalog import DATA_DIR
+from . import DATA_DIR
 
 ARCHIVE_DIR = DATA_DIR / "tunisia"
 CATALOG_FILE = "catalog.json"

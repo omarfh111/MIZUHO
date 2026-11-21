@@ -99,17 +99,17 @@ def boundary_catalog(client: httpx.Client) -> tuple[dict, Source]:
     return {"type": "FeatureCollection", "features": geojson["features"]}, source
 
 
-def relief_grid(city: City):
-    latitude_radius = RELIEF_RADIUS_KM / 111.32
+def relief_grid(city: City, size: int = GRID_SIZE, radius_km: float = RELIEF_RADIUS_KM):
+    latitude_radius = radius_km / 111.32
     longitude_radius = latitude_radius / cos(radians(city.latitude))
     west, south = city.longitude - longitude_radius, city.latitude - latitude_radius
     east, north = city.longitude + longitude_radius, city.latitude + latitude_radius
     bounds = tuple(round(value, 5) for value in (west, south, east, north))
     west, south, east, north = bounds
     points = [
-        (round(south + row * (north - south) / (GRID_SIZE - 1), 5),
-         round(west + col * (east - west) / (GRID_SIZE - 1), 5))
-        for row in range(GRID_SIZE) for col in range(GRID_SIZE)
+        (round(south + row * (north - south) / (size - 1), 5),
+         round(west + col * (east - west) / (size - 1), 5))
+        for row in range(size) for col in range(size)
     ]
     return bounds, points
 
@@ -147,8 +147,8 @@ class ElevationTiles:
         return raw, values, west - px * scale_x, north + py * scale_y, scale_x, scale_y, nodata
 
 
-def get_relief(tiles: ElevationTiles, city: City) -> Relief:
-    bounds, points = relief_grid(city)
+def get_relief(tiles: ElevationTiles, city: City, *, size: int = GRID_SIZE, radius_km: float = RELIEF_RADIUS_KM) -> Relief:
+    bounds, points = relief_grid(city, size, radius_km)
     raw = {}
     elevations = []
     for latitude, longitude in points:
@@ -164,12 +164,12 @@ def get_relief(tiles: ElevationTiles, city: City) -> Relief:
         present = isfinite(value) and (nodata is None or value != float(nodata))
         elevations.append(round(value, 2) if present else None)
     return Relief(
-        rows=GRID_SIZE, cols=GRID_SIZE, bounds=bounds, elevations=elevations,
+        rows=size, cols=size, bounds=bounds, elevations=elevations,
         source=Source(
             id="copernicus-dem-glo90", name="Copernicus DEM GLO-90", url="https://registry.opendata.aws/copernicus-dem/",
             attribution=ELEVATION_CREDIT, license="Copernicus WorldDEM-90 free licence", provenance="estimated",
             retrieved_at=source_date(),
-            coverage=f"{GRID_SIZE} × {GRID_SIZE} samples over ~{2 * RELIEF_RADIUS_KM} km per axis; "
+            coverage=f"{size} × {size} samples over ~{2 * radius_km:g} km per axis; "
                      "sampled surface heights in metres, ~90 m native DEM, 2021 release.",
             sha256=digest([raw[url] for url in sorted(raw)]), assets=tuple(sorted(raw)),
         ),

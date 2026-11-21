@@ -7,6 +7,10 @@ import type { Layer, LayerId, LayerProperties, Site } from '../types.ts';
 import { buildTerrain, disposeScene, elevation, trace, worldPoint } from './terrain.ts';
 import type { MapControls } from './mapControls.ts';
 import type { TwinFrame } from '../twin.ts';
+import { reliefGeometry, verticalExaggeration, type ReliefGrid } from './cityReliefGeometry.ts';
+import { surfaceElevation } from './surfaceSample.ts';
+import { terrainScene } from './CityRelief.tsx';
+import { tankDimensionScale, type StationVariant } from './stationVariant.ts';
 
 const layerColors: Record<LayerId, string> = { plots: '#c9ef86', solar: '#f7ce76', anomalies: '#f29285', wind: '#a9b9f4', wapor: '#3bc9c1' };
 const tankPosition = new THREE.Vector3(-34, elevation(-34, 7) + 2.5, 7);
@@ -18,9 +22,19 @@ function rings(geometry?: Geometry): Position[][] {
   return [];
 }
 
-function projection(site: Site, layers: Partial<Record<LayerId, Layer>>, demo: boolean): Project {
+function projection(site: Site, layers: Partial<Record<LayerId, Layer>>, demo: boolean,
+  grid?: ReliefGrid, terrain?: ReturnType<typeof reliefGeometry>): Project {
   const center = site.geometry.coordinates;
   if (demo) return (point, lift) => worldPoint(point, center, lift);
+  if (grid && terrain) {
+    const [west, south, east, north] = grid.bounds;
+    const scale = 100 / Math.max(terrain.widthMetres, terrain.depthMetres);
+    return ([lon, lat], lift) => {
+      const u = (lon - west) / (east - west), v = (lat - south) / (north - south);
+      const y = ((surfaceElevation(grid, { u, v }) ?? terrain.low) - terrain.low) * scale * verticalExaggeration;
+      return new THREE.Vector3((u - .5) * terrain.widthMetres * scale, y + lift, (.5 - v) * terrain.depthMetres * scale);
+    };
+  }
   let extent = 1;
   const geometries = [...Object.values(layers).flatMap((layer) => layer.features.map(({ geometry }) => geometry)), site.outline];
   for (const geometry of geometries) {
@@ -155,6 +169,8 @@ function revealLayers(
 }
 
 interface Props {
+  surveyRelief?: ReliefGrid;
+  imagery?: string;
   site: Site;
   layers: Partial<Record<LayerId, Layer>>;
   active: LayerProperties | null;
@@ -162,10 +178,12 @@ interface Props {
   controls: React.RefObject<MapControls | null>;
   onUnavailable: () => void;
   demo: boolean;
-  snapshot?: TwinFrame;
+  snapshot?: Pick<TwinFrame, 'tank_stock_m3' | 'tank_capacity_m3' | 'pump_m3' | 'grid_available'> & StationVariant & {
+    parcels: Pick<TwinFrame['parcels'][number], 'plot_id' | 'delivered_m3'>[];
+  };
 }
 
-export default function TerrainMap({ site, layers, active, select, controls, onUnavailable, demo, snapshot }: Props) {
+export default function TerrainMap({ site, layers, active, select, controls, onUnavailable, demo, snapshot, surveyRelief, imagery }: Props) {
   const current = useRef(snapshot);
   current.current = snapshot;
   const operational = Boolean(snapshot);
@@ -174,7 +192,8 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
   const setup = useRef<{ scene: THREE.Scene; render: () => void } | null>(null);
   const markersRef = useRef<Marker[]>([]);
   const updateLinks = useRef<(now: number) => void>(() => {});
-  const project = useMemo(() => projection(site, layers, demo), [site, layers, demo]);
+  const terrain = useMemo(() => surveyRelief ? reliefGeometry(surveyRelief) : undefined, [surveyRelief]);
+  const project = useMemo(() => projection(site, layers, demo, surveyRelief, terrain), [site, layers, demo, surveyRelief, terrain]);
   const markers = useMemo(() => describeMarkers(project, layers, site.properties.label, demo, operational),
     [project, layers, site.properties.label, demo, operational]);
 
@@ -206,7 +225,7 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
     orbit.rotateSpeed = .65;
     const reset = () => {
       camera.position.copy(home).multiplyScalar(camera.aspect < 1.2 ? 1.23 : 1);
-      orbit.target.set(0, demo ? -8 : 0, 0);
+      orbit.target.set(0, demo ? -8 : (terrain?.height ?? 0) * .45, 0);
       orbit.update();
     };
     reset();
@@ -222,8 +241,24 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
     scene.add(new THREE.HemisphereLight('#d3ecd7', '#35483e', 2.05));
     const sun = new THREE.DirectionalLight('#ffeac4', 2.15);
     sun.position.set(-66, 110, -29);
-    scene.add(sun, demo ? buildTerrain(operational) : new THREE.GridHelper(96, 24, '#54705e', '#344d41'));
+    let disposed = false;
+    if (surveyRelief && terrain) {
+      const bed = terrainScene(surveyRelief, terrain);
+      scene.add(bed.scene);
+      if (imagery) {
+        const texture = new THREE.TextureLoader().load(imagery, (ready) => {
+          if (disposed) { ready.dispose(); return; }
+          bed.material.map = ready;
+          bed.material.vertexColors = false;
+          bed.material.needsUpdate = true;
+        }, undefined, () => texture.dispose());
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+      }
+    } else scene.add(sun, demo ? buildTerrain(operational) : new THREE.GridHelper(96, 24, '#54705e', '#344d41'));
     const water = scene.getObjectByName('reservoir-fill');
+    const vessel = scene.getObjectByName('reservoir-vessel');
+    const backup = scene.getObjectByName('active-islandable-backup');
     const lamp = scene.getObjectByName('pump-indicator') as THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial> | undefined;
     const lost = (event: Event) => {
       event.preventDefault();
@@ -277,6 +312,8 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
         updateLinks.current(reduced.matches ? 0 : time);
         const snapshot = current.current;
         if (water && lamp && snapshot) {
+          vessel?.scale.setScalar(tankDimensionScale(snapshot.tank_scale));
+          if (backup) backup.visible = Boolean(snapshot.backup_active);
           const level = snapshot.tank_capacity_m3 ? snapshot.tank_stock_m3 / snapshot.tank_capacity_m3 : 0;
           water.scale.y = reduced.matches ? level : THREE.MathUtils.lerp(water.scale.y, level, .15);
           lamp.material.color.setHex(snapshot.pump_m3 > 0 ? 0x96ffc6 : 0x546760);
@@ -287,6 +324,7 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
     };
     frame = window.requestAnimationFrame(animate);
     return () => {
+      disposed = true;
       window.cancelAnimationFrame(frame);
       observer.disconnect();
       intersection.disconnect();
@@ -300,7 +338,7 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
       controls.current = null;
       setup.current = null;
     };
-  }, [controls, onUnavailable, demo, operational]);
+  }, [controls, onUnavailable, demo, operational, surveyRelief, terrain, imagery]);
 
   useEffect(() => {
     if (!setup.current) return;
@@ -334,7 +372,7 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
   }, [active, site, layers, demo, project, markers]);
 
   return <>
-    <div className="terrain-surface" ref={view} />
+    <div className="terrain-surface" ref={view} data-tank-volume-ratio={snapshot?.tank_scale} data-backup-active={snapshot?.backup_active} />
     <div className="terrain-markers">
       {markers.map((marker) => {
         const selected = marker.properties ? marker.properties === active : active === null;

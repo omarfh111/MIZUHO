@@ -7,14 +7,14 @@
 
 <h1>MIZUHO</h1>
 
-<p><em>Renewable-powered water intelligence for Tunisian agriculture.<br>Map the Jendouba pilot, compare irrigation schedules during a power outage, and ask an evidence assistant why.</em></p>
+<p><em>An irrigation manager expects a power cut at 11:00. How much water should the group store, and which plots can still receive water on time?</em></p>
 
 [![M6 API and planning](https://img.shields.io/badge/M6-API_%26_CP--SAT_planning-62e3f0?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
 [![M7 3D dashboard](https://img.shields.io/badge/M7-3D_dashboard-c9ef86?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
 [![M8 Evidence assistant](https://img.shields.io/badge/M8-Evidence_assistant-f7ce76?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
 [![Jendouba pilot](https://img.shields.io/badge/%F0%9F%93%8D_Pilot-Jendouba%2C_Tunisia-eef6ef?style=for-the-badge&labelColor=0b1f1c)](#reproduce-the-pilot)
 
-[![CI on main](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml?query=branch%3Amain)
+[![CI on the agricultural zones demo branch](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml/badge.svg?branch=codex%2Fagricultural-zones)](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml?query=branch%3Acodex%2Fagricultural-zones)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
 ![OR-Tools](https://img.shields.io/badge/OR--Tools-CP--SAT-4285F4?style=flat&logo=google&logoColor=white)
@@ -37,7 +37,7 @@
 | **M1 · Assila survey** | Explore five mapped parcels and dated WaPOR estimates with source metadata. Inspect missing farmer, demand, quota and scheduling data. |
 | **M2/M3 · Energy and telemetry** | Use archived PVGIS profiles, inspect a held-out load forecast and replay virtual sensors with controlled faults. |
 | **M6 · API and irrigation planning** | Load the site and scenarios, compare solar options, and run the M4 simulator and M5 CP-SAT optimizer through FastAPI. |
-| **M7 · National map and 3D dashboard** | Zoom from Tunisia to one of its 24 governorate capitals. Explore local relief and climate, open a nearby surveyed or simulated site when available, and replay the [cinematic introduction](frontend/src/experience/README.md). |
+| **M7 · National map and 3D dashboard** | Zoom from Tunisia to one of its 24 governorate capitals. In **Site map**, compare three researched agricultural zones, the Assila survey, and the Jendouba planning pilot. |
 | **M8 · Evidence assistant** | Search official passages with Qdrant dense retrieval and BM25. Ask about a city's archive or the current site simulation with the same LangGraph agent. |
 
 ## How it works
@@ -49,7 +49,7 @@ flowchart TD
   accTitle: MIZUHO application architecture
   accDescr: The dashboard sends requests to FastAPI for M6 irrigation planning and M8 evidence-backed answers.
   subgraph M7["M7 · Browser"]
-    intro["Cinematic intro"] --> dash["Dashboard<br/>Tunisia · Site map · Simulation"]
+    intro["Cinematic intro"] --> dash["Dashboard<br/>Land &amp; agriculture · Water &amp; energy · Irrigation planning"]
   end
 
   subgraph M6["M6 · FastAPI"]
@@ -181,6 +181,8 @@ flowchart TD
 
 City profiles show the source, coverage, and retrieval date. A city needs verified parcels, water allocation, equipment specifications, and starting conditions before it can be used for operational planning. The built-in planning pilot uses simulated conditions. [National data refresh and sources](data/tunisia/README.md) · [Data manifest](data/manifest.json)
 
+The agricultural selector includes three georeferenced study windows at Korba, Chebika on the Kairouan plain and Gafsa–El Ksar. Inspect a location on its WorldCover and elevation surfaces. Each planner uses two archived local days of NASA POWER hourly irradiation and explicit assumptions for equipment, water and demand. Its playback shows simulated volumes at two hypothetical sectors anchored on classified cropland. [Zone studies](data/field_zones/README.md) · [Regional replay inputs and API example](data/zone_planning/README.md) · [V5 capability audit](docs/v5-capability-audit.md)
+
 ## Run MIZUHO
 
 Use Git, Python **3.12** and Node.js **22.12 or later**. Once dependencies are installed, the local backend and frontend run the maps, optimizer, digital twin, forecast and event demonstrations without credentials or network access. Configure OpenAI and Qdrant in step 2 for conversational answers and indexed retrieval.
@@ -190,7 +192,7 @@ Use Git, Python **3.12** and Node.js **22.12 or later**. Once dependencies are i
 Run these commands from PowerShell. On macOS or Linux, use `.venv/bin/python` wherever the commands show `.\.venv\Scripts\python.exe`.
 
 ```powershell
-git clone --branch main https://github.com/omarfh111/MIZUHO.git
+git clone --branch codex/agricultural-zones --single-branch https://github.com/omarfh111/MIZUHO.git
 cd MIZUHO
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
@@ -246,19 +248,39 @@ In a second terminal at the repository root, start Vite.
 npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
 
-Open the dashboard and confirm it shows **API · simulated site**. The API health route should report `ok`. With the provider keys and index configured, assistant health should report `available` with seven indexed passages. Ask what ANME says about photovoltaic potential in northwest Tunisia and open the cited excerpt. [Dashboard](http://127.0.0.1:5173/) · [API health](http://127.0.0.1:8000/api/health) · [Assistant health](http://127.0.0.1:8000/api/assistant/health)
+Open **Land & agriculture → Site map** and select the Jendouba pilot to see **API · simulated site**. The API health route should report `ok`. With provider keys and the index configured, assistant health should report `available` with seven indexed passages. Ask what ANME says about photovoltaic potential in northwest Tunisia and open the cited excerpt. [Dashboard](http://127.0.0.1:5173/) · [API health](http://127.0.0.1:8000/api/health) · [Assistant health](http://127.0.0.1:8000/api/assistant/health)
 
 Vite proxies `/api` to port 8000. For production, serve `frontend/dist` and route `/api` to FastAPI on the same origin.
 
 ## Reproduce the pilot
 
 For a judge walkthrough of the eight operating and sensor demonstrations, see the [integration matrix, architecture and replay guide](docs/integration-v5.md).
-Start in **Tunisia**, select a city and inspect its climate period and elevation source. Select **Jendouba** for the nearby simulated field site, or open **Site map** from the main navigation. See the [judge validation report](docs/judge-validation.md) for the field workflow regression coverage.
+Start in **Land & agriculture → Tunisia**, select a city and inspect its climate period and elevation source. Select **Jendouba** to open the nearby simulated pilot, or choose a registered site in **Site map**. **Water & energy** shows the Bouhertma instrument archive and PVGIS comparison for Jendouba, the WaPOR survey for Assila, or regional climate for a study zone. [Judge validation report](docs/judge-validation.md)
 
 1. On the **Site map**, enable **Water anomalies** and select the distribution meter to see the simulated **13 m³** discrepancy. Open **Compare solar options** to inspect the two 10 kWp profiles and their assumptions.
-2. In **Simulation**, select **A/B demo** and **Calculate schedules**. During the outage, the fixed schedule delivers **10 m³** to A and **0 m³** to B. The proposed schedule delivers **5 m³** to each plot, raising minimum coverage from **0%** to **50%**. Approve the proposed simulated plan.
+2. In **Irrigation planning**, select **A/B demo** and **Calculate schedules**. During the outage, the fixed schedule delivers **10 m³** to A and **0 m³** to B. The proposed schedule delivers **5 m³** to each plot, raising minimum coverage from **0%** to **50%**. Approve the proposed simulated plan.
 3. With the A/B result current, open **Ask Mizhuo** and ask *Why did grower A receive only 5 m³ in the A/B demo?* The assistant can use M6's current comparison. Ask *What does ANME say about photovoltaic potential in northwest Tunisia?*, open the citation, then ask *Which official source did you just cite?* to check the session follow-up.
 4. Change the water stock to see the result marked stale until recalculated. Select **Day-ahead weather reserve** to see the proposed plan pump **2 m³** before **11:00**, raising on-time delivery from **6 m³** to **8 m³**. With a quota of **5 m³**, the remaining shortfall is **2 m³**. **Day-ahead reserve · Stable profile** requires **0 m³** of early pumping.
+
+### Replay an outage across the farm and the community
+
+1. Open **Irrigation planning** on the Jendouba normal day. Select **Test outage resilience**, choose a coverage target and run the grid. A full day includes 16 combinations of outage start and duration. Open a cell to see the minimum water reserve the solver can verify and the first parcel to miss its deadline. Short pilot scenarios use their remaining time window.
+2. Replay the selected hour in 3D. Switch between fixed turns, fair sharing and urgent-parcel priority. Compare the physical tank level with the virtual meter during a loss or a sensor error. The three-day heat test carries both stock and the unused withdrawal quota forward. The infrastructure comparison keeps the initial stock fixed when increasing tank capacity and accounts separately for backup electricity.
+3. Choose **Community electricity** in the same case. Set the number of homes, their continuous and lighting loads, usable backup energy and island-capable output. The residential circuit has its own supply. A city without irrigation records can run the same household balance from the national atlas. [Household backup assumptions](https://www.energy.gov/cmei/systems/solar-and-resilience-basics)
+4. Repeat the farm experiment at Korba, Chebika or Gafsa after supplying the station assumptions. The regional scenes use the local relief and satellite imagery. Modelled delivery sectors and pipes illustrate the scenario. The Assila survey displays its mapped parcels and remains outside the irrigation optimizer while equipment, quotas and demands are unknown. [Local footprints and provenance](data/field_zones/README.md) · [Weather and planning assumptions](data/zone_planning/README.md)
+
+### How long can the irrigation group hold out?
+
+Open **Irrigation planning** in Jendouba, choose **Test the limited-pump example** and select **Run outage grid**. The simulated station starts the day with 12 m³ in storage, a 65 m³ withdrawal quota and a 2 m³/h pump. Open the **11:00, 4 h** cell. The daily totals show the trade-off the manager faces.
+
+| Sharing rule | Delivered on time | Water withdrawn | Grid electricity | Least-served plot's minimum covered on time |
+| --- | ---: | ---: | ---: | ---: |
+| Fixed turns | 18 m³ | 6 m³ | 3 kWh | 0% |
+| Fair sharing | 46 m³ | 36 m³ | 18 kWh | 90% |
+
+The fair plan delivers an additional **28 m³ on time** by withdrawing **30 m³ more water** and consuming **15 kWh more grid electricity**. The group needs at least **13 m³ already in the tank when the outage starts** to meet the selected 80% coverage target. Return to the grid and open **11:00, 8 h**. The best coverage drops to **70%**, the total shortfall against timely minimums rises from **4 to 12 m³**, and the 80% target becomes unreachable under these assumptions. [Solver regression](tests/test_resilience.py) · [Browser walkthrough](frontend/tests/outage-browser.mjs)
+
+These are simulated operating results. A water group can check them against a dated outage using its opening stock, delivery and electricity meter readings, and the manager's original schedule. [Field validation protocol](docs/v5-capability-audit.md#how-a-water-group-could-validate-the-pilot)
 
 ### Replay the M6 API fixture
 
@@ -290,10 +312,15 @@ The running backend serves [OpenAPI documentation](http://127.0.0.1:8000/docs).
 | --- | --- |
 | Health and geography | `GET /api/health`, `GET /api/scenarios`, `GET /api/sites`, `GET /api/layers/{site_id}/{layer_id}` |
 | National map and profiles | `GET /api/tunisia`, `GET /api/tunisia/cities/{id}` with optional inclusive `start` and `end` dates |
+| Researched agricultural zones | `GET /api/sites/{site_id}/field-zone` returns land cover, terrain, climate and source metadata |
+| Regional planning | `GET /api/sites/{site_id}/planning` lists archived days and cropland anchors. `POST` to the same route to compare schedules with explicit operating assumptions. |
+| Regional demand estimate | `POST /api/sites/{site_id}/demand-estimate` applies crop coefficient, area, effective-rain fraction and efficiency to the archived day's FAO-56 reference ET and rainfall. |
 | Agricultural survey and weather station | `GET /api/sites/{site_id}/agriculture`, `GET /api/weather/bouhertma?day=2026-05-08` |
 | Archived solar comparison, hourly PV and planning weather | `POST /api/solar/compare-archive`, `POST /api/solar/profile`, `POST /api/weather` |
 | Verified replay and virtual instrumentation | `POST /api/telemetry/replay`, `POST /api/telemetry/project`, `POST /api/telemetry/forecast` |
 | Irrigation and solar | `POST /api/compare`, `POST /api/solar/compare` |
+| Outage stress test | `POST /api/sites/{site_id}/resilience/grid` runs the coverage matrix. `POST /api/sites/{site_id}/resilience/case` returns the selected outage, candidate schedules, incident readings, heat replays and backup comparison. Both accept the same site planning inputs. |
+| Household electricity | `POST /api/resilience/households` projects hourly demand, energy supplied, unmet load and remaining usable AC energy. The result includes the first shortfall, the energy required for the whole outage and peak island-capable output required. |
 | Sources and retrieval | `GET /api/evidence/{source_id}`, `GET /api/evidence/{source_id}/passages`, `POST /api/evidence/search` |
 | Evidence assistant | `POST /api/assistant/chat`, `GET /api/assistant/health`, `GET /api/assistant/index` |
 
@@ -310,7 +337,7 @@ npm run build
 Pop-Location
 ```
 
-With Chrome installed and both servers running, use `npm --prefix frontend run test:browser` to exercise the cinematic handoff, M6 schedule approval, and the M8 citation follow-up. The test sends three chat questions to the live assistant. Set `MIZHUO_TEST_URL` when testing a frontend served at a different URL.
+With Chrome installed and both servers running, use `npm --prefix frontend run test:browser` to exercise the cinematic handoff, M6 schedule approval, and live M8 answers and citation follow-ups. Set `MIZHUO_TEST_URL` when testing a frontend served at a different URL.
 
 Run `npm --prefix frontend run test:integration` against those same local servers for the national explorer, survey map, and desktop/mobile twin tests. These checks do not require provider credentials.
 

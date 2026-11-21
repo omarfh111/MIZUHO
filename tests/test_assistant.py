@@ -106,6 +106,72 @@ def test_city_assistant_uses_the_same_public_profile_and_isolates_city_facts():
         }).status_code == 422
 
 
+def test_researched_site_assistant_uses_registered_cover_and_source_links(context):
+    catalog, corpus = context
+    zone = catalog.field_zones["korba-cap-bon"]
+    counts = zone.land_cover.pixel_counts
+
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            return response(call("get_site_data", {"include_solar": False}))
+        return complete()
+
+    request = AssistantRequest(site_id="korba-cap-bon", question="How does this zone compare on farmland and terrain?")
+    answer = run_assistant(request, catalog, corpus, SimpleNamespace(respond=respond), 5)
+    cover = next(fact for fact in answer.facts if fact.source_url == zone.land_cover.source.url)
+    assert f"{100 * counts[40] / sum(counts.values()):.2f}%" in cover.text
+    assert cover.provenance == Provenance.ESTIMATED
+    assert set(zone.missing_inputs) <= set(answer.missing_information)
+
+
+def test_regional_assistant_checks_displayed_plan_and_expires_earlier_allocations():
+    prompts = []
+
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            prompts.append(json.loads(body["input"][0]["content"]))
+            return response(call("explain_decision", {"scenario_id": None, "quota_m3": None}))
+        return complete()
+
+    def factory(data_dir, catalog, budget):
+        return AssistantRuntime(catalog, load_corpus(data_dir, catalog.evidence),
+                                SimpleNamespace(respond=respond, close=lambda: None), budget)
+
+    with TestClient(create_app(assistant_factory=factory)) as client:
+        site = "korba-cap-bon"
+        assumptions = dict(date="2025-07-15", tank_capacity_m3=10, initial_stock_m3=6, withdrawal_limit_m3=0,
+                           pump_flow_m3_h=3, pump_wh_per_m3=500, gravity_flow_m3_h=4, grid_cap_w=2000,
+                           pv_capacity_kwp=3, pv_performance_ratio=.8, demand_west_m3=6, demand_east_m3=6,
+                           delivery_start_hour=8, delivery_end_hour=10, outage_hours=[8, 9])
+        basis = dict(date=assumptions["date"], area_m2=600, crop_coefficient=.9,
+                     effective_rain_fraction=.5, application_efficiency=.8)
+        estimate = client.post(f"/api/sites/{site}/demand-estimate", json=basis).json()
+        assumptions.update(demand_west_m3=estimate["demand_m3"], demand_basis={"west": basis})
+        computed = client.post(f"/api/sites/{site}/planning", json=assumptions).json()
+        receipt = {"inputs": assumptions, "comparison_id": computed["comparison_id"]}
+        message = {"site_id": site, "session_id": str(uuid4()), "question": "Why did the west sector get that volume?"}
+        reply = client.post("/api/assistant/chat", json={**message, "zone_plan": receipt})
+        assert reply.status_code == 200
+        answer = reply.json()
+        assert answer["tools_used"] == ["explain_decision"]
+        for plot in computed["comparison"]["optimized"]["plot_results"]:
+            assert any(f"Hypothetical {plot['plot_id']} sector: {plot['delivered_on_time_m3']} m³" in item["text"]
+                       and item["provenance"] == "simulated" and not item["source_url"] for item in answer["facts"])
+        assert any(item["source_url"] == computed["source"]["url"] and item["provenance"] == "estimated"
+                   for item in answer["facts"])
+        assert any("MIZUHO derived" in item["text"] and not item["source_url"] for item in answer["facts"])
+        assert any(f"west sector demand of {estimate['demand_m3']} m³" in item["text"]
+                   and item["provenance"] == "simulated" for item in answer["facts"])
+        assert all(not item["citation_ids"] for item in answer["paragraphs"])
+        pending = client.post("/api/assistant/chat", json=message).json()
+        assert not pending["facts"] and not prompts[-1]["prior_answers"]
+        assert any("Run the regional comparison" in gap for gap in pending["missing_information"])
+        mismatched = {**receipt, "comparison_id": "0" * 64}
+        stale = client.post("/api/assistant/chat", json={**message, "zone_plan": mismatched}).json()
+        assert not stale["facts"] and any("reproduce the displayed schedule" in gap for gap in stale["missing_information"])
+        assert client.post("/api/assistant/chat", json={**message, "site_id": "jendouba-pilote", "zone_plan": receipt}).status_code == 422
+
+
 def test_what_if_uses_original_and_reduced_quota_and_never_edits_state(context):
     catalog, corpus = context
     outputs = []

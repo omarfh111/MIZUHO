@@ -6,11 +6,14 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { getLayer, type DataMode } from '../api.ts';
 import { dateLabel, provenanceLabel, value } from '../format.ts';
 import { useExperience } from '../experience/index.ts';
-import type { Layer, LayerId, LayerProperties, Scenario, Site, SolarOption } from '../types.ts';
+import type { Layer, LayerId, LayerProperties, Scenario, Site, SolarOption, TunisiaRelief } from '../types.ts';
+import { siteImagery } from './siteImagery.ts';
 import type { MapControls } from './mapControls.ts';
 import AgriculturePanel from './AgriculturePanel.tsx';
+import SitePicker from './SitePicker.tsx';
 
 const TerrainMap = lazy(() => import('./TerrainMap.tsx'));
+const FieldZoneMap = lazy(() => import('./FieldZoneMap.tsx'));
 const layerOptions = [
   { id: 'plots', title: 'Farm plots', details: 'Crops and water demand', icon: Layers3, tone: 'lime' },
   { id: 'solar', title: 'Solar potential', details: 'Solar PV configurations', icon: Sun, tone: 'gold' },
@@ -36,17 +39,29 @@ interface Props {
   onSimulate: () => void;
 }
 
-export default function SiteMap({ site, sites, scenario, selectedOption, mode, onSelectSite, onCompare, onEvidence, onSimulate }: Props) {
+export default function SiteMap(props: Props) {
+  if (props.site.properties.field_zone) {
+    return <Suspense fallback={<div className="surface page-fallback" role="status">Loading agricultural zone…</div>}>
+      <FieldZoneMap site={props.site} sites={props.sites} onSelectSite={props.onSelectSite}
+        onEvidence={props.onEvidence} onSimulate={props.onSimulate} />
+    </Suspense>;
+  }
+  return <PilotSiteMap {...props} />;
+}
+
+function PilotSiteMap({ site, sites, scenario, selectedOption, mode, onSelectSite, onCompare, onEvidence, onSimulate }: Props) {
   const { active: cinematicActive } = useExperience();
   const [catalog, setCatalog] = useState<LayerState>({});
   const layerChoices = site.properties.survey_available ? surveyLayers : layerOptions;
   const [visible, setVisible] = useState<LayerId[]>(site.properties.survey_available ? ['plots', 'wapor'] : ['plots', 'solar']);
   const [active, setActive] = useState<LayerProperties | null>(null);
   const [hardwareError, setHardwareError] = useState(false);
+  const [surveyRelief, setSurveyRelief] = useState<TunisiaRelief>();
   const controls = useRef<MapControls>(null);
   const loads = useRef<AbortController | null>(null);
   const fallback = useCallback(() => setHardwareError(true), []);
   const { properties } = site;
+  const imagery = surveyRelief && properties.survey_available ? siteImagery(properties.site_id, surveyRelief) : undefined;
   const hasDemoRelief = mode === 'demo' || (properties.status === 'simulated' && properties.relief === 'jendouba-demo');
 
   const loadLayer = useCallback((id: LayerId) => {
@@ -94,9 +109,10 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
           </div> : cinematicActive ? <div className="map-loading" aria-hidden /> : <>
             <Suspense fallback={<div className="map-loading" role="status">Loading the map…</div>}>
               <TerrainMap site={site} layers={layers} active={active} select={setActive} controls={controls}
-                onUnavailable={fallback} demo={hasDemoRelief} />
+                onUnavailable={fallback} demo={hasDemoRelief} surveyRelief={properties.survey_available ? surveyRelief : undefined}
+                imagery={imagery?.src} />
             </Suspense>
-            <div className="map-tag"><span className="status-dot" />{hasDemoRelief ? 'Simulated terrain' : 'Site geometry'}</div>
+            <div className="map-tag"><span className="status-dot" />{hasDemoRelief ? 'Simulated terrain' : imagery ? 'OSM parcels · Copernicus surface' : 'Site geometry'}</div>
             <div className="map-compass" aria-label="North"><span>N</span><Compass size={29} strokeWidth={1.25} /></div>
             <div className="map-controls">
               <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => controls.current?.zoom(1)}><Plus size={19} /></button>
@@ -106,6 +122,9 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
             <div className="map-hint">Drag to rotate</div>
           </>}
         </div>
+        {imagery && <p className="small scene-provenance"><a href={imagery.original} target="_blank" rel="noreferrer">Sentinel-2 composite · 2021 ↗</a>
+          {' · '}<a href={surveyRelief?.source.url} target="_blank" rel="noreferrer">Copernicus GLO-90 · elevation ×3 ↗</a>
+          <br/>© ESA WorldCover project 2021 · Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium.</p>}
         <div className="map-footer">
           <span className="map-coordinates"><Crosshair size={14} /> {location}</span>
           <div className="map-key">
@@ -122,9 +141,7 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
       <aside className="map-sidebar" aria-label="Site and layers">
         <section className="surface site-card">
           <div className="aside-label"><MapPin size={15} /> {active ? 'SELECTED AREA' : 'PILOT SITE'}</div>
-          {sites.length > 1 && <select className="site-select" aria-label="Pilot site" value={properties.site_id} onChange={(event) => onSelectSite(event.target.value)}>
-            {sites.map(({ properties }) => <option key={properties.site_id} value={properties.site_id}>{properties.label}</option>)}
-          </select>}
+          <SitePicker sites={sites} siteId={properties.site_id} select={onSelectSite} />
           {inspectable.length > 0 && <select className="site-select" aria-label="Inspect an area"
             value={active ? inspectable.indexOf(active) : -1}
             onChange={(event) => setActive(inspectable[Number(event.target.value)] ?? null)}>
@@ -176,7 +193,7 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
         </div>
       </aside>
     </div>
-    {properties.survey_available && <AgriculturePanel siteId={properties.site_id} plotId={active?.plot_id} onEvidence={onEvidence} />}
+    {properties.survey_available && <AgriculturePanel siteId={properties.site_id} plotId={active?.plot_id} onEvidence={onEvidence} onRelief={setSurveyRelief} />}
     {scenario && <section className="overview-stats" aria-label="Site configuration">
       {[
         { icon: Droplets, title: 'Initial water stock', amount: value(scenario.state.tank_stock_m3), unit: 'm³', tone: 'teal', hint: 'Water available in the reservoir' },

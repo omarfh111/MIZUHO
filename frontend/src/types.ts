@@ -13,6 +13,7 @@ export interface SiteProperties {
   date?: string;
   relief?: 'jendouba-demo';
   survey_available?: boolean;
+  field_zone?: boolean;
 }
 
 export type Site = Feature<Point, SiteProperties> & { outline?: Geometry };
@@ -57,6 +58,90 @@ export interface TunisiaClimate {
   source: TunisiaSource;
 }
 
+export interface LandCoverGrid {
+  rows: number;
+  cols: number;
+  classes: (number | null)[];
+}
+
+export interface FieldZone {
+  site: Site;
+  evidence: Evidence;
+  relief: TunisiaRelief;
+  land_cover: LandCoverGrid & { pixel_counts: Record<string, number>; source: TunisiaSource };
+  climate: TunisiaClimate;
+  location_source: TunisiaSource;
+  water_question: string;
+  missing_inputs: string[];
+}
+
+export interface RegionPlanRequest {
+  date: string;
+  tank_capacity_m3: number;
+  initial_stock_m3: number;
+  withdrawal_limit_m3: number;
+  pump_flow_m3_h: number;
+  pump_wh_per_m3: number;
+  gravity_flow_m3_h: number;
+  grid_cap_w: number;
+  pv_capacity_kwp: number;
+  pv_performance_ratio: number;
+  demand_west_m3: number;
+  demand_east_m3: number;
+  delivery_start_hour: number;
+  delivery_end_hour: number;
+  outage_hours: number[];
+  demand_basis?: Partial<Record<RegionSector, RegionalDemandBasis>>;
+}
+
+export type RegionSector = 'west' | 'east';
+
+export interface RegionalDemandBasis {
+  date: string;
+  area_m2: number;
+  crop_coefficient: number;
+  effective_rain_fraction: number;
+  application_efficiency: number;
+}
+
+export interface RegionalWaterWeather {
+  et0_mm: number;
+  precipitation_mm: number;
+  source: TunisiaSource;
+}
+
+export interface RegionalDemandEstimate {
+  date: string;
+  demand_m3: number;
+  et0_mm: number;
+  precipitation_mm: number;
+  net_depth_mm: number;
+  effective_rain_mm: number;
+  gross_demand_m3: number;
+  source: TunisiaSource;
+}
+
+export interface RegionalPlanningContext {
+  site_id: string;
+  days: { date: string; irradiation_wh_m2: number[]; source: TunisiaSource; weather?: RegionalWaterWeather | null }[];
+  anchors: { plot_id: 'west' | 'east'; longitude: number; latitude: number; cover_class: 40 }[];
+  missing_inputs: string[];
+}
+
+export interface RegionalPlanningResult {
+  site_id: string;
+  date: string;
+  comparison_id: string;
+  source: TunisiaSource;
+  solar_wh: number[];
+  comparison: Comparison;
+}
+
+export interface RegionPlanContext {
+  inputs: RegionPlanRequest;
+  comparison_id: string;
+}
+
 export interface TunisiaCatalog {
   boundary: FeatureCollection<Polygon | MultiPolygon>;
   cities: TunisiaCity[];
@@ -98,6 +183,7 @@ export type Layer = FeatureCollection<Geometry, LayerProperties> & {
 
 export interface AgriculturalSurvey {
   site_id: string;
+  relief?: TunisiaRelief | null;
   period: string;
   resolution: string;
   interpretation: string;
@@ -321,6 +407,7 @@ export interface AssistantHealth {
 }
 
 export interface AssistantRequest {
+  zone_plan?: RegionPlanContext;
   provider?: 'openai' | 'nvidia';
   telemetry?: import('./twin.ts').ReplayContext;
   question: string;

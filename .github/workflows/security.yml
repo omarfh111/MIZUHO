@@ -53,7 +53,8 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           changes=$(git diff --name-only "$BASE_SHA" "$GITHUB_SHA" -- \
-            requirements.txt requirements-dev.txt tools/tunisia/requirements.txt frontend/package.json frontend/package-lock.json)
+            requirements.txt requirements-dev.txt tools/tunisia/requirements.txt tools/field_zones/requirements.txt \
+            frontend/package.json frontend/package-lock.json)
           if [[ -z "$changes" ]]; then
             echo "No dependency manifests changed in this pull request."
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -79,7 +80,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          manifests=(requirements.txt requirements-dev.txt tools/tunisia/requirements.txt frontend/package-lock.json)
+          manifests=(requirements.txt requirements-dev.txt tools/tunisia/requirements.txt tools/field_zones/requirements.txt frontend/package-lock.json)
           scan() {
             local revision=$1 label=$2 manifest tracked status=0
             local snapshot="$RUNNER_TEMP/dependencies-$label"

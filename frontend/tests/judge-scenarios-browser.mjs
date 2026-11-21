@@ -20,7 +20,7 @@ try {
   const scenario = page.getByRole('combobox', { name: 'Scenario', exact: true });
   const calculate = page.getByRole('button', { name: /^(Calculate schedules|Recalculate)$/ });
   const twin = page.getByRole('region', { name: 'Operational digital twin' });
-  const stock = page.getByLabel('Measured water stock (simulated input)', { exact: false });
+  const stock = page.getByLabel('Starting water stock (simulated input)', { exact: false });
   const quota = page.getByLabel('Remaining quota', { exact: false }).first();
   const shown = (locator) => locator.waitFor({ state: 'visible' });
 

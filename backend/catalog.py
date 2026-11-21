@@ -1,9 +1,11 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic import TypeAdapter
 
+from . import DATA_DIR
 from .agriculture import Survey, SurveyPlot, read_survey
 
 from .models import (
@@ -13,8 +15,9 @@ from .models import (
 from .simulator import validate_state
 from .weather import validate_pair
 
-
-DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+if TYPE_CHECKING:
+    from .field_zones import FieldZone
+    from .zone_planning import ZonePlanningProfile
 
 
 @dataclass(frozen=True)
@@ -27,6 +30,8 @@ class Catalog:
     evidence: dict[str, Evidence]
     efficiency: dict[str, EfficiencyReadings]
     agriculture: dict[str, Survey]
+    field_zones: dict[str, "FieldZone"]
+    zone_planning: dict[str, "ZonePlanningProfile"]
 
     def load_plots(self, site_id: str) -> tuple[SurveyPlot | Plot, ...]:
         if site_id in self.agriculture:
@@ -67,11 +72,21 @@ def by_id[T](items: list[T], key: Callable[[T], str]) -> dict[str, T]:
 
 
 def load_catalog(root: Path = DATA_DIR) -> Catalog:
+    from .field_zones import read_field_zones
+    from .zone_planning import read_planning_profiles
+
     sites = Sites.model_validate_json((root / "sites.geojson").read_bytes())
     datasets = [read_survey(path.parent) for path in sorted((root / "agriculture").glob("*/site.geojson"))]
-    sites = Sites(type="FeatureCollection", features=(*sites.features, *(d.site for d in datasets)))
+    zones = by_id(read_field_zones(root), lambda zone: zone.site.properties.site_id)
+    sites = Sites(type="FeatureCollection",
+                  features=(*sites.features, *(d.site for d in datasets), *(z.site for z in zones.values())))
     site_ids = by_id(list(sites.features), lambda feature: feature.properties.site_id)
     evidence = TypeAdapter(dict[str, Evidence]).validate_json((root / "sources.json").read_bytes())
+    for zone in zones.values():
+        source_id = zone.site.properties.source_id
+        if source_id in evidence:
+            raise ValueError(f"Duplicate zone evidence ID {source_id}.")
+        evidence[source_id] = zone.evidence
     efficiency = TypeAdapter(dict[str, EfficiencyReadings]).validate_json(
         (root / "telemetry" / "efficiency.json").read_bytes()
     )
@@ -145,4 +160,5 @@ def load_catalog(root: Path = DATA_DIR) -> Catalog:
             raise ValueError(f"Telemetry slots exceed the horizon for {scenario_id}.")
     if missing := sources - evidence.keys():
         raise ValueError(f"Missing evidence records: {', '.join(sorted(missing))}.")
-    return Catalog(sites, scenarios, layers, solar, weather, evidence, efficiency, agriculture)
+    return Catalog(sites, scenarios, layers, solar, weather, evidence, efficiency, agriculture, zones,
+                   read_planning_profiles(root, zones))

@@ -96,7 +96,8 @@ def planning_scope(request: AssistantRequest) -> str:
     city_period = request.city_period.model_dump(mode="json") if request.city_period else None
     snapshot = [request.site_id, request.city_id, city_period, request.solar_option_id, request.pvgis_option_id, request.selected_scenario_id,
                 request.simulation_revision, request.simulation_pending, comparison,
-                request.telemetry.model_dump(mode="json") if request.telemetry else None]
+                request.telemetry.model_dump(mode="json") if request.telemetry else None,
+                request.zone_plan.model_dump(mode="json") if request.zone_plan else None]
     return sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
 
 

@@ -1,33 +1,8 @@
-import { useEffect, useState } from 'react';
-import { getRadiationDay } from '../api.ts';
+import { useState } from 'react';
+import RadiationArchive from './RadiationArchive.tsx';
 import { hour } from '../format.ts';
 import type { OperatingInputs } from '../operating.ts';
 import type { Scenario } from '../types.ts';
-
-function RadiationArchive() {
-  const [day, setDay] = useState('2026-05-08');
-  const [data, setData] = useState<Awaited<ReturnType<typeof getRadiationDay>> | null>(null);
-  const [error, setError] = useState('');
-  useEffect(() => {
-    const controller = new AbortController();
-    setData(null);
-    setError('');
-    if (day) void getRadiationDay(day, controller.signal).then((response) => {
-      if (!controller.signal.aborted) setData(response);
-    }).catch(() => { if (!controller.signal.aborted) setError('Weather archive unavailable.'); });
-    return () => controller.abort();
-  }, [day]);
-  const readings = data?.observations.map((item) => item.radiation_w_m2) ?? [];
-  return <div className="outage-block">
-    <label className="field"><span>Bouhertma station archive</span>
-      <input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
-    </label>
-    <p className="muted small" aria-live="polite">{error || (data ? <>
-      {readings.length ? `${readings.length} reported hours · Peak irradiance ${Math.max(...readings)} W/m².` : 'No observations on this date.'}
-      {' '}Station timezone unspecified. PV production is modelled separately. <a href={data.source_url} target="_blank" rel="noreferrer">Station source</a>
-    </> : day ? 'Loading station readings…' : 'Choose a date to inspect station observations.')}</p>
-  </div>;
-}
 
 export default function OperatingEditor({ settings, scenario, weather, errors, change }: {
   settings: OperatingInputs; scenario: Scenario; weather: boolean; errors: Record<string, string>;

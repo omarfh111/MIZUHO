@@ -13,8 +13,8 @@ class StateError(ValueError):
 
 
 def available_power(slot: Slot) -> tuple[int, int]:
-    """Return usable solar Wh and the grid limit in Wh for this one-hour slot."""
-    return (slot.solar_wh, slot.grid_cap_w) if slot.grid_available else (0, 0)
+    """Usable grid-tied PV and dispatchable supply (grid or islanded backup) over one hour."""
+    return (slot.solar_wh, slot.grid_cap_w) if slot.grid_available else (0, slot.island_backup_w)
 
 
 def pump_limit(site: Site, slot: Slot) -> int:
@@ -98,7 +98,9 @@ def simulate(scenario: Scenario, state: State, actions: Sequence[Action], *, sto
     balances: list[SlotBalance] = []
     for slot in scenario.slots[state.current_slot:stop]:
         action = indexed.get(slot.slot) or Action(slot=slot.slot)
-        solar_available, grid_available = available_power(slot)
+        physical_loss = min(stock, slot.tank_loss_m3)
+        stock -= physical_loss
+        solar_available, dispatchable_available = available_power(slot)
         pumped = action.pump_m3
         pump_wh = pumped * site.pump_wh_per_m3
         limits = (
@@ -109,7 +111,7 @@ def simulate(scenario: Scenario, state: State, actions: Sequence[Action], *, sto
         for limit, constraint in limits:
             if pumped > limit:
                 return invalid(balances, slot.slot, constraint)
-        if pump_wh > solar_available + grid_available:
+        if pump_wh > solar_available + dispatchable_available:
             return invalid(balances, slot.slot, "power")
         stock += pumped
         quota -= pumped
@@ -144,7 +146,8 @@ def simulate(scenario: Scenario, state: State, actions: Sequence[Action], *, sto
         balances.append(SlotBalance(
             slot=slot.slot, tank_stock_m3=stock, quota_remaining_m3=quota,
             pump_m3=pumped, delivered_m3=volume, pump_wh=pump_wh,
-            solar_wh=solar_used, grid_wh=pump_wh - solar_used,
+            solar_wh=solar_used, grid_wh=pump_wh - solar_used if slot.grid_available else 0,
+            backup_wh=pump_wh - solar_used if not slot.grid_available else 0, physical_loss_m3=physical_loss,
         ))
     plot_results = summarize_plots(scenario, state, delivered, on_time)
     return Simulation(

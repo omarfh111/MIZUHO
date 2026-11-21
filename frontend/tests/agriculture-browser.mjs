@@ -15,7 +15,7 @@ try {
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(url.href);
-    const selector = page.getByRole('combobox', { name: 'Pilot site' });
+    const selector = page.getByRole('combobox', { name: 'Agricultural site' });
     if (viewport.width > 1000) {
       await page.route(`**/api/layers/${surveyId}/wapor`, route => route.fulfill({ status: 503 }));
       await page.route(`**/api/sites/${surveyId}/agriculture`, route => route.fulfill({ status: 503 }), { times: 1 });
@@ -31,6 +31,11 @@ try {
     await panel.getByRole('link', { name: 'P-05' }).waitFor();
     assert.equal(await panel.locator('tbody tr').count(), 5);
     const dataset = await (await page.request.get(new URL(`/api/sites/${surveyId}/agriculture`, url).href)).json();
+    await page.getByText('OSM parcels · Copernicus surface', { exact: true }).waitFor();
+    const footprint = new URL(await page.getByRole('link', { name: 'Sentinel-2 composite · 2021' }).getAttribute('href'));
+    const [west, south, east, north] = dataset.relief.bounds;
+    assert.deepEqual(footprint.searchParams.get('BBOX').split(',').map(Number), [south, west, north, east]);
+    assert.ok(new Set(dataset.relief.elevations).size > 10);
     const selected = dataset.parcels.find(p => p.plot_id === 'P-01');
     if (viewport.width > 1000) {
       const retry = page.getByRole('button', { name: 'Retry WaPOR water use' });

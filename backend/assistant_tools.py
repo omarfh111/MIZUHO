@@ -9,14 +9,16 @@ from pydantic import HttpUrl
 from .catalog import Catalog
 from .compare import InputError, compare
 from .evidence import Corpus, search
+from .field_zones import LAND_COVER_LABELS
 from .models import (
     Amount, ApiPlan, AssistantRequest, Citation, CompareRequest, Comparison, DecisionFact,
-    EvidenceSearchRequest, GroundedParagraph, PlanningModel, Point, Provenance,
+    EvidenceSearchRequest, GroundedParagraph, PlanningModel, Point, Provenance, ZonePlanRequest,
 )
 from .providers import Providers, ServiceError
 from .simulator import StateError
 from .solar import compare_option
 from .tunisia import TunisiaCityAnalysis
+from .zone_planning import ZonePlanResult, compare_zone, estimate_demand
 from tools.m2m3.mizu_m2m3.solar import compare_solar, simulation_solar_profile
 
 
@@ -45,6 +47,7 @@ class Turn:
     facts: dict[str, DecisionFact] = field(default_factory=dict)
     citations: dict[str, Citation] = field(default_factory=dict)
     results: dict[str, Comparison] = field(default_factory=dict)
+    zone_results: dict[str, ZonePlanResult] = field(default_factory=dict)
     gaps: set[str] = field(default_factory=set)
     tools_used: list[str] = field(default_factory=list)
     requested_facts: set[str] = field(default_factory=set)
@@ -137,6 +140,33 @@ def get_site_data(turn: Turn, args: SiteArgs) -> dict:
     site_id = turn.request.site_id
     feature = next(feature for feature in turn.catalog.sites.features if feature.properties.site_id == site_id)
     site = feature.properties
+    zone = turn.catalog.field_zones.get(site_id or "")
+    if zone is not None:
+        counts = zone.land_cover.pixel_counts
+        total = sum(counts.values())
+        crop_share = counts.get(40, 0) * 100 / total
+        dominant = max(counts, key=counts.__getitem__)
+        elevation = [sample for sample in zone.relief.elevations if sample is not None]
+        climate = zone.climate
+        facts = [
+            turn.fact(f"{site.label}: {site.description}", Provenance.OBSERVED, source_url=zone.evidence.url),
+            turn.fact(f"{site.label}: {crop_share:.2f}% of valid WorldCover 2021 pixels are cropland; "
+                      f"largest class: {LAND_COVER_LABELS[dominant]}.",
+                      Provenance.ESTIMATED, source_url=zone.land_cover.source.url, remember=True),
+            turn.fact(f"{site.label}: sampled elevation {min(elevation):g} to {max(elevation):g} m.",
+                      Provenance.ESTIMATED, source_url=zone.relief.source.url, remember=True),
+            turn.fact(f"{site.label} NASA POWER archive ({climate.start} to {climate.end}): "
+                      f"{climate.temperature_mean_c:g} °C mean air temperature, {climate.precipitation_mm:g} mm precipitation, "
+                      f"{climate.irradiation_mean_kwh_m2_day:g} kWh/m²/day mean solar irradiation.",
+                      Provenance.ESTIMATED, source_url=climate.source.url, remember=True),
+        ]
+        turn.explanations["zone"] = GroundedParagraph(
+            text="The research describes this site's water management context. The mapped cover and regional climate estimates help frame field questions.",
+            citation_ids=(), fact_ids=tuple(fact.id for fact in facts),
+        )
+        return {"facts": [fact.model_dump(mode="json") for fact in facts],
+                "missing_information": ["The land-cover classification provides no parcel, irrigation or pumping measurements.",
+                                        *zone.missing_inputs]}
     facts = [
         turn.fact(f"{site.label} site: {site.description} Site data status: {site.status.value}.", site.status),
     ]
@@ -268,7 +298,81 @@ def summarize_plan(turn: Turn, label: str, plan: ApiPlan, provenance: Provenance
     )]
 
 
+def regional_planning_facts(turn: Turn, args: ScenarioArgs, *, explain: bool) -> dict:
+    context = turn.request.zone_plan
+    if context is None or args.scenario_id not in (None, turn.request.site_id):
+        return {"facts": [], "missing_information": [
+            "Run the regional comparison with explicit station assumptions to explain a plan at this site."
+        ]}
+    profile = turn.catalog.zone_planning[turn.request.site_id]
+    inputs = context.inputs
+
+    def solve(request: ZonePlanRequest) -> ZonePlanResult:
+        key = request.model_dump_json()
+        if key not in turn.zone_results:
+            budget = min(turn.solver_budget, turn.remaining(turn.solver_budget + 1))
+            turn.zone_results[key] = compare_zone(profile, request, budget)
+        return turn.zone_results[key]
+
+    result = solve(inputs)
+    if result.comparison_id != context.comparison_id:
+        return {"facts": [], "missing_information": [
+            "The server could not reproduce the displayed schedule exactly. Recalculate before asking about its allocations."
+        ]}
+    facts = []
+    if args.quota_m3 is not None and args.quota_m3 != inputs.withdrawal_limit_m3:
+        if args.quota_m3 > inputs.withdrawal_limit_m3:
+            raise InputError("quota_m3", "The requested withdrawal limit must be a reduction.")
+        facts.extend(summarize_plan(turn, "Before the hypothetical reduction", result.comparison.optimized, Provenance.SIMULATED))
+        inputs = inputs.model_copy(update={"withdrawal_limit_m3": args.quota_m3})
+        result = solve(inputs)
+    candidate = result.comparison.optimized
+    day = next(day for day in profile.days if day.date == result.date)
+    light = turn.fact(f"{result.site_id}, {day.date}: {sum(day.irradiation_wh_m2) / 1000:.3f} kWh/m² of archived "
+                      "daily irradiation at the study point.", Provenance.ESTIMATED, source_url=day.source.url, remember=True)
+    facts.extend([
+        turn.fact(f"Assumed starting stock {inputs.initial_stock_m3} m³, withdrawal limit {inputs.withdrawal_limit_m3} m³, "
+                  f"PV capacity {inputs.pv_capacity_kwp:g} kWp. Modelled potential PV energy {sum(result.solar_wh)/1000:g} kWh.",
+                  Provenance.SIMULATED),
+        *summarize_plan(turn, "Fixed regional schedule", result.comparison.baseline, Provenance.SIMULATED),
+        *summarize_plan(turn, "Proposed regional schedule", candidate, Provenance.SIMULATED),
+    ])
+    if inputs.demand_basis and day.weather:
+        weather = day.weather
+        facts.append(turn.fact(f"{result.date} NASA POWER meteorology at the study point: "
+                               f"{weather.precipitation_mm:g} mm gross rain and {weather.temperature_mean_c:g} °C mean temperature.",
+                               Provenance.ESTIMATED, source_url=weather.source.url))
+        facts.append(turn.fact(f"MIZUHO derived {weather.et0_mm:g} mm of daily reference evapotranspiration "
+                               "using FAO-56 and the archived weather.", Provenance.ESTIMATED))
+        for sector, basis in inputs.demand_basis.items():
+            estimate = estimate_demand(profile, basis)
+            facts.append(turn.fact(f"The {sector} sector demand of {estimate.demand_m3} m³ was calculated assuming "
+                                   f"{basis.area_m2:g} m², crop coefficient {basis.crop_coefficient:g}, "
+                                   f"{basis.effective_rain_fraction:g} effective rainfall fraction and "
+                                   f"{basis.application_efficiency:g} application efficiency.", Provenance.SIMULATED))
+    for plot in candidate.plot_results or ():
+        facts.append(turn.fact(f"Hypothetical {plot.plot_id} sector: {plot.delivered_on_time_m3} m³ delivered by the "
+                               f"deadline against {plot.demand_m3} m³ assumed demand.", Provenance.SIMULATED, remember=True))
+    reason = ("The fixed turn alternates sectors. The solver prioritizes the least-covered sector under the same "
+              "tank, pump, grid and delivery constraints. The sectors represent hypothetical demand on mapped cropland.")
+    if candidate.status == "NO_SOLUTION":
+        reason = "The solver returned no verified proposed schedule within its budget. Only the fixed schedule can be assessed."
+    elif candidate.status == "FEASIBLE":
+        reason += " The proposed schedule passed the physical checks; optimality was not established within the time limit."
+    if inputs.withdrawal_limit_m3 != context.inputs.withdrawal_limit_m3:
+        reason += " The reduced withdrawal limit is a separate what-if calculation."
+    turn.explanations["decision" if explain else "planning"] = GroundedParagraph(
+        text=reason, citation_ids=(), fact_ids=tuple(fact.id for fact in facts),
+    )
+    facts.append(light)
+    turn.requested_facts.update(fact.id for fact in facts)
+    return {"facts": [fact.model_dump(mode="json") for fact in facts], "verification": candidate.status,
+            "missing_information": list(profile.missing_inputs)}
+
+
 def planning_facts(turn: Turn, args: ScenarioArgs, *, explain: bool) -> dict:
+    if turn.request.site_id in turn.catalog.field_zones:
+        return regional_planning_facts(turn, args, explain=explain)
     original = scenario_request(turn, args)
     state = original.state
     request = original
