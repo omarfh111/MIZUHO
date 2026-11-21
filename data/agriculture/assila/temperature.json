@@ -1,0 +1,50 @@
+{
+  "period": "2018-01-D1..2026-10-D3",
+  "source_ids": [
+    "wapor3-l2-aeti-series",
+    "wapor3-l1-ret-series",
+    "nasa-power-daily"
+  ],
+  "plots": {
+    "P-01": {
+      "n": 318,
+      "slope": 0.0019,
+      "p": 0.771,
+      "control_slope": -0.076,
+      "verdict": "no_significant_effect",
+      "slope_m3_day_per_c": 0.09
+    },
+    "P-02": {
+      "n": 318,
+      "slope": 0.0161,
+      "p": 0.0219,
+      "control_slope": -0.046,
+      "verdict": "increase",
+      "slope_m3_day_per_c": 1.37
+    },
+    "P-03": {
+      "n": 318,
+      "slope": 0.0272,
+      "p": 0.000166,
+      "control_slope": -0.0379,
+      "verdict": "increase",
+      "slope_m3_day_per_c": 2.71
+    },
+    "P-04": {
+      "n": 318,
+      "slope": 0.0214,
+      "p": 0.00222,
+      "control_slope": -0.0443,
+      "verdict": "increase",
+      "slope_m3_day_per_c": 2.07
+    },
+    "P-05": {
+      "n": 318,
+      "slope": 0.0264,
+      "p": 0.000403,
+      "control_slope": -0.0513,
+      "verdict": "increase",
+      "slope_m3_day_per_c": 1.22
+    }
+  }
+}

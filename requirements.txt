@@ -11,3 +11,8 @@ uvicorn==0.34.3
 protobuf==6.33.5
 requests==2.34.2
 httpx2==2.16.2
+
+# Solar profile alignment, virtual-meter diagnostics, and the held-out load forecast.
+numpy==2.5.5
+pandas==3.1.1
+scikit-learn==1.9.1
