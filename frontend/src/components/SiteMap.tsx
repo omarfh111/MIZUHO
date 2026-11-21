@@ -1,5 +1,5 @@
 import {
-  ArrowUpRight, BookOpenText, Box, Compass, Crosshair, Droplets, Layers3, Map, MapPin,
+  ArrowUpRight, BookOpenText, Compass, Crosshair, Droplets, Layers3, Map, MapPin,
   Minus, Plus, Radio, Sun, TriangleAlert, Wind, Zap,
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -9,7 +9,6 @@ import type { Layer, LayerId, LayerProperties, Scenario, Site, SolarOption } fro
 import type { MapControls } from './mapControls.ts';
 
 const TerrainMap = lazy(() => import('./TerrainMap.tsx'));
-const GeographicMap = lazy(() => import('./GeographicMap.tsx'));
 const layerOptions = [
   { id: 'plots', title: 'Farm plots', details: 'Crops and water demand', icon: Layers3, tone: 'lime' },
   { id: 'solar', title: 'Solar potential', details: 'Solar PV configurations', icon: Sun, tone: 'gold' },
@@ -36,13 +35,9 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
   const [visible, setVisible] = useState<LayerId[]>(['plots', 'solar']);
   const [active, setActive] = useState<LayerProperties | null>(null);
   const isDemo = mode === 'demo';
-  const [view, setView] = useState<'3d' | '2d'>(isDemo ? '3d' : '2d');
   const [hardwareError, setHardwareError] = useState(false);
-  const [tiles, setTiles] = useState(false);
-  const [tileError, setTileError] = useState(false);
   const controls = useRef<MapControls>(null);
-  const fallback = useCallback(() => { setHardwareError(true); setView('2d'); }, []);
-  const handleTileError = useCallback(() => { setTiles(false); setTileError(true); }, []);
+  const fallback = useCallback(() => setHardwareError(true), []);
   const { properties } = site;
 
   useEffect(() => {
@@ -77,37 +72,30 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
             <h2>{properties.label} site</h2>
             <span className="muted small">{properties.locality ?? location}</span>
           </div></div>
-          <div className="segmented" aria-label="Map view">
-            <button type="button" aria-pressed={view === '3d'} disabled={!isDemo || hardwareError} onClick={() => setView('3d')}><Box size={14} /> 3D terrain</button>
-            <button type="button" aria-pressed={view === '2d'} onClick={() => setView('2d')}><Map size={14} /> 2D map</button>
-          </div>
         </div>
-        <div className={`map-viewport ${view === '2d' ? 'map-flat' : ''}`}>
-          <Suspense fallback={<div className="map-loading" role="status">Loading the map…</div>}>
-            {view === '3d'
-              ? <TerrainMap site={site} layers={layers} active={active} select={setActive} controls={controls} onUnavailable={fallback} />
-              : <GeographicMap site={site} layers={layers} active={active} select={setActive} controls={controls}
-                tiles={tiles} onTileError={handleTileError} />}
-          </Suspense>
-          <div className="map-tag"><span className="status-dot" />{view === '3d' ? 'Simulated terrain' : tiles ? 'OpenStreetMap basemap' : 'Local layers'}</div>
-          <div className="map-compass" aria-label="North"><span>N</span><Compass size={29} strokeWidth={1.25} /></div>
-          <div className="map-controls">
-            <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => controls.current?.zoom(1)}><Plus size={19} /></button>
-            <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => controls.current?.zoom(-1)}><Minus size={19} /></button>
-            <button type="button" aria-label="Reset map view" title="Recentrer" onClick={() => controls.current?.reset()}><Crosshair size={17} /></button>
-          </div>
-          <div className="map-hint">{view === '3d' ? 'Drag to rotate' : <>
-            <button type="button" onClick={() => { setTileError(false); setTiles(!tiles); }}>{tiles ? 'Hide basemap' : 'Show online basemap'}</button>
-          </>}</div>
-          {view === '2d' && (tileError || hardwareError) && <div className="map-notice" role="status">
-            <TriangleAlert size={14} /> {tileError ? 'Basemap unavailable · local layers active' : 'Terrain unavailable · 2D map active'}
-          </div>}
+        <div className="map-viewport">
+          {hardwareError ? <div className="map-loading" role="status">
+            <p><TriangleAlert size={17} /> 3D view unavailable. Use the area selector to inspect site layers.</p>
+          </div> : <>
+            <Suspense fallback={<div className="map-loading" role="status">Loading the map…</div>}>
+              <TerrainMap site={site} layers={layers} active={active} select={setActive} controls={controls}
+                onUnavailable={fallback} demo={isDemo} />
+            </Suspense>
+            <div className="map-tag"><span className="status-dot" />{isDemo ? 'Simulated terrain' : 'Site geometry'}</div>
+            <div className="map-compass" aria-label="North"><span>N</span><Compass size={29} strokeWidth={1.25} /></div>
+            <div className="map-controls">
+              <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => controls.current?.zoom(1)}><Plus size={19} /></button>
+              <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => controls.current?.zoom(-1)}><Minus size={19} /></button>
+              <button type="button" aria-label="Reset map view" title="Recentrer" onClick={() => controls.current?.reset()}><Crosshair size={17} /></button>
+            </div>
+            <div className="map-hint">Drag to rotate</div>
+          </>}
         </div>
         <div className="map-footer">
           <span className="map-coordinates"><Crosshair size={14} /> {location}</span>
           <div className="map-key">
             {layers.plots && <span><i className="map-swatch" /> Plots</span>}
-            {isDemo && view === '3d' && layers.plots && <span><i className="map-swatch water-swatch" /> Irrigation network</span>}
+            {isDemo && !hardwareError && layers.plots && <span><i className="map-swatch water-swatch" /> Irrigation network</span>}
             {layers.solar && <span><i className="map-swatch solar-swatch" /> Solar PV</span>}
             {layers.anomalies && <span><i className="map-swatch anomaly-swatch" /> Anomalies</span>}
             {layers.wind && <span><i className="map-swatch wind-swatch" /> Wind</span>}
@@ -121,7 +109,7 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
           {sites.length > 1 && <select className="site-select" aria-label="Pilot site" value={properties.site_id} onChange={(event) => onSelectSite(event.target.value)}>
             {sites.map(({ properties }) => <option key={properties.site_id} value={properties.site_id}>{properties.label}</option>)}
           </select>}
-          {view === '2d' && inspectable.length > 0 && <select className="site-select" aria-label="Inspect an area"
+          {(hardwareError || !isDemo) && inspectable.length > 0 && <select className="site-select" aria-label="Inspect an area"
             value={active ? inspectable.indexOf(active) : -1}
             onChange={(event) => setActive(inspectable[Number(event.target.value)] ?? null)}>
             <option value={-1}>Site overview</option>

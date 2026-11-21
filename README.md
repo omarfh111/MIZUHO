@@ -12,7 +12,7 @@ npm ci
 npm run dev
 ```
 
-Open the [local demo](http://localhost:5173/?mode=demo). The site, plots, solar profiles and scenarios are simulated. Both maps work without an online basemap. The 2D map is available when WebGL is unavailable.
+Open the [local demo](http://localhost:5173/?mode=demo). The site, plots, solar profiles and scenarios are simulated. The 3D map works offline. If WebGL is unavailable, use the area selector to inspect site layers.
 
 ## Demo walkthrough
 
@@ -30,7 +30,7 @@ Layer IDs are `plots`, `solar`, `wind` and `anomalies`. The solar layer supplies
 
 If M6 is unavailable at startup, the frontend opens the local demo with a **Simulated data** badge. Set `VITE_DATA_MODE=live` to keep the app in connected mode while diagnosing M6. The demo uses a repeatable scheduling heuristic. Connected mode delegates scheduling and operational data to M6 and requests English content.
 
-The OpenStreetMap basemap is optional. Set both `VITE_MAP_TILES_URL` and `VITE_MAP_TILES_ATTRIBUTION` to use a different tile provider. Site layers remain accessible from the 2D map selector.
+Connected mode shows the API's site geometry on an interactive 3D grid. The demo uses simulated terrain.
 
 ## Local checks
 

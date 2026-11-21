@@ -1,14 +1,39 @@
 import { Droplets, MapPin, TriangleAlert, Zap } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import type { Position } from 'geojson';
+import type { Geometry, Position } from 'geojson';
 import type { Layer, LayerId, LayerProperties, Site } from '../types.ts';
 import { buildTerrain, disposeScene, elevation, trace, worldPoint } from './terrain.ts';
 import type { MapControls } from './mapControls.ts';
 
 const layerColors: Record<LayerId, string> = { plots: '#c9ef86', solar: '#f7ce76', anomalies: '#f29285', wind: '#a9b9f4' };
 const tankPosition = new THREE.Vector3(-34, elevation(-34, 7) + 2.5, 7);
+type Project = (position: Position, lift: number) => THREE.Vector3;
+
+function rings(geometry?: Geometry): Position[][] {
+  if (geometry?.type === 'Polygon') return [geometry.coordinates[0]];
+  if (geometry?.type === 'MultiPolygon') return geometry.coordinates.map(([outer]) => outer);
+  return [];
+}
+
+function projection(site: Site, layers: Partial<Record<LayerId, Layer>>, demo: boolean): Project {
+  const center = site.geometry.coordinates;
+  if (demo) return (point, lift) => worldPoint(point, center, lift);
+  let extent = 1;
+  const geometries = [...Object.values(layers).flatMap((layer) => layer.features.map(({ geometry }) => geometry)), site.outline];
+  for (const geometry of geometries) {
+    const points = geometry?.type === 'Point' ? [geometry.coordinates] : rings(geometry).flat();
+    for (const point of points) {
+      const { x, z } = worldPoint(point, center);
+      extent = Math.max(extent, Math.abs(x), Math.abs(z));
+    }
+  }
+  return (point, lift) => {
+    const { x, z } = worldPoint(point, center);
+    return new THREE.Vector3(x * 36 / extent, lift, z * 36 / extent);
+  };
+}
 
 interface Marker {
   id: string;
@@ -18,18 +43,17 @@ interface Marker {
   properties?: LayerProperties;
 }
 
-function describeMarkers(center: Position, layers: Partial<Record<LayerId, Layer>>, siteLabel: string): Marker[] {
-  const markers: Marker[] = [{ id: 'site', position: tankPosition, label: siteLabel }];
+function describeMarkers(project: Project, layers: Partial<Record<LayerId, Layer>>, siteLabel: string, demo: boolean): Marker[] {
+  const markers: Marker[] = [{ id: 'site', position: demo ? tankPosition : new THREE.Vector3(0, 1.4, 0), label: siteLabel }];
   for (const [id, layer] of Object.entries(layers) as [LayerId, Layer][]) {
     layer.features.forEach(({ geometry, properties }, index) => {
-      if (geometry.type !== 'Point' && geometry.type !== 'Polygon') return;
-      const points = geometry.type === 'Point' ? [geometry.coordinates] : geometry.coordinates[0].slice(0, -1);
+      const points = geometry.type === 'Point' ? [geometry.coordinates] : rings(geometry)[0]?.slice(0, -1) ?? [];
       if (!points.length) return;
       const position = points.reduce((total, point) => [
         total[0] + point[0] / points.length, total[1] + point[1] / points.length,
       ], [0, 0]);
       markers.push({
-        id: `${id}-${index}`, position: worldPoint(position, center, .66), layer: id, properties,
+        id: `${id}-${index}`, position: project(position, .66), layer: id, properties,
         label: properties.label ?? properties.plot_id ?? id,
       });
     });
@@ -38,21 +62,21 @@ function describeMarkers(center: Position, layers: Partial<Record<LayerId, Layer
 }
 
 function revealLayers(
-  scene: THREE.Scene, center: Position, layers: Partial<Record<LayerId, Layer>>,
-  active: LayerProperties | null, markers: Marker[],
+  scene: THREE.Scene, project: Project, layers: Partial<Record<LayerId, Layer>>,
+  active: LayerProperties | null, markers: Marker[], demo: boolean,
 ) {
   for (const [id, layer] of Object.entries(layers) as [LayerId, Layer][]) {
     layer.features.forEach(({ geometry, properties }) => {
-      if (geometry.type === 'Polygon') {
-        const edge = geometry.coordinates[0];
+      for (const edge of rings(geometry)) {
+        if (edge.length < 4) continue;
         const shapePoints = edge.slice(0, -1).map((point) => {
-          const { x, z } = worldPoint(point, center);
+          const { x, z } = project(point, .11);
           return new THREE.Vector2(x, z);
         });
         const selected = properties === active;
         const triangles = THREE.ShapeUtils.triangulateShape(shapePoints, []);
         const positions = triangles.flatMap((face) => face.flatMap((index) => {
-          const { x, y, z } = worldPoint(edge[index], center, .11);
+          const { x, y, z } = project(edge[index], .11);
           return [x, y, z];
         }));
         const fill = new THREE.BufferGeometry();
@@ -64,16 +88,16 @@ function revealLayers(
         const outline = edge.slice(1).flatMap((point, index) => Array.from({ length: 12 }, (_, step) => {
           const start = edge[index];
           const ratio = step / 12;
-          return worldPoint([
+          return project([
             THREE.MathUtils.lerp(start[0], point[0], ratio), THREE.MathUtils.lerp(start[1], point[1], ratio),
-          ], center, .26);
+          ], .26);
         }));
         outline.push(outline[0].clone());
-        scene.add(trace(outline, selected ? '#e7ffb5' : '#b2d474', selected ? .17 : .075).mesh);
+        scene.add(trace(outline, selected ? '#e7ffb5' : layerColors[id], selected ? .17 : .075).mesh);
       }
-      if (id === 'solar' && geometry.type === 'Point') {
+      if (demo && id === 'solar' && geometry.type === 'Point') {
         const panel = new THREE.Group();
-        panel.position.copy(worldPoint(geometry.coordinates, center, .25));
+        panel.position.copy(project(geometry.coordinates, .25));
         for (let row = 0; row < 2; row++) {
           for (let column = 0; column < 4; column++) {
             const slab = new THREE.Mesh(new THREE.BoxGeometry(1.48, .09, .68),
@@ -87,6 +111,7 @@ function revealLayers(
       }
     });
   }
+  if (!demo) return [];
   const plots = markers.filter(({ layer }) => layer === 'plots');
   const links = plots.map(({ position }) => {
     const points = [
@@ -107,16 +132,18 @@ interface Props {
   select: (properties: LayerProperties | null) => void;
   controls: React.RefObject<MapControls | null>;
   onUnavailable: () => void;
+  demo: boolean;
 }
 
-export default function TerrainMap({ site, layers, active, select, controls, onUnavailable }: Props) {
+export default function TerrainMap({ site, layers, active, select, controls, onUnavailable, demo }: Props) {
   const view = useRef<HTMLDivElement>(null);
   const markerRefs = useRef(new Map<string, HTMLButtonElement>());
   const setup = useRef<{ scene: THREE.Scene; render: () => void } | null>(null);
   const markersRef = useRef<Marker[]>([]);
   const updateLinks = useRef<(now: number) => void>(() => {});
-  const center = site.geometry.coordinates;
-  const markers = describeMarkers(center, layers, site.properties.label);
+  const project = useMemo(() => projection(site, layers, demo), [site, layers, demo]);
+  const markers = useMemo(() => describeMarkers(project, layers, site.properties.label, demo),
+    [project, layers, site.properties.label, demo]);
 
   useEffect(() => {
     const mount = view.current!;
@@ -146,7 +173,7 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
     orbit.rotateSpeed = .65;
     const reset = () => {
       camera.position.copy(home).multiplyScalar(camera.aspect < 1.2 ? 1.23 : 1);
-      orbit.target.set(0, -8, 0);
+      orbit.target.set(0, demo ? -8 : 0, 0);
       orbit.update();
     };
     reset();
@@ -162,7 +189,7 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
     scene.add(new THREE.HemisphereLight('#d3ecd7', '#35483e', 2.05));
     const sun = new THREE.DirectionalLight('#ffeac4', 2.15);
     sun.position.set(-66, 110, -29);
-    scene.add(sun, buildTerrain());
+    scene.add(sun, demo ? buildTerrain() : new THREE.GridHelper(96, 24, '#54705e', '#344d41'));
     const lost = (event: Event) => {
       event.preventDefault();
       onUnavailable();
@@ -231,14 +258,21 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
       controls.current = null;
       setup.current = null;
     };
-  }, [controls, onUnavailable]);
+  }, [controls, onUnavailable, demo]);
 
   useEffect(() => {
     if (!setup.current) return;
     const layerScene = new THREE.Scene();
-    const currentMarkers = describeMarkers(center, layers, site.properties.label);
-    markersRef.current = currentMarkers;
-    const links = revealLayers(layerScene, center, layers, active, currentMarkers);
+    markersRef.current = markers;
+    const links = revealLayers(layerScene, project, layers, active, markers, demo);
+    if (!demo) {
+      for (const edge of rings(site.outline)) {
+        layerScene.add(new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints(edge.map((point) => project(point, .32))),
+          new THREE.LineBasicMaterial({ color: '#83b8a0' }),
+        ));
+      }
+    }
     links.forEach(({ curve, pulse }) => { pulse.position.copy(curve.getPoint(.35)); });
     const scene = setup.current.scene;
     scene.add(layerScene);
@@ -251,7 +285,7 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
       scene.remove(layerScene);
       disposeScene(layerScene);
     };
-  }, [active, center, layers, site.properties.label]);
+  }, [active, site, layers, demo, project, markers]);
 
   return <>
     <div className="terrain-surface" ref={view} />
@@ -264,7 +298,7 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
           title={marker.label} onClick={() => select(marker.properties ?? null)}
           ref={(element) => { if (element) markerRefs.current.set(marker.id, element); else markerRefs.current.delete(marker.id); }}>
           {marker.layer === 'plots' && marker.properties?.plot_id ? marker.properties.plot_id : <Icon size={14} />}
-          {!marker.layer && <span>Reservoir</span>}
+          {!marker.layer && <span>{demo ? 'Reservoir' : 'Site'}</span>}
         </button>;
       })}
     </div>

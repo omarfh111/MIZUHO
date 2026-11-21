@@ -131,16 +131,6 @@ body::before {
 .map-head, .map-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 17px; }
 .map-head { min-height: 70px; }
 .map-footer { min-height: 48px; font-size: .75rem; color: var(--muted); }
-.segmented {
-  display: inline-flex; flex-shrink: 0; gap: 3px; padding: 3px;
-  border: 1px solid var(--line-soft); border-radius: 9px; background: #0d1712;
-}
-.segmented button {
-  display: inline-flex; align-items: center; gap: 6px; padding: 8px 9px;
-  color: var(--muted); background: transparent; border: 0; border-radius: 6px;
-  font-size: .72rem; font-weight: 760;
-}
-.segmented button[aria-pressed="true"] { color: var(--lime); background: #2c3d2d; }
 .map-viewport {
   position: relative; isolation: isolate; flex: 1 0 auto; height: clamp(370px, 35.4vw, 520px);
   overflow: hidden; border-block: 1px solid #304a3c;
@@ -155,7 +145,7 @@ body::before {
   content: ""; position: absolute; z-index: 2; pointer-events: none; inset: 0;
   box-shadow: inset 0 0 75px 4px #0b1a14ad;
 }
-.terrain-surface, .terrain-markers, .geographic-map { position: absolute; inset: 0; }
+.terrain-surface, .terrain-markers { position: absolute; inset: 0; }
 .terrain-surface canvas { display: block; max-width: 100%; cursor: grab; touch-action: none; }
 .terrain-surface canvas:active { cursor: grabbing; }
 .terrain-markers { z-index: 3; pointer-events: none; }
@@ -173,7 +163,7 @@ body::before {
 .marker-solar:hover, .marker-solar[aria-pressed="true"] { color: #322813; background: var(--gold); }
 .marker-anomalies { border-color: #ba7770; color: var(--coral); background: #46312e; }
 .marker-wind { border-color: #8597d3; color: var(--periwinkle); }
-.map-tag, .map-hint, .map-notice {
+.map-tag, .map-hint {
   position: absolute; z-index: 4; display: flex; align-items: center; gap: 7px;
   max-width: calc(100% - 64px); padding: 7px 10px; border: 1px solid #4a5d4d;
   border-radius: 7px; background: #13221bde; color: #e0e9da;
@@ -197,15 +187,7 @@ body::before {
 .map-controls button:hover, .map-controls button:focus-visible { background: #364e3b; color: var(--lime); }
 .map-controls button:focus-visible { outline-offset: -3px; }
 .map-hint { bottom: 13px; left: 13px; color: #c7d7cb; }
-.map-hint button { border: 0; padding: 0; background: transparent; color: var(--lime); }
-.map-notice { left: 13px; bottom: 48px; color: var(--gold); }
-.map-loading { display: grid; place-items: center; height: 100%; color: var(--muted); }
-.geographic-map.leaflet-container {
-  z-index: 1; background-color: transparent; font-family: "Manrope Variable", sans-serif;
-}
-.geographic-map .leaflet-tile-pane { filter: saturate(.63) brightness(.78); }
-.geographic-map .leaflet-control-attribution { margin-right: 62px; background: #101c16de; color: var(--text); }
-.geographic-map .leaflet-control-attribution a { color: var(--lime); }
+.map-loading { display: grid; place-items: center; height: 100%; padding: 16px; text-align: center; color: var(--muted); }
 .map-coordinates, .map-key, .map-key > span { display: inline-flex; align-items: center; gap: 7px; }
 .map-coordinates { font: 630 .76rem var(--display); color: #aec1b4; }
 .map-key { gap: 12px; flex-wrap: wrap; }
