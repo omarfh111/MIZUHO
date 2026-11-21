@@ -77,25 +77,28 @@ export default function AssistantPanel({ site, mode, solar, simulation, open, cl
   open: boolean; close: () => void;
 }) {
   const [sessionId] = useState(createSessionId);
-  const [health, setHealth] = useState<AssistantHealth>();
-  const [healthFailed, setHealthFailed] = useState(false);
+  const [health, setHealth] = useState<AssistantHealth['status'] | 'checking'>('checking');
+  const [healthAttempt, setHealthAttempt] = useState(0);
   const [question, setQuestion] = useState('');
   const [turns, setTurns] = useState<Turn[]>([]);
   const request = useRef<AbortController | null>(null);
   const end = useRef<HTMLDivElement | null>(null);
   const last = turns.at(-1);
   const pending = Boolean(last && !last.answer && !last.error);
-  const available = health?.status === 'available' || health?.status === 'incomplete';
+  const available = mode !== 'demo' && (health === 'available' || health === 'incomplete');
   const scope = JSON.stringify([site.properties.site_id, solar?.id, simulation]);
 
   useEffect(() => {
     if (!open || mode === 'demo') return;
     const controller = new AbortController();
-    getAssistantHealth(controller.signal).then(setHealth).catch(() => {
-      if (!controller.signal.aborted) setHealthFailed(true);
+    setHealth('checking');
+    getAssistantHealth(controller.signal).then((result) => {
+      if (!controller.signal.aborted) setHealth(result.status);
+    }).catch(() => {
+      if (!controller.signal.aborted) setHealth('unavailable');
     });
     return () => controller.abort();
-  }, [mode, open]);
+  }, [mode, open, healthAttempt]);
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => {
     if (open && turns.length) end.current?.scrollIntoView({ block: 'nearest' });
@@ -129,18 +132,24 @@ export default function AssistantPanel({ site, mode, solar, simulation, open, cl
     <div className="assistant-header">
       <span className="assistant-site">{site.properties.label}</span>
       <span className="assistant-context">{simulation?.comparison ? 'Current comparison available' : 'Site and evidence'}</span>
-      {health?.status === 'incomplete' && <span className="assistant-context">Evidence index incomplete</span>}
+      {available && health === 'incomplete' && <span className="assistant-context">Evidence index incomplete</span>}
     </div>
     <div className="assistant-thread" aria-live="polite" aria-relevant="additions text">
-      {mode === 'demo' || healthFailed || health?.status === 'unavailable'
-        ? <p className="assistant-notice">The assistant needs a connected evidence service. Site maps and simulations remain available.</p>
-        : !health ? <p className="assistant-notice" role="status"><LoaderCircle size={16} /> Checking evidence access…</p>
-        : turns.length === 0 ? <div className="assistant-welcome">
+      {mode === 'demo' || health === 'unavailable'
+        ? <div className="assistant-notice">
+          <p>The assistant needs a connected evidence service. Site maps and simulations remain available.</p>
+          {mode !== 'demo' && <button type="button" className="text-button" onClick={() => setHealthAttempt((attempt) => attempt + 1)}>
+            Retry evidence connection
+          </button>}
+        </div>
+        : health === 'checking' && <p className="assistant-notice" role="status"><LoaderCircle size={16} /> Checking evidence access…</p>}
+      {available && turns.length === 0 && <div className="assistant-welcome">
           <h3>Ask about a plan or its evidence</h3>
           <p>Explore the assumptions, official sources, or trade-offs behind an irrigation decision.</p>
           <div className="assistant-suggestions">{suggestions.map((suggestion) =>
             <button key={suggestion} type="button" onClick={() => send(suggestion)}>{suggestion}</button>)}</div>
-        </div> : turns.map((turn, index) => <article key={index} className="assistant-turn">
+        </div>}
+      {turns.map((turn, index) => <article key={index} className="assistant-turn">
           <p className="assistant-question">{turn.question}</p>
           {turn.scope !== scope && Boolean(turn.answer?.facts.length) &&
             <span className="assistant-context">Historical result · earlier inputs</span>}

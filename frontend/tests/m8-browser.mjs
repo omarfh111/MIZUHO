@@ -32,8 +32,13 @@ try {
   await page.getByRole('button', { name: 'Approve simulated plan' }).click();
   await visible(page.getByText(/Simulated plan approved/));
 
+  await page.route('**/api/assistant/health', (route) => route.fulfill({ status: 503 }), { times: 1 });
   await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
   const panel = page.getByRole('dialog', { name: 'Mizhuo assistant' });
+  const unavailable = panel.getByText(/The assistant needs a connected evidence service/);
+  await visible(unavailable);
+  await panel.getByRole('button', { name: 'Retry evidence connection' }).click();
+  await unavailable.waitFor({ state: 'hidden' });
   await visible(panel.getByText('Current comparison available'));
   const allocationPending = waitForChat(page);
   await panel.getByRole('button', { name: /Why did grower A receive/ }).click();
@@ -58,6 +63,12 @@ try {
   const link = citation.getByRole('link', { name: 'Read the source' });
   assert.equal(await link.getAttribute('href'), 'https://anme.tn/en/content/solar-photovoltaic');
   await visible(citation.getByText('1,450 kWh per kilowatt-peak', { exact: false }));
+
+  await page.route('**/api/assistant/chat', (route) => route.fulfill({ status: 503 }), { times: 1 });
+  await panel.getByRole('textbox', { name: 'Your question' }).fill('This turn has a temporary provider failure.');
+  await panel.getByRole('button', { name: 'Send question' }).click();
+  await visible(panel.getByRole('alert').filter({ hasText: /could not answer/ }));
+  await visible(citation);
 
   await panel.getByRole('textbox', { name: 'Your question' }).fill(
     'Which official source did you just cite? Please cite that same passage again.',
