@@ -22,6 +22,9 @@ SYSTEM = (
     "Tu es l'assistant de MIZU NEXUS, un outil d'aide à la décision pour un groupement d'irrigation en Tunisie. "
     "Tu aides le responsable à comprendre les analyses de sa parcelle, avec bienveillance, en français simple, "
     "comme un conseiller agronome patient. Règles strictes :\n"
+    "- Réponds d'abord et surtout à la question posée. Ne refais pas tout le bilan des causes si on ne te le demande pas.\n"
+    "- Chaleur sur plusieurs décennies, étés plus chauds, solaire, coupures de courant, bilan d'un été à l'autre : "
+    "utilise la partie « climat_et_resilience » de CONTEXTE.\n"
     "- Appuie-toi uniquement sur CONTEXTE (analyses calculées) et SOURCES (extraits de documents).\n"
     "- Cite les sources utilisées entre crochets, par exemple [S2]. N'invente aucune source.\n"
     "- N'invente aucun chiffre : reprends ceux de CONTEXTE ou SOURCES tels quels.\n"
@@ -103,7 +106,52 @@ def context(plot_id: str) -> dict:
         "avis_deja_donnes": [{"cause": by_id[c]["label"], "avis": h["verdict"], "note": h["note"]}
                              for c, h in funnel.latest_feedback(plot_id, "summer_gap").items()],
         "critique": (r["critic"] or {}).get("text"),
+        "climat_et_resilience": _resilience_fr(plot_id),
     }
+
+
+def _resilience_fr(plot_id: str) -> dict | None:
+    """Long-term heat, summer water gap per year and solar potential, labelled in French."""
+    try:
+        from backend import resilience
+        d = resilience.load()
+    except (OSError, ValueError):
+        return None
+    h, sol = d["heat"], d["solar"]
+    dec, lab = h["decades"], h["decade_labels"]
+    s = d["seasons"].get(plot_id)
+    t, t35 = h["trend"]["summer_tmax_c"], h["trend"]["days_ge_35"]
+    out = {
+        "chaleur_ete_juin_sept (NASA POWER, " + h["period"] + ")": {
+            "periode_ancienne": lab["first"], "periode_recente": lab["last"], "seuils_jours_chauds_c": [35, 40],
+            "ecart_tmax_c_entre_les_deux_periodes": dec["summer_tmax_c"]["change"],
+            "jours_35c_en_plus_par_ete": dec["days_ge_35"]["change"],
+            f"tmax_moyenne_c_{lab['first']}": dec["summer_tmax_c"]["first"],
+            f"tmax_moyenne_c_{lab['last']}": dec["summer_tmax_c"]["last"],
+            "tendance_c_par_decennie": t["slope_per_decade"], "tendance_p": t["p"], "tendance_verdict": t["verdict"],
+            f"jours_35c_ou_plus_par_ete_{lab['first']}": dec["days_ge_35"]["first"],
+            f"jours_35c_ou_plus_par_ete_{lab['last']}": dec["days_ge_35"]["last"],
+            "jours_35c_tendance_par_decennie": t35["slope_per_decade"], "jours_35c_tendance_p": t35["p"],
+        },
+        "demande_climatique_supplementaire_estimee_mm_jour": d["demand_link"]["ret_change_mm_day_estimate"],
+        "demande_climatique_note": d["demand_link"]["note"],
+        "solaire_pvgis": {
+            "production_ete_kwh_par_kwc_jour": sol["summer_pv_kwh_per_kwp_day"],
+            "correlation_production_solaire_et_demande_climatique_par_mois": sol["pv_vs_demand"]["r"],
+            "mois_le_plus_productif": sol["best_month"],
+            "a_saisir": sol["needs_user_input"],
+            "pendant_une_coupure_steg": sol["during_outage"],
+        },
+        "limites": d["limits"],
+    }
+    if s:
+        out["ecart_par_ete_mm_jour (demande moins eau utilisée, juin-sept.)"] = {str(x["year"]): x["gap_mm_day"] for x in s["seasons"]}
+        out["ecart_pire_ete"] = s["worst"]
+        out["ecart_meilleur_ete"] = s["best"]
+        out["ecart_tendance_2018_2026"] = s["gap_trend"]["verdict"] if s["gap_trend"] else None
+        out["ecart_et_chaleur_entre_etes"] = {"pente_mm_jour_par_c": s["gap_vs_heat"]["slope_per_c"], "p": s["gap_vs_heat"]["p"],
+                                              "verdict": s["gap_vs_heat"]["verdict"]} if s["gap_vs_heat"] else None
+    return out
 
 
 def classify(message: str, history: list[dict]) -> dict | None:

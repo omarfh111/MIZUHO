@@ -21,6 +21,7 @@ from backend import llm  # noqa: E402
 from backend import temperature_effect as tfx  # noqa: E402
 from backend import temperature_explain as texp  # noqa: E402
 from backend import assistant  # noqa: E402
+from backend import resilience  # noqa: E402
 from backend.causal import funnel  # noqa: E402
 
 UI = ROOT / "tools" / "m1_test_ui" / "index.html"
@@ -78,8 +79,22 @@ def step_validate(body: dict) -> dict:
         return {"valid": False, "field": e.field, "plot_id": e.plot_id, "message": str(e)}
 
 
+def step_solar(body: dict) -> dict:
+    """Solar pumping: kWh/m³ is entered by the user (not measured), PV yield comes from PVGIS."""
+    sol = resilience.load()["solar"]
+    month = int(body.get("month", 7))
+    pv = next(m["pv_kwh_per_kwp_day"] for m in sol["months"] if m["month"] == month)
+    kwh_m3 = float(body["kwh_per_m3"])
+    out = {"month": month, "pv_kwh_per_kwp_day": pv, "kwh_per_m3": kwh_m3}
+    if body.get("kwp") not in (None, ""):
+        out["m3_per_day"] = round(resilience.pumped_m3_per_day(float(body["kwp"]), kwh_m3, pv), 1)
+    if body.get("m3_per_day") not in (None, ""):
+        out["kwp_needed"] = round(resilience.kwp_needed(float(body["m3_per_day"]), kwh_m3, pv), 2)
+    return out
+
+
 def step_tests() -> dict:
-    r = subprocess.run([sys.executable, "-m", "pytest", "tests/test_agriculture.py", "tests/test_temperature_effect.py", "tests/test_llm_explain.py", "tests/test_causal.py", "tests/test_assistant.py", "-v", "--no-header", "-p", "no:cacheprovider"],
+    r = subprocess.run([sys.executable, "-m", "pytest", "tests/test_agriculture.py", "tests/test_temperature_effect.py", "tests/test_llm_explain.py", "tests/test_causal.py", "tests/test_assistant.py", "tests/test_resilience.py", "-v", "--no-header", "-p", "no:cacheprovider"],
                        cwd=ROOT, capture_output=True, text=True, timeout=120)
     lines = [ln for ln in r.stdout.splitlines() if "::" in ln and ("PASSED" in ln or "FAILED" in ln or "ERROR" in ln)]
     tests = [{"name": ln.split("::")[1].split(" ")[0], "ok": "PASSED" in ln} for ln in lines]
@@ -129,6 +144,10 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/api/causes/"):
             q = dict(x.split("=", 1) for x in self.path.split("?", 1)[1].split("&")) if "?" in self.path else {}
             return self._run(funnel.run, path.rsplit("/", 1)[1], "summer_gap", q.get("agents", "1") != "0")
+        if path == "/api/resilience":
+            return self._run(resilience.load)
+        if path.startswith("/api/resilience/priorities/"):
+            return self._run(resilience.priorities, path.rsplit("/", 1)[1])
         if path == "/api/llm":
             return self._run(llm.public_config)
         if path == "/api/assistant/status":
@@ -156,7 +175,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": f"{type(e).__name__}: {e}"}, 400)
         if self.path == "/api/causes/feedback":
             return self._run(lambda b: funnel.add_feedback(b["plot_id"], "summer_gap", b["cause_id"], b["verdict"], b.get("note", "")), body)
-        routes = {"/api/convert": step_convert, "/api/coverage": step_coverage, "/api/validate": step_validate}
+        routes = {"/api/resilience/solar": step_solar, "/api/convert": step_convert, "/api/coverage": step_coverage, "/api/validate": step_validate}
         fn = routes.get(self.path)
         if fn is None:
             return self._json({"error": "not found"}, 404)

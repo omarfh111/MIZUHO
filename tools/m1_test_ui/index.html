@@ -188,6 +188,40 @@ tr.click:hover td { background: color-mix(in srgb, var(--plot) 5%, transparent);
 .chart .pt.dry { fill: var(--plot); opacity: .85; }
 .chart .fit { stroke: var(--plot); stroke-width: 2.5; }
 .chart .fit.all { stroke: var(--idle); stroke-dasharray: 5 4; stroke-width: 2; }
+/* 9 - climate and resilience */
+.rz-sec { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.rz-sec:first-child { margin-top: 8px; padding-top: 0; border-top: 0; }
+.rz-sec h3 { margin: 0 0 4px; font-size: 16px; }
+.rz-sec > p.lead { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 10px 0; }
+.kpi { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+.kpi .k { font-size: 12px; color: var(--muted); }
+.kpi .v { font-size: 22px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.kpi .v small { font-size: 13px; font-weight: 600; color: var(--muted); }
+.kpi .d { font-size: 12px; margin-top: 2px; }
+.kpi.hot .v { color: var(--plot); }
+.rz-chart { margin-top: 8px; }
+.rz-chart svg { width: 100%; height: auto; display: block; }
+.rz-chart text { font-size: 11px; fill: var(--muted); }
+.rz-chart .axis { stroke: var(--line); }
+.rz-chart .rzbar { fill: color-mix(in srgb, var(--plot) 70%, transparent); }
+.rz-chart .rzbar.hi { fill: var(--plot); }
+.rz-chart .trend { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 5 4; fill: none; }
+.rz-chart .l-pv { stroke: var(--warn); stroke-width: 2.5; fill: none; }
+.rz-chart .l-et { stroke: var(--accent); stroke-width: 2.5; fill: none; }
+.rz-chart .d-pv { fill: var(--warn); } .rz-chart .d-et { fill: var(--accent); }
+.rz-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.rz-legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 5px; border-radius: 2px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: var(--panel-2); color: var(--ink); padding: 5px 10px; font-weight: 600; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+tr.worst td { background: color-mix(in srgb, var(--bad) 10%, transparent); }
+tr.best td { background: color-mix(in srgb, var(--ok) 10%, transparent); }
+.prio { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; counter-reset: pr; }
+.prio li { counter-increment: pr; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 4px 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+.prio li::before { content: counter(pr); grid-row: span 3; width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700; display: grid; place-items: center; font-size: 13px; }
+.prio .t { font-weight: 700; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.prio .s { font-size: 13px; color: var(--muted); }
 .limits { margin: 12px 0 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
 
 /* cause funnel */
@@ -301,7 +335,8 @@ tr.click:hover td { background: color-mix(in srgb, var(--plot) 5%, transparent);
     <a href="#s6"><span class="dot" id="d6"></span>6 · Rejets</a>
     <a href="#s7"><span class="dot" id="d7"></span>7 · Température</a>
     <a href="#s8"><span class="dot" id="d8"></span>8 · Causes</a>
-    <a href="#s9"><span class="dot" id="d9"></span>9 · pytest</a>
+    <a href="#s9"><span class="dot" id="d9"></span>9 · Climat</a>
+    <a href="#s10"><span class="dot" id="d10"></span>10 · pytest</a>
     <p class="note"><b>Données observées</b>, pas une prévision : FAO WaPOR v3, du 11 au 20 juillet 2026. La prévision à 24 h relève de M3.</p>
   </nav>
 
@@ -402,10 +437,18 @@ tr.click:hover td { background: color-mix(in srgb, var(--plot) 5%, transparent);
 
     <section class="card" id="s9">
       <div class="card-h"><div class="n">9</div>
-        <div class="t"><h2>Suite pytest</h2><p>Lance <code>tests/test_agriculture.py</code>, <code>tests/test_temperature_effect.py</code>, <code>tests/test_llm_explain.py</code> et <code>tests/test_causal.py</code> sur le serveur.</p></div>
+        <div class="t"><h2>Climat et résilience</h2><p>Des étés plus chauds (NASA POWER 1981–2025), le solaire pour pomper quand le réseau coupe (PVGIS), et le bilan de chaque été 2018–2026 avec les priorités pour la saison suivante.</p></div>
         <span class="chip c-idle" id="st9">Non lancé</span></div>
-      <div class="actions"><button onclick="step9()">Lancer les tests</button></div>
+      <div class="fields"><div class="plotchips" id="rplots"></div><button onclick="step9()">Analyser</button></div>
       <div id="o9"></div>
+    </section>
+
+    <section class="card" id="s10">
+      <div class="card-h"><div class="n">10</div>
+        <div class="t"><h2>Suite pytest</h2><p>Lance <code>tests/test_agriculture.py</code>, <code>tests/test_temperature_effect.py</code>, <code>tests/test_llm_explain.py</code>, <code>tests/test_causal.py</code>, <code>tests/test_assistant.py</code> et <code>tests/test_resilience.py</code> sur le serveur.</p></div>
+        <span class="chip c-idle" id="st10">Non lancé</span></div>
+      <div class="actions"><button onclick="step10()">Lancer les tests</button></div>
+      <div id="o10"></div>
     </section>
   </main>
 </div>
@@ -440,7 +483,7 @@ function status(n, kind, text) {
 }
 function progress() {
   const v = Object.values(state), c = k => v.filter(x => x === k).length;
-  const N = 9;
+  const N = 10;
   $("pg").style.width = c("ok") / N * 100 + "%"; $("py").style.width = c("warn") / N * 100 + "%"; $("pr").style.width = c("bad") / N * 100 + "%";
   const done = c("ok") + c("warn") + c("bad");
   $("ptext").textContent = `${done} / ${N} étapes` + (c("bad") ? ` · ${c("bad")} en échec` : done === N ? " · terminé" : "");
@@ -612,13 +655,146 @@ async function custom() {
   } catch (e) { $("o6").innerHTML = `<div class="result err">${esc(e.message)}</div>`; }
 }
 
-/* 9 */
+/* 9 - climate and resilience */
+let RZ = null, RZP = null, rplot = "P-03", rzHeat = "days_ge_35";
+const MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+function renderRzChips() {
+  $("rplots").innerHTML = ["P-01", "P-02", "P-03", "P-04", "P-05"].map(id =>
+    `<button aria-pressed="${id === rplot}" onclick="rplot='${id}';renderRzChips();step9()">${id}</button>`).join("");
+}
 async function step9() { await guard(9, "o9", async () => {
+  if (!RZ) $("o9").innerHTML = `<div class="result empty">Calcul en cours…</div>`;
+  const [r, p] = await Promise.all([RZ ? RZ : get("/api/resilience"), get(`/api/resilience/priorities/${rplot}`)]);
+  RZ = r; RZP = p;
+  renderRz();
+  const t = RZ.heat.trend.summer_tmax_c;
+  status(9, "ok", `Étés ${t.significant ? "plus chauds" : "sans tendance nette"} · ${RZP.priorites.length} priorités`);
+}); }
+const pf = p => p < 0.001 ? "< 0,001" : fmt(p, 3);
+function heatChart() {
+  const ys = RZ.heat.years, key = rzHeat, tr = RZ.heat.trend[key];
+  const W = 720, H = 240, L = 40, R = 10, T = 12, B = 30;
+  const vals = ys.map(y => y[key]);
+  const v0 = key === "summer_tmax_c" ? Math.floor(Math.min(...vals) - 0.5) : 0, v1 = Math.ceil(Math.max(...vals) + (key === "summer_tmax_c" ? 0.5 : 2));
+  const bw = (W - L - R) / ys.length, X = i => L + i * bw, Y = v => H - B - (v - v0) / (v1 - v0) * (H - T - B);
+  let g = "";
+  const stepV = key === "summer_tmax_c" ? 1 : Math.max(5, Math.round((v1 - v0) / 5 / 5) * 5);
+  for (let v = Math.ceil(v0 / stepV) * stepV; v <= v1; v += stepV) g += `<line class="axis" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${v}</text>`;
+  const top = [...vals].sort((a, b) => b - a)[4];
+  ys.forEach((y, i) => {
+    const v = y[key];
+    g += `<rect class="rzbar${v >= top ? " hi" : ""}" x="${(X(i) + 1).toFixed(1)}" y="${Y(v).toFixed(1)}" width="${(bw - 2).toFixed(1)}" height="${(Y(v0) - Y(v)).toFixed(1)}"><title>Été ${y.year} : ${fmt(v, 2)} ${key === "summer_tmax_c" ? "°C" : "jours"}</title></rect>`;
+    if (y.year % 5 === 0) g += `<text x="${X(i) + bw / 2}" y="${H - B + 14}" text-anchor="middle">${y.year}</text>`;
+  });
+  const n = ys.length, mx = ys.reduce((a, y) => a + y.year, 0) / n, my = vals.reduce((a, v) => a + v, 0) / n;
+  const b = ys.reduce((a, y, i) => a + (y.year - mx) * (vals[i] - my), 0) / ys.reduce((a, y) => a + (y.year - mx) ** 2, 0);
+  const yAt = yr => my + b * (yr - mx);
+  g += `<line class="trend" x1="${X(0) + bw / 2}" y1="${Y(yAt(ys[0].year))}" x2="${X(n - 1) + bw / 2}" y2="${Y(yAt(ys[n - 1].year))}"/>`;
+  const lab = {summer_tmax_c: "Température maximale moyenne de l'été (°C)", days_ge_35: "Jours à 35 °C ou plus par été", days_ge_40: "Jours à 40 °C ou plus par été"}[key];
+  return `<div class="rz-chart"><div class="rz-legend" style="justify-content:space-between;align-items:center">
+      <span><b style="color:var(--ink)">${lab}</b> · juin–sept., ${RZ.heat.period} · <i style="background:var(--plot)"></i>5 étés les plus élevés · <i style="background:var(--ink)"></i>tendance ${nf(tr.slope_per_decade, 2)} par décennie (p = ${pf(tr.p)}, ${tr.significant ? "significative" : "non significative"})</span>
+      <span class="seg">${[["days_ge_35", "≥ 35 °C"], ["days_ge_40", "≥ 40 °C"], ["summer_tmax_c", "Tmax"]].map(([k, l]) => `<button aria-pressed="${k === key}" onclick="rzHeat='${k}';renderRz()">${l}</button>`).join("")}</span></div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${lab} de ${RZ.heat.period}">${g}</svg></div>`;
+}
+function solarChart() {
+  const ms = RZ.solar.months, W = 720, H = 220, L = 40, R = 40, T = 12, B = 28;
+  const pv1 = Math.ceil(Math.max(...ms.map(m => m.pv_kwh_per_kwp_day)) + 0.5), et1 = Math.ceil(Math.max(...ms.map(m => m.ret_mm_day)) + 0.5);
+  const X = i => L + (i + 0.5) * (W - L - R) / 12, Ypv = v => H - B - v / pv1 * (H - T - B), Yet = v => H - B - v / et1 * (H - T - B);
+  let g = "";
+  for (let v = 0; v <= pv1; v++) g += `<line class="axis" x1="${L}" x2="${W - R}" y1="${Ypv(v)}" y2="${Ypv(v)}"/><text x="${L - 6}" y="${Ypv(v) + 4}" text-anchor="end">${v}</text>`;
+  for (let v = 0; v <= et1; v += 2) g += `<text x="${W - R + 6}" y="${Yet(v) + 4}">${v}</text>`;
+  ms.forEach((m, i) => { g += `<text x="${X(i)}" y="${H - B + 16}" text-anchor="middle">${MOIS[i]}</text>`; });
+  const path = (Y, k) => ms.map((m, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(m[k]).toFixed(1)}`).join("");
+  g += `<path class="l-et" d="${path(Yet, "ret_mm_day")}"/><path class="l-pv" d="${path(Ypv, "pv_kwh_per_kwp_day")}"/>`;
+  ms.forEach((m, i) => { g += `<circle class="d-pv" cx="${X(i)}" cy="${Ypv(m.pv_kwh_per_kwp_day)}" r="3.5"><title>${MOIS[i]} : ${fmt(m.pv_kwh_per_kwp_day, 2)} kWh par kWc et par jour</title></circle><circle class="d-et" cx="${X(i)}" cy="${Yet(m.ret_mm_day)}" r="3.5"><title>${MOIS[i]} : demande climatique ${fmt(m.ret_mm_day, 2)} mm/j</title></circle>`; });
+  const c = RZ.solar.pv_vs_demand;
+  return `<div class="rz-chart"><div class="rz-legend"><span><i style="background:var(--warn)"></i>Production solaire PVGIS (kWh par kWc et par jour, axe gauche)</span><span><i style="background:var(--accent)"></i>Demande climatique WaPOR ET0 2018–2025 (mm/j, axe droit)</span><span>corrélation r = ${fmt(c.r, 2)}, p = ${pf(c.p)}</span></div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Production solaire et demande climatique par mois">${g}</svg></div>`;
+}
+function renderRz() {
+  const h = RZ.heat, d = h.decades, lab = h.decade_labels, t = h.trend, dl = RZ.demand_link, sol = RZ.solar;
+  const s = RZ.seasons[rplot];
+  const plotDemand = (plotsData || []).find(p => p.plot_id === rplot);
+  let html = `<div class="rz-sec"><h3>1. Des étés plus chauds à Jendouba</h3>
+    <p class="lead">Température maximale de chaque jour de juin à septembre au point des parcelles, de ${h.period}. Comparaison de la première et de la dernière décennie.</p>
+    <div class="kpis">
+      <div class="kpi hot"><div class="k">Tmax moyenne de l'été</div><div class="v">${fmt(d.summer_tmax_c.last, 1)} °C <small>${nf(d.summer_tmax_c.change, 1)} °C</small></div><div class="d">${lab.last}, contre ${fmt(d.summer_tmax_c.first, 1)} °C en ${lab.first}</div></div>
+      <div class="kpi hot"><div class="k">Jours à 35 °C ou plus par été</div><div class="v">${fmt(d.days_ge_35.last, 1)} <small>${nf(d.days_ge_35.change, 1)} jours</small></div><div class="d">contre ${fmt(d.days_ge_35.first, 1)} en ${lab.first}</div></div>
+      <div class="kpi hot"><div class="k">Jours à 40 °C ou plus par été</div><div class="v">${fmt(d.days_ge_40.last, 1)} <small>${nf(d.days_ge_40.change, 1)} jours</small></div><div class="d">contre ${fmt(d.days_ge_40.first, 1)} en ${lab.first}</div></div>
+      <div class="kpi"><div class="k">Demande climatique en plus (estimation)</div><div class="v">${nf(dl.ret_change_mm_day_estimate, 2)} <small>mm/j</small></div><div class="d">${fmt(dl.ret_mm_day_per_c, 2)} mm/j par °C × ${fmt(dl.summer_tmax_change_c, 2)} °C</div></div>
+    </div>
+    <p style="margin:6px 0 0;font-size:14px"><b>Tendance :</b> Tmax ${nf(t.summer_tmax_c.slope_per_decade, 2)} °C par décennie (p = ${pf(t.summer_tmax_c.p)}, ${t.summer_tmax_c.significant ? "<b>significative</b>" : "non significative"}) ; jours ≥ 35 °C ${nf(t.days_ge_35.slope_per_decade, 1)} par décennie (p = ${pf(t.days_ge_35.p)}, ${t.days_ge_35.significant ? "<b>significative</b>" : "non significative"}) ; jours ≥ 40 °C ${nf(t.days_ge_40.slope_per_decade, 1)} par décennie (p = ${pf(t.days_ge_40.p)}, ${t.days_ge_40.significant ? "significative" : "non significative"}).</p>
+    ${heatChart()}
+    <p class="limits" style="list-style:none;padding:0">${esc(dl.note)}</p></div>`;
+
+  html += `<div class="rz-sec"><h3>2. Eau et énergie : le soleil est là quand la demande monte</h3>
+    <p class="lead">Production moyenne d'un panneau de 1 kWc à Assila (PVGIS, rayonnement ${esc(sol.system.radiation_db)} ${esc(sol.system.years)}, inclinaison ${sol.system.slope_deg}°, pertes ${fmt(sol.system.loss_pct, 0)} %) et demande climatique de chaque mois.</p>
+    <div class="kpis">
+      <div class="kpi"><div class="k">Production en été (juin–sept.)</div><div class="v">${fmt(sol.summer_pv_kwh_per_kwp_day, 2)} <small>kWh par kWc et par jour</small></div><div class="d">meilleur mois : ${MOIS[sol.best_month - 1]} · plus faible : ${MOIS[sol.worst_month - 1]}</div></div>
+      <div class="kpi"><div class="k">Production sur l'année</div><div class="v">${fmt(sol.year_kwh_per_kwp, 0)} <small>kWh par kWc</small></div><div class="d">moyenne PVGIS</div></div>
+      <div class="kpi"><div class="k">Solaire et demande, mois par mois</div><div class="v">r = ${fmt(sol.pv_vs_demand.r, 2)}</div><div class="d">${sol.pv_vs_demand.significant ? "les deux montent et baissent ensemble" : "pas de lien net"}</div></div>
+    </div>
+    ${solarChart()}
+    <div class="md-note" style="margin-top:10px"><b>Pendant une coupure STEG :</b> ${esc(sol.during_outage)}</div>
+    <div class="result" style="margin-top:10px"><b>Combien de m³ par jour avec le solaire ?</b> L'énergie de pompage (kWh par m³) dépend de la hauteur et de la pompe : elle n'est pas mesurée, saisissez-la (relevé de compteur ou fiche de la pompe).
+      <div class="fields" style="margin-top:8px">
+        <label>Mois<select id="sz-m">${MOIS.map((m, i) => `<option value="${i + 1}"${i === 6 ? " selected" : ""}>${m}</option>`).join("")}</select></label>
+        <label>Énergie de pompage (kWh/m³)<input id="sz-e" type="number" min="0.01" step="0.01" placeholder="à saisir" style="width:140px"></label>
+        <label>Puissance installée (kWc)<input id="sz-k" type="number" min="0" step="0.5" value="10" style="width:110px"></label>
+        <label>Volume voulu (m³/jour)<input id="sz-v" type="number" min="0" step="1" value="${plotDemand && plotDemand.demand_m3 != null ? plotDemand.demand_m3 : ""}" style="width:120px"></label>
+        <button onclick="solarCalc()">Calculer</button></div>
+      <div id="sz-o" style="margin-top:8px;font-size:14px">${plotDemand && plotDemand.demand_m3 != null ? `<span style="color:var(--muted)">Volume prérempli : besoin estimé de ${rplot} du 11 au 20 juillet 2026 (AETI moins pluie, étape 3).</span>` : ""}</div></div></div>`;
+
+  if (s) {
+    const tr = s.gap_trend, gh = s.gap_vs_heat;
+    html += `<div class="rz-sec"><h3>3. Bilan de chaque été pour ${rplot}</h3>
+      <p class="lead">Écart = demande climatique (ET0) moins eau réellement utilisée (AETI), en moyenne de juin à septembre. Plus l'écart est grand, plus la culture a manqué d'eau.</p>
+      <div class="kpis">
+        <div class="kpi"><div class="k">Pire été</div><div class="v" style="color:var(--bad)">${s.worst.year} <small>${fmt(s.worst.gap_mm_day, 2)} mm/j</small></div></div>
+        <div class="kpi"><div class="k">Meilleur été</div><div class="v" style="color:var(--ok)">${s.best.year} <small>${fmt(s.best.gap_mm_day, 2)} mm/j</small></div></div>
+        <div class="kpi"><div class="k">Dernier été (${s.last.year})</div><div class="v">${fmt(s.last.gap_mm_day, 2)} <small>mm/j</small></div><div class="d">médiane des étés précédents : ${fmt(s.last.median_before, 2)} mm/j</div></div>
+        <div class="kpi"><div class="k">Écart et chaleur, d'un été à l'autre</div><div class="v">${nf(gh.slope_per_c, 2)} <small>mm/j par °C</small></div><div class="d">r = ${fmt(gh.r, 2)}, p = ${pf(gh.p)} · ${gh.significant ? "significatif" : "non significatif (9 étés)"}</div></div>
+      </div>` +
+      table([
+        ["year", "Été", r => `<b>${r.year}</b>`],
+        ["tmax_c", "Tmax (°C)", r => fmt(r.tmax_c, 1), 1],
+        ["aeti_mm_day", "Eau utilisée (mm/j)", r => fmt(r.aeti_mm_day, 2), 1],
+        ["ret_mm_day", "Demande (mm/j)", r => fmt(r.ret_mm_day, 2), 1],
+        ["ratio", "Rapport", r => fmt(r.ratio, 2), 1],
+        ["gap_mm_day", "Écart (mm/j)", r => `<b>${fmt(r.gap_mm_day, 2)}</b>`, 1],
+        ["gap_m3_day", "Écart (m³/j)", r => fmt(r.gap_m3_day, 1), 1],
+      ], s.seasons).replace(new RegExp(`<tr><td><b>(${s.worst.year}|${s.best.year})</b>`, "g"), (m, y) => `<tr class="${+y === s.worst.year ? "worst" : "best"}"><td><b>${y}</b>`) +
+      `<p style="margin:8px 0 0;font-size:14px"><b>Tendance 2018–${s.last.year} :</b> ${tr.significant ? `${tr.verdict} de ${nf(tr.slope_per_decade / 10, 2)} mm/j par an (p = ${pf(tr.p)})` : `pas de tendance nette sur ${tr.n} étés (p = ${pf(tr.p)})`}. ${gh.significant ? "Les étés plus chauds ont un écart plus grand." : "L'écart varie d'un été à l'autre, mais 9 étés ne suffisent pas pour le relier sûrement à la chaleur."}</p>`;
+    const pr = RZP.priorites;
+    html += `<h3 style="margin:16px 0 4px;font-size:15px">Priorités pour la saison prochaine</h3>
+      <p class="lead" style="margin:0;color:var(--muted);font-size:14px">Issues de l'analyse des causes (étape 8) et de vos avis : d'abord ce qui est retenu, puis ce qui ne peut se vérifier que sur le terrain.</p>
+      <ol class="prio">${pr.map(c => `<li><div class="t">${esc(c.cause)} <span class="chip ${c.statut === "retenue" ? "c-ok" : "c-warn"}">${c.statut === "retenue" ? "retenue" : "à vérifier sur le terrain"}</span>${c.statut === "retenue" ? `<span class="s">${pct(c.p)}</span>` : ""}</div>
+        <div class="s"><b>Ce qu'on cherche :</b> ${esc(c.a_verifier)}</div><div class="s"><b>Données à collecter :</b> ${esc(c.donnees.join(", "))}</div></li>`).join("")}</ol>` +
+      (RZP.appris.length ? `<h3 style="margin:16px 0 4px;font-size:15px">Ce que le terrain nous a appris</h3><ul class="md-l">${RZP.appris.map(a => `<li><b>${esc(a.cause)}</b> : ${{confirm: "confirmée", reject: "rejetée", unsure: "incertaine"}[a.avis] || esc(a.avis)}${a.note ? ` (« ${esc(a.note)} »)` : ""} <span style="color:var(--muted)">${esc((a.date || "").slice(0, 10))}</span></li>`).join("")}</ul>`
+        : `<p style="font-size:14px;color:var(--muted);margin:10px 0 0">Aucun avis de terrain pour ${rplot} : donnez-en à l'étape 8 ou dans l'assistant, ils apparaîtront ici à la fin de la saison.</p>`) + `</div>`;
+  }
+  html += `<ul class="limits">${RZ.limits.map(l => `<li>${esc(l)}</li>`).join("")}</ul>`;
+  $("o9").innerHTML = html;
+}
+async function solarCalc() {
+  const e = $("sz-e").value, o = $("sz-o");
+  if (!e || +e <= 0) { o.innerHTML = `<span class="err">Saisissez l'énergie de pompage en kWh par m³ : sans elle, on ne peut pas convertir les kWh en m³.</span>`; return; }
+  try {
+    const r = await post("/api/resilience/solar", {month: +$("sz-m").value, kwh_per_m3: +e, kwp: $("sz-k").value, m3_per_day: $("sz-v").value});
+    o.innerHTML = `En ${MOIS[r.month - 1]}, 1 kWc produit en moyenne <b>${fmt(r.pv_kwh_per_kwp_day, 2)} kWh/jour</b>.` +
+      (r.m3_per_day !== undefined ? ` Avec ${fmt(+$("sz-k").value, 1)} kWc : <b>${fmt(r.m3_per_day, 1)} m³/jour</b> pompés au soleil ; avec une pompe solaire autonome ou hybride, cela continue en journée pendant une coupure STEG.` : "") +
+      (r.kwp_needed !== undefined ? ` Pour ${fmt(+$("sz-v").value, 0)} m³/jour : <b>${fmt(r.kwp_needed, 1)} kWc</b> nécessaires.` : "") +
+      ` <span style="color:var(--muted)">Moyenne PVGIS : un jour nuageux produit moins, et la nuit il faut un réservoir ou le réseau.</span>`;
+  } catch (err) { o.innerHTML = `<span class="err">${esc(err.message)}</span>`; }
+}
+
+/* 10 */
+async function step10() { await guard(10, "o10", async () => {
   const j = await get("/api/tests");
   const pass = j.tests.filter(t => t.ok).length;
-  $("o9").innerHTML = `<div class="tests">${j.tests.map(t => `<div class="test" title="${esc(t.name)}"><span class="ic ${t.ok ? "ok" : "bad"}">${t.ok ? "✓" : "✗"}</span><span>${esc(t.name.replace(/^test_/, ""))}</span></div>`).join("")}</div>` +
+  $("o10").innerHTML = `<div class="tests">${j.tests.map(t => `<div class="test" title="${esc(t.name)}"><span class="ic ${t.ok ? "ok" : "bad"}">${t.ok ? "✓" : "✗"}</span><span>${esc(t.name.replace(/^test_/, ""))}</span></div>`).join("")}</div>` +
     (j.returncode ? `<div class="result err" style="white-space:pre-wrap">${esc(j.output)}</div>` : "");
-  status(9, j.returncode === 0 ? "ok" : "bad", `${pass}/${j.tests.length} passés`);
+  status(10, j.returncode === 0 ? "ok" : "bad", `${pass}/${j.tests.length} passés`);
 }); }
 
 /* 7 */
@@ -833,7 +1009,8 @@ async function sendFb(cause, verdict) {
 const CHATS = {};  // plot_id -> [{role, content, meta}]
 let chatPlot = "P-03", chatBusy = false;
 const STARTERS = ["Pourquoi ma parcelle manque d'eau en été ?", "La chaleur est-elle la cause ?",
-  "Que dois-je vérifier sur le terrain ?", "D'où viennent ces données ?", "Que veut dire « rapport 0,25 » ?"];
+  "Que dois-je vérifier sur le terrain ?", "Les étés sont-ils plus chauds ?", "Le solaire peut-il aider pendant les coupures ?",
+  "D'où viennent ces données ?"];
 function openChat() {
   $("chat").classList.add("open"); $("fab").style.display = "none";
   chatPlot = (typeof cplot !== "undefined" && cplot) || chatPlot; $("chatplot").value = chatPlot;
@@ -913,10 +1090,10 @@ async function runAll() {
     for (const k in caseRes) delete caseRes[k];
     status(6, "run", "En cours…"); for (let i = 0; i < CASES.length; i++) await runCase(i);
     $("mm").value = 4; $("m2").value = 500; await step4();
-    await step7(); await step8(); await step9();
+    await step7(); await step8(); await step9(); await step10();
   } finally { b.disabled = false; b.textContent = "▶ Tout lancer"; }
 }
-renderCases(); renderPlotChips(); initSites(); step2();
+renderCases(); renderPlotChips(); renderRzChips(); initSites(); step2();
 </script>
 </body>
 </html>

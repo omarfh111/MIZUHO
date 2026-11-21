@@ -62,5 +62,21 @@
   "query": "bounds=(8.96, 36.6, 9.002, 36.634); dekads 2018-01-D1..2026-10-D3 (318)",
   "retrieved_at": "2026-11-21T16:17:14+00:00",
   "sha256": "dc7613952bfaafb9e53d4ac198beac2ce209086545c7c30b69fab2580a3a0c1f"
+ },
+ {
+  "file": "data/raw/power/power_daily_1981-2025.json",
+  "source": "NASA POWER daily point data (MERRA-2), public domain",
+  "url": "https://power.larc.nasa.gov/api/temporal/daily/point",
+  "query": "parameters=T2M,T2M_MAX,PRECTOTCORR&community=AG&latitude=36.617&longitude=8.981&start=19810101&end=20251231&format=JSON",
+  "retrieved_at": "2026-11-21T22:03:46+00:00",
+  "sha256": "5955d6d3cba8b2c24ec77794650da967a4cc89037c236a9e37f90194030a9740"
+ },
+ {
+  "file": "data/raw/pvgis/pvgis_pvcalc_1kwp.json",
+  "source": "JRC PVGIS 5.3 PVcalc (European Commission), free reuse with attribution",
+  "url": "https://re.jrc.ec.europa.eu/api/v5_3/PVcalc",
+  "query": "lat=36.617&lon=8.981&peakpower=1&loss=14&optimalangles=1&mountingplace=free&outputformat=json",
+  "retrieved_at": "2026-11-21T22:03:47+00:00",
+  "sha256": "dc723e3772c7e47ca7018d5cbeb3eb116052f303af7ab86447324bc9b3af1be9"
  }
 ]

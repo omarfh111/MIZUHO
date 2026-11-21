@@ -150,6 +150,40 @@
    "outputs": [
     "data/agriculture/temperature_effect.json"
    ]
+  },
+  {
+   "source_id": "nasa-power-daily-1981-2025",
+   "title": "NASA POWER daily T2M, T2M_MAX, PRECTOTCORR at the cluster point, 1981-2025",
+   "organisation": "NASA Langley Research Center (POWER project)",
+   "license": "public, no restriction (NASA open data)",
+   "resolution": "0.5 x 0.625 degrees (MERRA-2)",
+   "unit": "°C, mm/day",
+   "status": "reanalysis",
+   "url": "https://power.larc.nasa.gov/api/temporal/daily/point",
+   "query": "parameters=T2M,T2M_MAX,PRECTOTCORR&community=AG&latitude=36.617&longitude=8.981&start=19810101&end=20251231&format=JSON",
+   "retrieved_at": "2026-11-21T22:03:46+00:00",
+   "sha256": "5955d6d3cba8b2c24ec77794650da967a4cc89037c236a9e37f90194030a9740",
+   "raw_file": "data/raw/power/power_daily_1981-2025.json",
+   "outputs": [
+    "data/agriculture/resilience.json"
+   ]
+  },
+  {
+   "source_id": "jrc-pvgis-5.3",
+   "title": "JRC PVGIS 5.3 PVcalc, 1 kWp free-standing, optimal angles, monthly yield at the cluster point",
+   "organisation": "European Commission, Joint Research Centre",
+   "license": "free reuse with attribution (European Commission reuse policy)",
+   "resolution": "point, satellite radiation PVGIS-SARAH3",
+   "unit": "kWh/kWp",
+   "status": "modelled long-term average",
+   "url": "https://re.jrc.ec.europa.eu/api/v5_3/PVcalc",
+   "query": "lat=36.617&lon=8.981&peakpower=1&loss=14&optimalangles=1&mountingplace=free&outputformat=json",
+   "retrieved_at": "2026-11-21T22:03:47+00:00",
+   "sha256": "dc723e3772c7e47ca7018d5cbeb3eb116052f303af7ab86447324bc9b3af1be9",
+   "raw_file": "data/raw/pvgis/pvgis_pvcalc_1kwp.json",
+   "outputs": [
+    "data/agriculture/resilience.json"
+   ]
   }
  ]
 }

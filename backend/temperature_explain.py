@@ -87,12 +87,17 @@ def _allowed_numbers(f: dict) -> set[str]:
         if isinstance(v, bool):
             return
         if isinstance(v, (int, float)):
-            allowed.update({str(v), str(v).replace(".", ","), f"{v:g}", f"{v:g}".replace(".", ",")})
+            forms = {str(v), f"{v:g}"}
+            if isinstance(v, float):   # the same value rounded for reading: 33.76 -> 33.8, 0.0474 -> 0.047
+                forms |= {f"{round(v, d):g}" for d in (1, 2, 3)}
+            for s in forms:
+                allowed.update({s, s.replace(".", ","), s.lstrip("-"), s.lstrip("-").replace(".", ",")})
         elif isinstance(v, str):
             for n in _NUM.findall(v):
-                allowed.update({n, n.replace(".", ","), n.replace(",", ".")})
+                allowed.update({n, n.replace(".", ","), n.replace(",", "."), n.lstrip("-")})
         elif isinstance(v, dict):
-            for x in v.values():
+            for k, x in v.items():
+                walk(k)
                 walk(x)
         elif isinstance(v, list):
             for x in v:

@@ -1,0 +1,1056 @@
+{
+ "built_on": "2026-11-21",
+ "heat": {
+  "period": "1981-2025",
+  "months": [
+   6,
+   7,
+   8,
+   9
+  ],
+  "years": [
+   {
+    "year": 1981,
+    "summer_tmax_c": 32.37,
+    "days_ge_35": 35,
+    "days_ge_40": 5,
+    "days": 122
+   },
+   {
+    "year": 1982,
+    "summer_tmax_c": 34.93,
+    "days_ge_35": 61,
+    "days_ge_40": 24,
+    "days": 122
+   },
+   {
+    "year": 1983,
+    "summer_tmax_c": 34.07,
+    "days_ge_35": 49,
+    "days_ge_40": 14,
+    "days": 122
+   },
+   {
+    "year": 1984,
+    "summer_tmax_c": 33.41,
+    "days_ge_35": 46,
+    "days_ge_40": 9,
+    "days": 122
+   },
+   {
+    "year": 1985,
+    "summer_tmax_c": 33.88,
+    "days_ge_35": 50,
+    "days_ge_40": 11,
+    "days": 122
+   },
+   {
+    "year": 1986,
+    "summer_tmax_c": 33.58,
+    "days_ge_35": 51,
+    "days_ge_40": 11,
+    "days": 122
+   },
+   {
+    "year": 1987,
+    "summer_tmax_c": 34.93,
+    "days_ge_35": 60,
+    "days_ge_40": 20,
+    "days": 122
+   },
+   {
+    "year": 1988,
+    "summer_tmax_c": 34.1,
+    "days_ge_35": 54,
+    "days_ge_40": 18,
+    "days": 122
+   },
+   {
+    "year": 1989,
+    "summer_tmax_c": 33.14,
+    "days_ge_35": 44,
+    "days_ge_40": 7,
+    "days": 122
+   },
+   {
+    "year": 1990,
+    "summer_tmax_c": 33.22,
+    "days_ge_35": 35,
+    "days_ge_40": 2,
+    "days": 122
+   },
+   {
+    "year": 1991,
+    "summer_tmax_c": 32.25,
+    "days_ge_35": 37,
+    "days_ge_40": 2,
+    "days": 122
+   },
+   {
+    "year": 1992,
+    "summer_tmax_c": 32.04,
+    "days_ge_35": 33,
+    "days_ge_40": 0,
+    "days": 122
+   },
+   {
+    "year": 1993,
+    "summer_tmax_c": 33.83,
+    "days_ge_35": 51,
+    "days_ge_40": 13,
+    "days": 122
+   },
+   {
+    "year": 1994,
+    "summer_tmax_c": 35.17,
+    "days_ge_35": 65,
+    "days_ge_40": 20,
+    "days": 122
+   },
+   {
+    "year": 1995,
+    "summer_tmax_c": 32.37,
+    "days_ge_35": 41,
+    "days_ge_40": 6,
+    "days": 122
+   },
+   {
+    "year": 1996,
+    "summer_tmax_c": 31.41,
+    "days_ge_35": 30,
+    "days_ge_40": 9,
+    "days": 122
+   },
+   {
+    "year": 1997,
+    "summer_tmax_c": 33.36,
+    "days_ge_35": 49,
+    "days_ge_40": 13,
+    "days": 122
+   },
+   {
+    "year": 1998,
+    "summer_tmax_c": 33.41,
+    "days_ge_35": 45,
+    "days_ge_40": 13,
+    "days": 122
+   },
+   {
+    "year": 1999,
+    "summer_tmax_c": 34.48,
+    "days_ge_35": 55,
+    "days_ge_40": 15,
+    "days": 122
+   },
+   {
+    "year": 2000,
+    "summer_tmax_c": 34.0,
+    "days_ge_35": 51,
+    "days_ge_40": 24,
+    "days": 122
+   },
+   {
+    "year": 2001,
+    "summer_tmax_c": 34.15,
+    "days_ge_35": 52,
+    "days_ge_40": 15,
+    "days": 122
+   },
+   {
+    "year": 2002,
+    "summer_tmax_c": 33.03,
+    "days_ge_35": 48,
+    "days_ge_40": 9,
+    "days": 122
+   },
+   {
+    "year": 2003,
+    "summer_tmax_c": 33.8,
+    "days_ge_35": 53,
+    "days_ge_40": 17,
+    "days": 122
+   },
+   {
+    "year": 2004,
+    "summer_tmax_c": 31.76,
+    "days_ge_35": 40,
+    "days_ge_40": 5,
+    "days": 122
+   },
+   {
+    "year": 2005,
+    "summer_tmax_c": 32.47,
+    "days_ge_35": 35,
+    "days_ge_40": 12,
+    "days": 122
+   },
+   {
+    "year": 2006,
+    "summer_tmax_c": 33.17,
+    "days_ge_35": 44,
+    "days_ge_40": 9,
+    "days": 122
+   },
+   {
+    "year": 2007,
+    "summer_tmax_c": 33.46,
+    "days_ge_35": 49,
+    "days_ge_40": 12,
+    "days": 122
+   },
+   {
+    "year": 2008,
+    "summer_tmax_c": 33.47,
+    "days_ge_35": 59,
+    "days_ge_40": 12,
+    "days": 122
+   },
+   {
+    "year": 2009,
+    "summer_tmax_c": 32.14,
+    "days_ge_35": 39,
+    "days_ge_40": 6,
+    "days": 122
+   },
+   {
+    "year": 2010,
+    "summer_tmax_c": 32.62,
+    "days_ge_35": 39,
+    "days_ge_40": 6,
+    "days": 122
+   },
+   {
+    "year": 2011,
+    "summer_tmax_c": 32.55,
+    "days_ge_35": 41,
+    "days_ge_40": 5,
+    "days": 122
+   },
+   {
+    "year": 2012,
+    "summer_tmax_c": 33.82,
+    "days_ge_35": 53,
+    "days_ge_40": 12,
+    "days": 122
+   },
+   {
+    "year": 2013,
+    "summer_tmax_c": 32.16,
+    "days_ge_35": 33,
+    "days_ge_40": 5,
+    "days": 122
+   },
+   {
+    "year": 2014,
+    "summer_tmax_c": 33.7,
+    "days_ge_35": 46,
+    "days_ge_40": 6,
+    "days": 122
+   },
+   {
+    "year": 2015,
+    "summer_tmax_c": 33.22,
+    "days_ge_35": 46,
+    "days_ge_40": 4,
+    "days": 122
+   },
+   {
+    "year": 2016,
+    "summer_tmax_c": 32.72,
+    "days_ge_35": 40,
+    "days_ge_40": 6,
+    "days": 122
+   },
+   {
+    "year": 2017,
+    "summer_tmax_c": 35.05,
+    "days_ge_35": 60,
+    "days_ge_40": 23,
+    "days": 122
+   },
+   {
+    "year": 2018,
+    "summer_tmax_c": 32.76,
+    "days_ge_35": 38,
+    "days_ge_40": 7,
+    "days": 122
+   },
+   {
+    "year": 2019,
+    "summer_tmax_c": 34.34,
+    "days_ge_35": 56,
+    "days_ge_40": 12,
+    "days": 122
+   },
+   {
+    "year": 2020,
+    "summer_tmax_c": 33.57,
+    "days_ge_35": 48,
+    "days_ge_40": 14,
+    "days": 122
+   },
+   {
+    "year": 2021,
+    "summer_tmax_c": 36.74,
+    "days_ge_35": 78,
+    "days_ge_40": 36,
+    "days": 122
+   },
+   {
+    "year": 2022,
+    "summer_tmax_c": 36.79,
+    "days_ge_35": 89,
+    "days_ge_40": 29,
+    "days": 122
+   },
+   {
+    "year": 2023,
+    "summer_tmax_c": 35.86,
+    "days_ge_35": 73,
+    "days_ge_40": 30,
+    "days": 122
+   },
+   {
+    "year": 2024,
+    "summer_tmax_c": 35.75,
+    "days_ge_35": 69,
+    "days_ge_40": 29,
+    "days": 122
+   },
+   {
+    "year": 2025,
+    "summer_tmax_c": 35.2,
+    "days_ge_35": 67,
+    "days_ge_40": 13,
+    "days": 122
+   }
+  ],
+  "trend": {
+   "summer_tmax_c": {
+    "slope_per_decade": 0.282,
+    "r": 0.297,
+    "p": 0.0474,
+    "n": 45,
+    "significant": true,
+    "verdict": "hausse"
+   },
+   "days_ge_35": {
+    "slope_per_decade": 3.368,
+    "r": 0.352,
+    "p": 0.0176,
+    "n": 45,
+    "significant": true,
+    "verdict": "hausse"
+   },
+   "days_ge_40": {
+    "slope_per_decade": 1.66,
+    "r": 0.266,
+    "p": 0.0775,
+    "n": 45,
+    "significant": false,
+    "verdict": "pas de tendance nette"
+   }
+  },
+  "decades": {
+   "summer_tmax_c": {
+    "first": 33.76,
+    "last": 34.88,
+    "change": 1.12
+   },
+   "days_ge_35": {
+    "first": 48.5,
+    "last": 61.8,
+    "change": 13.3
+   },
+   "days_ge_40": {
+    "first": 12.1,
+    "last": 19.9,
+    "change": 7.8
+   }
+  },
+  "decade_labels": {
+   "first": "1981-1990",
+   "last": "2016-2025"
+  }
+ },
+ "demand_link": {
+  "ret_mm_day_per_c": 0.2391,
+  "summer_tmax_change_c": 1.12,
+  "ret_change_mm_day_estimate": 0.27,
+  "note": "Ordre de grandeur : pente ET0~Tmax observée sur 2018-2026 (toutes saisons) appliquée au réchauffement estival entre les deux décennies. Ce n'est pas une mesure de l'ET0 en 1981."
+ },
+ "seasons": {
+  "P-01": {
+   "surface_m2": 47851,
+   "seasons": [
+    {
+     "year": 2018,
+     "aeti_mm_day": 0.86,
+     "ret_mm_day": 5.81,
+     "ratio": 0.15,
+     "gap_mm_day": 4.95,
+     "gap_m3_day": 236.8,
+     "tmax_c": 32.74
+    },
+    {
+     "year": 2019,
+     "aeti_mm_day": 1.64,
+     "ret_mm_day": 6.18,
+     "ratio": 0.27,
+     "gap_mm_day": 4.54,
+     "gap_m3_day": 217.3,
+     "tmax_c": 34.33
+    },
+    {
+     "year": 2020,
+     "aeti_mm_day": 1.88,
+     "ret_mm_day": 6.09,
+     "ratio": 0.31,
+     "gap_mm_day": 4.21,
+     "gap_m3_day": 201.5,
+     "tmax_c": 33.5
+    },
+    {
+     "year": 2021,
+     "aeti_mm_day": 1.14,
+     "ret_mm_day": 6.15,
+     "ratio": 0.18,
+     "gap_mm_day": 5.02,
+     "gap_m3_day": 240.1,
+     "tmax_c": 36.71
+    },
+    {
+     "year": 2022,
+     "aeti_mm_day": 1.39,
+     "ret_mm_day": 6.67,
+     "ratio": 0.21,
+     "gap_mm_day": 5.27,
+     "gap_m3_day": 252.3,
+     "tmax_c": 36.78
+    },
+    {
+     "year": 2023,
+     "aeti_mm_day": 1.1,
+     "ret_mm_day": 6.39,
+     "ratio": 0.17,
+     "gap_mm_day": 5.29,
+     "gap_m3_day": 253.0,
+     "tmax_c": 35.81
+    },
+    {
+     "year": 2024,
+     "aeti_mm_day": 0.74,
+     "ret_mm_day": 6.27,
+     "ratio": 0.12,
+     "gap_mm_day": 5.52,
+     "gap_m3_day": 264.3,
+     "tmax_c": 35.73
+    },
+    {
+     "year": 2025,
+     "aeti_mm_day": 1.53,
+     "ret_mm_day": 6.36,
+     "ratio": 0.24,
+     "gap_mm_day": 4.82,
+     "gap_m3_day": 230.7,
+     "tmax_c": 35.18
+    },
+    {
+     "year": 2026,
+     "aeti_mm_day": 1.49,
+     "ret_mm_day": 6.46,
+     "ratio": 0.23,
+     "gap_mm_day": 4.97,
+     "gap_m3_day": 237.9,
+     "tmax_c": 36.94
+    }
+   ],
+   "gap_trend": {
+    "slope_per_decade": 0.635,
+    "r": 0.435,
+    "p": 0.242,
+    "n": 9,
+    "significant": false,
+    "verdict": "pas de tendance nette"
+   },
+   "gap_vs_heat": {
+    "slope_per_c": 0.153,
+    "r": 0.576,
+    "p": 0.105,
+    "n": 9,
+    "significant": false,
+    "verdict": "pas de tendance nette"
+   },
+   "worst": {
+    "year": 2024,
+    "gap_mm_day": 5.52
+   },
+   "best": {
+    "year": 2020,
+    "gap_mm_day": 4.21
+   },
+   "last": {
+    "year": 2026,
+    "gap_mm_day": 4.97,
+    "median_before": 4.98
+   }
+  },
+  "P-02": {
+   "surface_m2": 85233,
+   "seasons": [
+    {
+     "year": 2018,
+     "aeti_mm_day": 1.05,
+     "ret_mm_day": 5.81,
+     "ratio": 0.18,
+     "gap_mm_day": 4.77,
+     "gap_m3_day": 406.1,
+     "tmax_c": 32.74
+    },
+    {
+     "year": 2019,
+     "aeti_mm_day": 1.58,
+     "ret_mm_day": 6.18,
+     "ratio": 0.26,
+     "gap_mm_day": 4.6,
+     "gap_m3_day": 392.4,
+     "tmax_c": 34.33
+    },
+    {
+     "year": 2020,
+     "aeti_mm_day": 1.79,
+     "ret_mm_day": 6.09,
+     "ratio": 0.29,
+     "gap_mm_day": 4.29,
+     "gap_m3_day": 365.8,
+     "tmax_c": 33.5
+    },
+    {
+     "year": 2021,
+     "aeti_mm_day": 1.1,
+     "ret_mm_day": 6.15,
+     "ratio": 0.18,
+     "gap_mm_day": 5.06,
+     "gap_m3_day": 431.0,
+     "tmax_c": 36.71
+    },
+    {
+     "year": 2022,
+     "aeti_mm_day": 1.28,
+     "ret_mm_day": 6.67,
+     "ratio": 0.19,
+     "gap_mm_day": 5.39,
+     "gap_m3_day": 459.5,
+     "tmax_c": 36.78
+    },
+    {
+     "year": 2023,
+     "aeti_mm_day": 2.1,
+     "ret_mm_day": 6.39,
+     "ratio": 0.33,
+     "gap_mm_day": 4.29,
+     "gap_m3_day": 365.5,
+     "tmax_c": 35.81
+    },
+    {
+     "year": 2024,
+     "aeti_mm_day": 0.71,
+     "ret_mm_day": 6.27,
+     "ratio": 0.11,
+     "gap_mm_day": 5.55,
+     "gap_m3_day": 473.5,
+     "tmax_c": 35.73
+    },
+    {
+     "year": 2025,
+     "aeti_mm_day": 1.0,
+     "ret_mm_day": 6.36,
+     "ratio": 0.16,
+     "gap_mm_day": 5.36,
+     "gap_m3_day": 456.6,
+     "tmax_c": 35.18
+    },
+    {
+     "year": 2026,
+     "aeti_mm_day": 1.65,
+     "ret_mm_day": 6.46,
+     "ratio": 0.26,
+     "gap_mm_day": 4.81,
+     "gap_m3_day": 410.1,
+     "tmax_c": 36.94
+    }
+   ],
+   "gap_trend": {
+    "slope_per_decade": 0.698,
+    "r": 0.408,
+    "p": 0.276,
+    "n": 9,
+    "significant": false,
+    "verdict": "pas de tendance nette"
+   },
+   "gap_vs_heat": {
+    "slope_per_c": 0.135,
+    "r": 0.433,
+    "p": 0.245,
+    "n": 9,
+    "significant": false,
+    "verdict": "pas de tendance nette"
+   },
+   "worst": {
+    "year": 2024,
+    "gap_mm_day": 5.55
+   },
+   "best": {
+    "year": 2020,
+    "gap_mm_day": 4.29
+   },
+   "last": {
+    "year": 2026,
+    "gap_mm_day": 4.81,
+    "median_before": 4.91
+   }
+  },
+  "P-03": {
+   "surface_m2": 99796,
+   "seasons": [
+    {
+     "year": 2018,
+     "aeti_mm_day": 2.02,
+     "ret_mm_day": 5.81,
+     "ratio": 0.35,
+     "gap_mm_day": 3.79,
+     "gap_m3_day": 378.2,
+     "tmax_c": 32.74
+    },
+    {
+     "year": 2019,
+     "aeti_mm_day": 1.46,
+     "ret_mm_day": 6.18,
+     "ratio": 0.24,
+     "gap_mm_day": 4.72,
+     "gap_m3_day": 471.3,
+     "tmax_c": 34.33
+    },
+    {
+     "year": 2020,
+     "aeti_mm_day": 2.53,
+     "ret_mm_day": 6.09,
+     "ratio": 0.42,
+     "gap_mm_day": 3.56,
+     "gap_m3_day": 355.3,
+     "tmax_c": 33.5
+    },
+    {
+     "year": 2021,
+     "aeti_mm_day": 0.87,
+     "ret_mm_day": 6.15,
+     "ratio": 0.14,
+     "gap_mm_day": 5.29,
+     "gap_m3_day": 527.4,
+     "tmax_c": 36.71
+    },
+    {
+     "year": 2022,
+     "aeti_mm_day": 0.96,
+     "ret_mm_day": 6.67,
+     "ratio": 0.14,
+     "gap_mm_day": 5.71,
+     "gap_m3_day": 569.4,
+     "tmax_c": 36.78
+    },
+    {
+     "year": 2023,
+     "aeti_mm_day": 2.1,
+     "ret_mm_day": 6.39,
+     "ratio": 0.33,
+     "gap_mm_day": 4.29,
+     "gap_m3_day": 428.1,
+     "tmax_c": 35.81
+    },
+    {
+     "year": 2024,
+     "aeti_mm_day": 0.71,
+     "ret_mm_day": 6.27,
+     "ratio": 0.11,
+     "gap_mm_day": 5.56,
+     "gap_m3_day": 555.0,
+     "tmax_c": 35.73
+    },
+    {
+     "year": 2025,
+     "aeti_mm_day": 1.07,
+     "ret_mm_day": 6.36,
+     "ratio": 0.17,
+     "gap_mm_day": 5.29,
+     "gap_m3_day": 527.8,
+     "tmax_c": 35.18
+    },
+    {
+     "year": 2026,
+     "aeti_mm_day": 2.27,
+     "ret_mm_day": 6.46,
+     "ratio": 0.35,
+     "gap_mm_day": 4.19,
+     "gap_m3_day": 418.3,
+     "tmax_c": 36.94
+    }
+   ],
+   "gap_trend": {
+    "slope_per_decade": 1.052,
+    "r": 0.364,
+    "p": 0.336,
+    "n": 9,
+    "significant": false,
+    "verdict": "pas de tendance nette"
+   },
+   "gap_vs_heat": {
+    "slope_per_c": 0.329,
+    "r": 0.625,
+    "p": 0.0721,
+    "n": 9,
+    "significant": false,
+    "verdict": "pas de tendance nette"
+   },
+   "worst": {
+    "year": 2022,
+    "gap_mm_day": 5.71
+   },
+   "best": {
+    "year": 2020,
+    "gap_mm_day": 3.56
+   },
+   "last": {
+    "year": 2026,
+    "gap_mm_day": 4.19,
+    "median_before": 5.0
+   }
+  },
+  "P-04": {
+   "surface_m2": 96621,
+   "seasons": [
+    {
+     "year": 2018,
+     "aeti_mm_day": 1.84,
+     "ret_mm_day": 5.81,
+     "ratio": 0.32,
+     "gap_mm_day": 3.97,
+     "gap_m3_day": 383.2,
+     "tmax_c": 32.74
+    },
+    {
+     "year": 2019,
+     "aeti_mm_day": 1.31,
+     "ret_mm_day": 6.18,
+     "ratio": 0.21,
+     "gap_mm_day": 4.87,
+     "gap_m3_day": 470.9,
+     "tmax_c": 34.33
+    },
+    {
+     "year": 2020,
+     "aeti_mm_day": 1.14,
+     "ret_mm_day": 6.09,
+     "ratio": 0.19,
+     "gap_mm_day": 4.95,
+     "gap_m3_day": 478.2,
+     "tmax_c": 33.5
+    },
+    {
+     "year": 2021,
+     "aeti_mm_day": 1.13,
+     "ret_mm_day": 6.15,
+     "ratio": 0.18,
+     "gap_mm_day": 5.03,
+     "gap_m3_day": 485.5,
+     "tmax_c": 36.71
+    },
+    {
+     "year": 2022,
+     "aeti_mm_day": 0.8,
+     "ret_mm_day": 6.67,
+     "ratio": 0.12,
+     "gap_mm_day": 5.87,
+     "gap_m3_day": 566.7,
+     "tmax_c": 36.78
+    },
+    {
+     "year": 2023,
+     "aeti_mm_day": 1.19,
+     "ret_mm_day": 6.39,
+     "ratio": 0.19,
+     "gap_mm_day": 5.2,
+     "gap_m3_day": 502.4,
+     "tmax_c": 35.81
+    },
+    {
+     "year": 2024,
+     "aeti_mm_day": 2.0,
+     "ret_mm_day": 6.27,
+     "ratio": 0.32,
+     "gap_mm_day": 4.27,
+     "gap_m3_day": 412.5,
+     "tmax_c": 35.73
+    },
+    {
+     "year": 2025,
+     "aeti_mm_day": 0.8,
+     "ret_mm_day": 6.36,
+     "ratio": 0.13,
+     "gap_mm_day": 5.56,
+     "gap_m3_day": 537.1,
+     "tmax_c": 35.18
+    },
+    {
+     "year": 2026,
+     "aeti_mm_day": 1.81,
+     "ret_mm_day": 6.46,
+     "ratio": 0.28,
+     "gap_mm_day": 4.66,
+     "gap_m3_day": 450.1,
+     "tmax_c": 36.94
+    }
+   ],
+   "gap_trend": {
+    "slope_per_decade": 0.607,
+    "r": 0.281,
+    "p": 0.464,
+    "n": 9,
+    "significant": false,
+    "verdict": "pas de tendance nette"
+   },
+   "gap_vs_heat": {
+    "slope_per_c": 0.185,
+    "r": 0.471,
+    "p": 0.201,
+    "n": 9,
+    "significant": false,
+    "verdict": "pas de tendance nette"
+   },
+   "worst": {
+    "year": 2022,
+    "gap_mm_day": 5.87
+   },
+   "best": {
+    "year": 2018,
+    "gap_mm_day": 3.97
+   },
+   "last": {
+    "year": 2026,
+    "gap_mm_day": 4.66,
+    "median_before": 4.99
+   }
+  },
+  "P-05": {
+   "surface_m2": 46389,
+   "seasons": [
+    {
+     "year": 2018,
+     "aeti_mm_day": 0.78,
+     "ret_mm_day": 5.81,
+     "ratio": 0.13,
+     "gap_mm_day": 5.03,
+     "gap_m3_day": 233.2,
+     "tmax_c": 32.74
+    },
+    {
+     "year": 2019,
+     "aeti_mm_day": 1.28,
+     "ret_mm_day": 6.18,
+     "ratio": 0.21,
+     "gap_mm_day": 4.9,
+     "gap_m3_day": 227.5,
+     "tmax_c": 34.33
+    },
+    {
+     "year": 2020,
+     "aeti_mm_day": 2.26,
+     "ret_mm_day": 6.09,
+     "ratio": 0.37,
+     "gap_mm_day": 3.82,
+     "gap_m3_day": 177.3,
+     "tmax_c": 33.5
+    },
+    {
+     "year": 2021,
+     "aeti_mm_day": 0.79,
+     "ret_mm_day": 6.15,
+     "ratio": 0.13,
+     "gap_mm_day": 5.36,
+     "gap_m3_day": 248.8,
+     "tmax_c": 36.71
+    },
+    {
+     "year": 2022,
+     "aeti_mm_day": 1.67,
+     "ret_mm_day": 6.67,
+     "ratio": 0.25,
+     "gap_mm_day": 4.99,
+     "gap_m3_day": 231.7,
+     "tmax_c": 36.78
+    },
+    {
+     "year": 2023,
+     "aeti_mm_day": 1.13,
+     "ret_mm_day": 6.39,
+     "ratio": 0.18,
+     "gap_mm_day": 5.26,
+     "gap_m3_day": 244.0,
+     "tmax_c": 35.81
+    },
+    {
+     "year": 2024,
+     "aeti_mm_day": 1.84,
+     "ret_mm_day": 6.27,
+     "ratio": 0.29,
+     "gap_mm_day": 4.42,
+     "gap_m3_day": 205.2,
+     "tmax_c": 35.73
+    },
+    {
+     "year": 2025,
+     "aeti_mm_day": 2.26,
+     "ret_mm_day": 6.36,
+     "ratio": 0.36,
+     "gap_mm_day": 4.09,
+     "gap_m3_day": 189.8,
+     "tmax_c": 35.18
+    },
+    {
+     "year": 2026,
+     "aeti_mm_day": 2.66,
+     "ret_mm_day": 6.46,
+     "ratio": 0.41,
+     "gap_mm_day": 3.8,
+     "gap_m3_day": 176.4,
+     "tmax_c": 36.94
+    }
+   ],
+   "gap_trend": {
+    "slope_per_decade": -1.042,
+    "r": -0.468,
+    "p": 0.204,
+    "n": 9,
+    "significant": false,
+    "verdict": "pas de tendance nette"
+   },
+   "gap_vs_heat": {
+    "slope_per_c": 0.037,
+    "r": 0.091,
+    "p": 0.815,
+    "n": 9,
+    "significant": false,
+    "verdict": "pas de tendance nette"
+   },
+   "worst": {
+    "year": 2021,
+    "gap_mm_day": 5.36
+   },
+   "best": {
+    "year": 2026,
+    "gap_mm_day": 3.8
+   },
+   "last": {
+    "year": 2026,
+    "gap_mm_day": 3.8,
+    "median_before": 4.95
+   }
+  }
+ },
+ "solar": {
+  "months": [
+   {
+    "month": 1,
+    "pv_kwh_per_kwp_day": 3.21,
+    "ret_mm_day": 1.3
+   },
+   {
+    "month": 2,
+    "pv_kwh_per_kwp_day": 3.68,
+    "ret_mm_day": 1.83
+   },
+   {
+    "month": 3,
+    "pv_kwh_per_kwp_day": 4.19,
+    "ret_mm_day": 2.73
+   },
+   {
+    "month": 4,
+    "pv_kwh_per_kwp_day": 4.64,
+    "ret_mm_day": 3.87
+   },
+   {
+    "month": 5,
+    "pv_kwh_per_kwp_day": 4.83,
+    "ret_mm_day": 4.96
+   },
+   {
+    "month": 6,
+    "pv_kwh_per_kwp_day": 5.13,
+    "ret_mm_day": 6.73
+   },
+   {
+    "month": 7,
+    "pv_kwh_per_kwp_day": 5.34,
+    "ret_mm_day": 7.45
+   },
+   {
+    "month": 8,
+    "pv_kwh_per_kwp_day": 5.15,
+    "ret_mm_day": 6.33
+   },
+   {
+    "month": 9,
+    "pv_kwh_per_kwp_day": 4.54,
+    "ret_mm_day": 4.45
+   },
+   {
+    "month": 10,
+    "pv_kwh_per_kwp_day": 4.12,
+    "ret_mm_day": 3.11
+   },
+   {
+    "month": 11,
+    "pv_kwh_per_kwp_day": 3.43,
+    "ret_mm_day": 1.88
+   },
+   {
+    "month": 12,
+    "pv_kwh_per_kwp_day": 3.06,
+    "ret_mm_day": 1.3
+   }
+  ],
+  "pv_vs_demand": {
+   "r": 0.963,
+   "p": 4.99e-07,
+   "n": 12,
+   "significant": true
+  },
+  "summer_pv_kwh_per_kwp_day": 5.04,
+  "best_month": 7,
+  "worst_month": 12,
+  "year_kwh_per_kwp": 1562.08,
+  "system": {
+   "peak_kw": 1,
+   "loss_pct": 14.0,
+   "slope_deg": 32,
+   "azimuth_deg": -1,
+   "radiation_db": "PVGIS-SARAH3",
+   "years": "2005-2023"
+  },
+  "needs_user_input": "énergie de pompage en kWh par m³ (dépend de la hauteur et du rendement de la pompe, non mesurée)",
+  "during_outage": "Cela dépend de l'installation. Une pompe solaire autonome (variateur solaire branché directement sur les panneaux) ou hybride avec secours continue de pomper le jour pendant une coupure STEG. Un onduleur raccordé au réseau sans secours s'arrête pendant la coupure (protection anti-îlotage). La nuit, il faut un réservoir rempli le jour ou une batterie."
+ },
+ "limits": [
+  "NASA POWER est une réanalyse (grille d'environ 50 km), pas une station à la parcelle.",
+  "Le bilan par saison ne couvre que 2018-2026 (WaPOR v3) : 9 étés, trop peu pour une tendance solide.",
+  "L'écart ET0 - AETI mesure l'eau que la culture aurait pu utiliser, pas un volume d'irrigation à livrer : il faudrait la culture, le sol et l'efficience.",
+  "PVGIS donne une production moyenne (années de rayonnement indiquées) ; un été nuageux produit moins.",
+  "Le volume pompé par kWc dépend de l'énergie de pompage (kWh/m³), qui n'est pas mesurée : c'est à saisir."
+ ],
+ "source_ids": [
+  "nasa-power-daily-1981-2025",
+  "wapor3-l2-aeti-series",
+  "wapor3-l1-ret-series",
+  "jrc-pvgis-5.3"
+ ]
+}

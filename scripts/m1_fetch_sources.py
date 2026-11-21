@@ -183,6 +183,46 @@ def fetch_power_temperature() -> None:
             "&".join(f"{k}={v}" for k, v in params.items()))
 
 
+# --- climate and resilience ------------------------------------------------------
+CLIMATE_START, CLIMATE_END = "19810101", "20251231"   # full years available in NASA POWER daily
+PVGIS_URL = "https://re.jrc.ec.europa.eu/api/v5_3/PVcalc"
+PVGIS_LOSS_PCT = 14                                    # PVGIS default system loss
+
+
+def fetch_power_climate() -> None:
+    """45 years of daily temperature and rain at the parcel cluster (long-term trend)."""
+    d = RAW / "power"
+    d.mkdir(parents=True, exist_ok=True)
+    lat, lon = CLUSTER_POINT
+    params = {"parameters": "T2M,T2M_MAX,PRECTOTCORR", "community": "AG", "latitude": lat,
+              "longitude": lon, "start": CLIMATE_START, "end": CLIMATE_END, "format": "JSON"}
+    for i in range(4):
+        r = requests.get(POWER_URL, params=params, headers=UA, timeout=300)
+        if r.ok:
+            break
+        time.sleep(10 * (i + 1))
+    r.raise_for_status()
+    out = d / f"power_daily_{CLIMATE_START[:4]}-{CLIMATE_END[:4]}.json"
+    out.write_text(json.dumps(r.json(), indent=None, separators=(",", ":")), encoding="utf-8")
+    _record(out, "NASA POWER daily point data (MERRA-2), public domain", POWER_URL,
+            "&".join(f"{k}={v}" for k, v in params.items()))
+
+
+def fetch_pvgis() -> None:
+    """JRC PVGIS monthly yield of 1 kWp at the parcel cluster (solar pumping potential)."""
+    d = RAW / "pvgis"
+    d.mkdir(parents=True, exist_ok=True)
+    lat, lon = CLUSTER_POINT
+    params = {"lat": lat, "lon": lon, "peakpower": 1, "loss": PVGIS_LOSS_PCT, "optimalangles": 1,
+              "mountingplace": "free", "outputformat": "json"}
+    r = requests.get(PVGIS_URL, params=params, headers=UA, timeout=120)
+    r.raise_for_status()
+    out = d / "pvgis_pvcalc_1kwp.json"
+    out.write_text(json.dumps(r.json(), indent=1), encoding="utf-8")
+    _record(out, "JRC PVGIS 5.3 PVcalc (European Commission), free reuse with attribution", PVGIS_URL,
+            "&".join(f"{k}={v}" for k, v in params.items()))
+
+
 def _save_log() -> None:
     path = RAW / "m1_downloads.json"
     old = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
@@ -201,6 +241,9 @@ if __name__ == "__main__":
     if what in ("all", "series"):
         fetch_power_temperature()
         fetch_wapor_series()
+    if what in ("all", "climate"):
+        fetch_power_climate()
+        fetch_pvgis()
     _save_log()
     for e in log:
         print(e["file"], e["sha256"][:12])
