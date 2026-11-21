@@ -11,6 +11,14 @@ Rule followed: **no invented values**. Each value is either copied from a source
 .\.venv\Scripts\python.exe -m pytest tests\test_agriculture.py
 ```
 
+## Test bench (frontend)
+
+```powershell
+.\.venv\Scripts\python.exe scripts\m1_test_server.py
+```
+
+Open http://127.0.0.1:8765. The page (`tools/m1_test_ui/index.html`) runs each step against the real `backend/agriculture.py`: source integrity (SHA-256), map of the parcels and the WaPOR layer, `load_plots`, the mm → m³ conversion, the coverage rate, the rejection cases and the full pytest suite. It uses only the standard library, separate from the M6 API. The base map needs Internet; the local layers work without it.
+
 The demo itself reads only local files. `data/raw/m1_downloads.json` records the URL, query, retrieval time and SHA-256 of each raw file.
 
 ## Sources
