@@ -2,13 +2,17 @@ import { ArrowDownToLine, Compass, Minus, Plus, RotateCcw, RotateCw, ScanLine } 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import type { LandCoverGrid } from '../types.ts';
 import { reliefGeometry, verticalExaggeration, type ReliefGrid } from './cityReliefGeometry.ts';
+import { paintLandCover } from './landCover.ts';
 import { disposeScene } from './terrain.ts';
 import './city-relief.css';
 
 interface Props {
   name: string;
   relief: ReliefGrid;
+  landCover?: LandCoverGrid;
+  showLandCover?: boolean;
 }
 
 type Terrain = NonNullable<ReturnType<typeof reliefGeometry>>;
@@ -16,6 +20,7 @@ type ReliefControls = {
   turn: (direction: number) => void;
   zoom: (direction: number) => void;
   home: (topDown?: boolean) => void;
+  cover: (visible: boolean) => void;
 };
 const palette = ['#376d60', '#688150', '#ad995c', '#dcbe85'];
 const number = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 });
@@ -31,20 +36,25 @@ function terrainScene(grid: ReliefGrid, terrain: Terrain) {
   const surface = new THREE.BufferGeometry();
   const positions = terrain.positions;
   const colors = new Float32Array(positions.length);
+  const uv = new Float32Array(grid.elevations.length * 2);
   const paletteColors = palette.map(hex => new THREE.Color(hex));
   const color = new THREE.Color();
   const reliefRange = Math.max(terrain.high - terrain.low, 1);
   for (let i = 0; i < grid.elevations.length; i++) {
     const amount = ((grid.elevations[i] ?? terrain.low) - terrain.low) / reliefRange;
     elevationColor(color, paletteColors, amount).toArray(colors, i * 3);
+    uv[i * 2] = (i % grid.cols) / (grid.cols - 1);
+    uv[i * 2 + 1] = Math.floor(i / grid.cols) / (grid.rows - 1);
   }
   surface.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   surface.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  surface.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   surface.setIndex(terrain.indices);
   surface.computeVertexNormals();
-  scene.add(new THREE.Mesh(surface, new THREE.MeshStandardMaterial({
+  const material = new THREE.MeshStandardMaterial({
     vertexColors: true, roughness: 0.89, metalness: 0.06,
-  })));
+  });
+  scene.add(new THREE.Mesh(surface, material));
 
   const walls = [];
   for (let i = 0; i < terrain.rim.length; i += 2) {
@@ -92,14 +102,20 @@ function terrainScene(grid: ReliefGrid, terrain: Terrain) {
   const light = new THREE.DirectionalLight('#ffedd2', 1.7);
   light.position.set(-50, 100, -90);
   scene.add(light);
-  return scene;
+  return { scene, material };
 }
 
-function ElevationRaster({ relief, terrain, name }: { relief: ReliefGrid; terrain: Terrain; name: string }) {
+function ElevationRaster({ relief, terrain, name, cover }: {
+  relief: ReliefGrid; terrain: Terrain; name: string; cover?: LandCoverGrid;
+}) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const ctx = canvas.current?.getContext('2d');
     if (!ctx) return;
+    if (cover && canvas.current) {
+      paintLandCover(canvas.current, cover);
+      return;
+    }
     const paletteColors = palette.map(hex => new THREE.Color(hex));
     const color = new THREE.Color();
     const span = Math.max(terrain.high - terrain.low, 1);
@@ -112,21 +128,25 @@ function ElevationRaster({ relief, terrain, name }: { relief: ReliefGrid; terrai
         ctx.fillRect(col, relief.rows - 1 - row, 1, 1);
       }
     }
-  }, [relief, terrain]);
+  }, [cover, relief, terrain]);
+  const raster = cover ? 'land-cover map' : 'elevation grid';
   return <div className="city-relief-raster">
-    <canvas ref={canvas} width={relief.cols} height={relief.rows} role="img" aria-label={`North-up elevation grid for ${name}`}
+    <canvas ref={canvas} width={cover?.cols ?? relief.cols} height={cover?.rows ?? relief.rows} role="img"
+      aria-label={`North-up ${raster} for ${name}`}
       style={{ aspectRatio: terrain.widthMetres / terrain.depthMetres }} />
-    <span>North-up elevation grid</span>
+    <span>North-up {raster}</span>
   </div>;
 }
 
-export default function CityRelief({ name, relief }: Props) {
+export default function CityRelief({ name, relief, landCover, showLandCover = false }: Props) {
   const terrain = useMemo(() => reliefGeometry(relief), [relief]);
   const mount = useRef<HTMLDivElement>(null);
   const pointer = useRef<HTMLSpanElement>(null);
   const controls = useRef<ReliefControls | null>(null);
   const [failedGrid, setFailedGrid] = useState<ReliefGrid | null>(null);
   const fallback = failedGrid === relief || !terrain?.indices.length;
+  const coverMode = useRef(showLandCover);
+  coverMode.current = showLandCover;
 
   useEffect(() => {
     const container = mount.current;
@@ -145,7 +165,16 @@ export default function CityRelief({ name, relief }: Props) {
     renderer.domElement.setAttribute('aria-hidden', 'true');
     container.append(renderer.domElement);
 
-    const scene = terrainScene(relief, terrain);
+    const { scene, material } = terrainScene(relief, terrain);
+    const coverCanvas = landCover && document.createElement('canvas');
+    const texture = landCover && coverCanvas && paintLandCover(coverCanvas, landCover)
+      ? new THREE.CanvasTexture(coverCanvas) : null;
+    if (texture) {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.magFilter = THREE.NearestFilter;
+      texture.minFilter = THREE.NearestFilter;
+      texture.generateMipmaps = false;
+    }
     const size = Math.hypot(70, terrain.height * .5 + 3);
     const centre = new THREE.Vector3(0, terrain.height * .5, 0);
     const camera = new THREE.OrthographicCamera(-size, size, size, -size, .1, size * 7);
@@ -198,7 +227,16 @@ export default function CityRelief({ name, relief }: Props) {
         schedule();
       },
       home,
+      cover(visible) {
+        const map = visible ? texture : null;
+        if (material.map === map) return;
+        material.map = map;
+        material.vertexColors = !map;
+        material.needsUpdate = true;
+        schedule();
+      },
     };
+    controls.current.cover(coverMode.current);
     home();
     orbit.addEventListener('change', schedule);
     const resize = new ResizeObserver(() => {
@@ -226,18 +264,24 @@ export default function CityRelief({ name, relief }: Props) {
       window.cancelAnimationFrame(scheduled);
       resize.disconnect();
       orbit.dispose();
+      material.map = null;
+      texture?.dispose();
       disposeScene(scene);
       renderer.domElement.removeEventListener('webglcontextlost', lost);
       renderer.dispose();
       if (!renderer.getContext().isContextLost()) renderer.forceContextLoss();
       renderer.domElement.remove();
     };
-  }, [fallback, relief, terrain]);
+  }, [fallback, landCover, relief, terrain]);
+
+  useEffect(() => { controls.current?.cover(showLandCover); }, [showLandCover]);
 
   if (!terrain) return <p role="status">Elevation samples are unavailable for {name}.</p>;
-  return <figure className="city-relief" aria-label={`Elevation around ${name}`} data-relief-mode={fallback ? 'raster' : '3d'}>
+  const activeCover = showLandCover ? landCover : undefined;
+  return <figure className="city-relief" aria-label={`Elevation around ${name}`} data-relief-mode={fallback ? 'raster' : '3d'}
+    data-surface={activeCover ? 'land-cover' : 'elevation'}>
     <div className="city-relief-stage">
-      {fallback ? <ElevationRaster name={name} relief={relief} terrain={terrain} /> : <>
+      {fallback ? <ElevationRaster name={name} relief={relief} terrain={terrain} cover={activeCover} /> : <>
         <div className="city-relief-mount" ref={mount} />
         <div className="city-relief-compass" aria-label="North"><span ref={pointer}><Compass size={20} aria-hidden="true" /></span><b>N</b></div>
         <div className="city-relief-controls" role="group" aria-label="Relief controls">
@@ -253,7 +297,8 @@ export default function CityRelief({ name, relief }: Props) {
     <figcaption className="city-relief-caption">
       <div className="city-relief-legend" aria-label={`Elevation: ${number.format(terrain.low)} to ${number.format(terrain.high)} meters`}>
         <span data-testid="relief-low">{number.format(terrain.low)} m</span>
-        <span className="city-relief-scale" aria-hidden="true" style={{ background: `linear-gradient(90deg, ${palette.join(', ')})` }} />
+        {!activeCover && <span className="city-relief-scale" aria-hidden="true" style={{ background: `linear-gradient(90deg, ${palette.join(', ')})` }} />}
+        {activeCover && <span>Elevation range</span>}
         <span data-testid="relief-high">{number.format(terrain.high)} m</span>
       </div>
       <span>{number.format(terrain.widthMetres / 1000)} × {number.format(terrain.depthMetres / 1000)} km

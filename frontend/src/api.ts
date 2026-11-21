@@ -1,6 +1,6 @@
 import type { FeatureCollection, Geometry, Position } from 'geojson';
 import type { Replay, ReplayBody } from './twin.ts';
-import type { TunisiaCatalog, TunisiaCityAnalysis, TunisiaPeriod } from './types.ts';
+import type { FieldZone, TunisiaCatalog, TunisiaCityAnalysis, TunisiaPeriod } from './types.ts';
 import { demoEvidence, demoLayers, demoScenarios, demoSiteId, demoSites, demoSolar } from './demo/catalog.ts';
 import { demoCompare } from './demo/planner.ts';
 import type { AssistantAnswer, AssistantHealth, AssistantRequest, Citation, CompareRequest, Comparison, Evidence, Layer, LayerId, Plan, Scenario, SiteProperties, Sites, SolarOption, SolarRequest } from './types.ts';
@@ -67,6 +67,10 @@ function unreadable() {
 
 export function getTunisia(signal: AbortSignal): Promise<TunisiaCatalog> {
   return request('tunisia', signal);
+}
+
+export function getFieldZone(siteId: string, signal: AbortSignal): Promise<FieldZone> {
+  return request(`sites/${encodeURIComponent(siteId)}/field-zone`, signal);
 }
 
 export function getTunisiaCity(cityId: string, signal: AbortSignal, period?: TunisiaPeriod): Promise<TunisiaCityAnalysis> {

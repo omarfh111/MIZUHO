@@ -76,7 +76,8 @@ export default function App() {
   };
   const citySites = catalog?.mode === 'live' ? catalog.sites.features.map(({ geometry, properties }) => ({
     coordinates: [geometry.coordinates[0], geometry.coordinates[1]] as const,
-    label: properties.survey_available ? `Open ${properties.label} survey` : `Open simulated ${properties.label} pilot`,
+    label: properties.field_zone ? `Open ${properties.label} zone`
+      : properties.survey_available ? `Open ${properties.label} survey` : `Open simulated ${properties.label} pilot`,
     onOpen: () => { selectSite(properties.site_id); navigate('map'); },
   })) : [];
   const activeCity = page === 'tunisia' ? city : null;
@@ -118,7 +119,9 @@ export default function App() {
             {page === 'map' ? 'RESOURCE MAPPING' : 'IRRIGATION CONTINUITY'}
           </div>
           <h1>{page === 'map' ? <><em>Irrigation</em> observatory</> : <><em>Irrigation</em> simulation</>}</h1>
-          <p>{page === 'map' ? 'Explore the site, compare solar options, and plan irrigation.'
+          <p>{page === 'map' ? site?.properties.field_zone
+              ? 'Inspect the terrain, land cover, and evidence behind this agricultural zone.'
+              : 'Explore the site, compare solar options, and plan irrigation.'
             : 'Compare fixed and proposed irrigation schedules during outages using the same water stock and quota.'}</p>
         </div>
         {page === 'map' && site && <div className="hero-location"><MapPin size={19} />

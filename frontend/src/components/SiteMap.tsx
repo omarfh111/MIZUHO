@@ -9,8 +9,10 @@ import { useExperience } from '../experience/index.ts';
 import type { Layer, LayerId, LayerProperties, Scenario, Site, SolarOption } from '../types.ts';
 import type { MapControls } from './mapControls.ts';
 import AgriculturePanel from './AgriculturePanel.tsx';
+import SitePicker from './SitePicker.tsx';
 
 const TerrainMap = lazy(() => import('./TerrainMap.tsx'));
+const FieldZoneMap = lazy(() => import('./FieldZoneMap.tsx'));
 const layerOptions = [
   { id: 'plots', title: 'Farm plots', details: 'Crops and water demand', icon: Layers3, tone: 'lime' },
   { id: 'solar', title: 'Solar potential', details: 'Solar PV configurations', icon: Sun, tone: 'gold' },
@@ -36,7 +38,16 @@ interface Props {
   onSimulate: () => void;
 }
 
-export default function SiteMap({ site, sites, scenario, selectedOption, mode, onSelectSite, onCompare, onEvidence, onSimulate }: Props) {
+export default function SiteMap(props: Props) {
+  if (props.site.properties.field_zone) {
+    return <Suspense fallback={<div className="surface page-fallback" role="status">Loading agricultural zone…</div>}>
+      <FieldZoneMap site={props.site} sites={props.sites} onSelectSite={props.onSelectSite} onEvidence={props.onEvidence} />
+    </Suspense>;
+  }
+  return <PilotSiteMap {...props} />;
+}
+
+function PilotSiteMap({ site, sites, scenario, selectedOption, mode, onSelectSite, onCompare, onEvidence, onSimulate }: Props) {
   const { active: cinematicActive } = useExperience();
   const [catalog, setCatalog] = useState<LayerState>({});
   const layerChoices = site.properties.survey_available ? surveyLayers : layerOptions;
@@ -122,9 +133,7 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
       <aside className="map-sidebar" aria-label="Site and layers">
         <section className="surface site-card">
           <div className="aside-label"><MapPin size={15} /> {active ? 'SELECTED AREA' : 'PILOT SITE'}</div>
-          {sites.length > 1 && <select className="site-select" aria-label="Pilot site" value={properties.site_id} onChange={(event) => onSelectSite(event.target.value)}>
-            {sites.map(({ properties }) => <option key={properties.site_id} value={properties.site_id}>{properties.label}</option>)}
-          </select>}
+          <SitePicker sites={sites} siteId={properties.site_id} select={onSelectSite} />
           {inspectable.length > 0 && <select className="site-select" aria-label="Inspect an area"
             value={active ? inspectable.indexOf(active) : -1}
             onChange={(event) => setActive(inspectable[Number(event.target.value)] ?? null)}>

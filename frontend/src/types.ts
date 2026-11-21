@@ -13,6 +13,7 @@ export interface SiteProperties {
   date?: string;
   relief?: 'jendouba-demo';
   survey_available?: boolean;
+  field_zone?: boolean;
 }
 
 export type Site = Feature<Point, SiteProperties> & { outline?: Geometry };
@@ -55,6 +56,23 @@ export interface TunisiaClimate {
   irradiation_mean_kwh_m2_day: number | null;
   days: number;
   source: TunisiaSource;
+}
+
+export interface LandCoverGrid {
+  rows: number;
+  cols: number;
+  classes: (number | null)[];
+}
+
+export interface FieldZone {
+  site: Site;
+  evidence: Evidence;
+  relief: TunisiaRelief;
+  land_cover: LandCoverGrid & { pixel_counts: Record<string, number>; source: TunisiaSource };
+  climate: TunisiaClimate;
+  location_source: TunisiaSource;
+  water_question: string;
+  missing_inputs: string[];
 }
 
 export interface TunisiaCatalog {
