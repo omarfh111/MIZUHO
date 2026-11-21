@@ -69,6 +69,7 @@ def compare_weather(
     if pair is None:
         return WeatherComparison(
             status="NO_SOLUTION", before_slot=risk_start_slot, reference_on_adverse=reference,
+            nominal_plan=nominal,
             warnings=(*warnings, "weather_optimizer_no_solution"),
         )
     if status == "FEASIBLE":
@@ -87,6 +88,7 @@ def compare_weather(
     return WeatherComparison(
         status=status, before_slot=risk_start_slot, reference_on_adverse=reference,
         buffer_on_adverse=adverse_plan, central_plan=central_plan,
+        nominal_plan=nominal,
         early_pump_m3=early_volume, additional_early_pump_m3=extra_volume,
         expected_stock_m3=stock, remaining_deficit_m3=sum(plot.deficit_m3 for plot in adverse_plan.plot_results),
         warnings=(*warnings, *adverse_plan.warnings),

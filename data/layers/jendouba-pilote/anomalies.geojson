@@ -1,0 +1,19 @@
+{
+  "type": "FeatureCollection",
+  "date": "2026-11-21",
+  "status": "simulated",
+  "source_id": "telemetry",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {"type":"Point","coordinates":[8.771523529411766,36.49761358024691]},
+      "properties": {
+        "label": "Distribution meter",
+        "signal": "13 m³ unaccounted for",
+        "period": "H09–H10",
+        "status": "simulated",
+        "source_id": "telemetry"
+      }
+    }
+  ]
+}

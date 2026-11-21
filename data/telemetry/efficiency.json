@@ -1,0 +1,7 @@
+{
+  "successive": {
+    "source_id": "telemetry",
+    "reference_wh_per_m3": 500,
+    "samples": [{"slot":9,"pumped_m3":10,"consumed_wh":7000},{"slot":10,"pumped_m3":10,"consumed_wh":7000}]
+  }
+}

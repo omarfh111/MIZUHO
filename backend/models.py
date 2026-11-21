@@ -1,6 +1,9 @@
+from datetime import date as Date
+from enum import StrEnum
 from typing import Annotated, Literal, Self
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 
 Amount = Annotated[int, Field(strict=True, ge=0, le=1_000_000_000)]
@@ -65,7 +68,7 @@ class Scenario(PlanningModel):
     slots: Annotated[tuple[Slot, ...], Field(min_length=1, max_length=24)]
     plots: Annotated[tuple[Plot, ...], Field(min_length=1, max_length=100)]
     fixed_pump_m3: tuple[Amount, ...] = ()
-    fixed_deliveries: tuple[Delivery | None, ...] = ()
+    fixed_deliveries: tuple[tuple[Delivery, ...], ...] = ()
 
     @model_validator(mode="after")
     def check_horizon(self) -> Self:
@@ -83,8 +86,11 @@ class Scenario(PlanningModel):
         for schedule in (self.fixed_pump_m3, self.fixed_deliveries):
             if schedule and len(schedule) != horizon:
                 raise ValueError("fixed schedules must cover the entire horizon")
-        if any(delivery.plot_id not in plot_ids for delivery in self.fixed_deliveries if delivery):
-            raise ValueError("fixed delivery refers to an unknown plot")
+        for index, deliveries in enumerate(self.fixed_deliveries):
+            if len(deliveries) > 1:
+                raise ValueError(f"fixed deliveries in slot {index} exceed one plot")
+            if any(delivery.plot_id not in plot_ids for delivery in deliveries):
+                raise ValueError(f"fixed delivery in slot {index} refers to an unknown plot")
         return self
 
 
@@ -154,8 +160,295 @@ class WeatherComparison(PlanningModel):
     reference_on_adverse: Plan | None = None
     buffer_on_adverse: Plan | None = None
     central_plan: Plan | None = None
+    nominal_plan: Plan
     early_pump_m3: int | None = None
     additional_early_pump_m3: int | None = None
     expected_stock_m3: int | None = None
     remaining_deficit_m3: int | None = None
     warnings: tuple[str, ...] = ()
+
+
+class Provenance(StrEnum):
+    OBSERVED = "observed"
+    ESTIMATED = "estimated"
+    SIMULATED = "simulated"
+    UNAVAILABLE = "unavailable"
+
+
+class LayerId(StrEnum):
+    PLOTS = "plots"
+    SOLAR = "solar"
+    WIND = "wind"
+    ANOMALIES = "anomalies"
+
+
+class ScenarioRecord(Scenario):
+    id: PlotId
+    label: PlotId
+    site_id: PlotId
+    provenance: Provenance
+    state: State
+    description: str
+    weather_pair_id: PlotId | None = None
+
+
+class CompareRequest(PlanningModel):
+    scenario_id: PlotId
+    state: State
+    outage_slots: Annotated[tuple[SlotIndex, ...], Field(max_length=24)]
+    solar_option_id: PlotId | None
+    restart_grid_cap_w: Amount | None = None
+    planning_mode: Literal["nominal", "weather_buffer"] = "nominal"
+    weather_pair_id: PlotId | None = None
+
+
+Price = Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0, le=1_000_000_000)]
+Longitude = Annotated[float, Field(strict=True, ge=-180, le=180)]
+Latitude = Annotated[float, Field(strict=True, ge=-90, le=90)]
+Position = tuple[Longitude, Latitude]
+Ring = Annotated[tuple[Position, ...], Field(min_length=4)]
+EVIDENCE_YEAR = Annotated[str, Field(pattern=r"^\d{4}$")]
+
+
+class Point(PlanningModel):
+    type: Literal["Point"]
+    coordinates: Position
+
+
+class Polygon(PlanningModel):
+    type: Literal["Polygon"]
+    coordinates: Annotated[tuple[Ring, ...], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def check_rings(self) -> Self:
+        if any(ring[0] != ring[-1] for ring in self.coordinates):
+            raise ValueError("GeoJSON polygon rings must be closed")
+        return self
+
+
+class SiteProperties(PlanningModel):
+    site_id: PlotId
+    label: PlotId
+    source_id: PlotId
+    status: Provenance
+    locality: str
+    description: str
+    date: Date
+    # Opt in only for the matching fictional geometry bundled with M7.
+    relief: Literal["jendouba-demo"] | None = None
+
+
+class LayerProperties(PlanningModel):
+    label: PlotId
+    source_id: PlotId
+    status: Provenance | None = None
+    date: Date | None = None
+    plot_id: PlotId | None = None
+    option_id: PlotId | None = None
+    crop: str | None = None
+    signal: str | None = None
+    period: str | None = None
+    resolution: str | None = None
+    unit: str | None = None
+
+
+class Feature[T](PlanningModel):
+    type: Literal["Feature"]
+    geometry: Annotated[Point | Polygon, Field(discriminator="type")]
+    properties: T
+
+
+class Sites(PlanningModel):
+    type: Literal["FeatureCollection"]
+    features: tuple[Feature[SiteProperties], ...]
+
+
+class Layer(PlanningModel):
+    type: Literal["FeatureCollection"]
+    features: tuple[Feature[LayerProperties], ...]
+    date: Date | None = None
+    source_id: PlotId
+    status: Provenance
+
+
+class Evidence(PlanningModel):
+    title: PlotId
+    organization: PlotId
+    date: Date | EVIDENCE_YEAR | None
+    page: str | int | None
+    url: HttpUrl | None
+    limitation: PlotId
+
+
+class SolarOption(PlanningModel):
+    id: PlotId
+    label: PlotId
+    source_id: PlotId
+    provenance: Provenance
+    capacity_kwp: Annotated[float, Field(gt=0, allow_inf_nan=False)]
+    tilt_deg: Annotated[int, Field(ge=0, le=90)]
+    azimuth_deg: Annotated[int, Field(ge=0, lt=360)]
+    losses_pct: Annotated[float, Field(ge=0, lt=100)]
+    period: PlotId
+    profile_wh: Annotated[tuple[Amount, ...], Field(min_length=24, max_length=24)]
+    annual_production_kwh: Price | None = None
+    annual_grid_avoided_kwh: Price | None = None
+    additional_annual_cost_tnd: Price | None = None
+    installation_cost_tnd: Price | None = None
+
+
+class SolarSite(PlanningModel):
+    options: tuple[SolarOption, ...]
+    demand_wh: Annotated[tuple[Amount, ...], Field(min_length=24, max_length=24)]
+    grid_available: Annotated[tuple[bool, ...], Field(min_length=24, max_length=24)]
+
+
+class SolarRequest(PlanningModel):
+    site_id: PlotId
+    option_ids: Annotated[tuple[PlotId, ...], Field(min_length=2, max_length=24)]
+    price_tnd_per_kwh: Price | None = None
+
+
+class SolarResult(SolarOption):
+    production_kwh: float
+    self_consumed_kwh: float
+    grid_avoided_kwh: float
+    autonomy_hours: int
+    gross_savings_tnd: float | None
+    net_savings_tnd: float | None
+    payback_years: float | None
+
+
+class SolarComparison(PlanningModel):
+    options: tuple[SolarResult, ...]
+
+
+class Health(PlanningModel):
+    status: Literal["ok"] = "ok"
+
+
+class EfficiencySample(PlanningModel):
+    slot: SlotIndex
+    pumped_m3: Amount | None
+    consumed_wh: Amount | None
+
+
+class EfficiencyReadings(PlanningModel):
+    source_id: PlotId
+    reference_wh_per_m3: Annotated[int, Field(strict=True, gt=0, le=1_000_000_000)]
+    samples: tuple[EfficiencySample, ...]
+
+    @model_validator(mode="after")
+    def check_order(self) -> Self:
+        slots = [sample.slot for sample in self.samples]
+        if slots != sorted(set(slots)):
+            raise ValueError("efficiency samples must have unique ascending slots")
+        return self
+
+
+class WeatherHour(PlanningModel):
+    slot: SlotIndex
+    solar_wh: Amount
+    temperature_c: Annotated[float, Field(allow_inf_nan=False)] | None = None
+
+
+class WeatherProfile(PlanningModel):
+    id: PlotId
+    issued_at: AwareDatetime
+    timezone: PlotId
+    risk_start_slot: SlotIndex
+    source_id: PlotId
+    provenance: Literal[Provenance.SIMULATED, Provenance.ESTIMATED]
+    slots: Annotated[tuple[WeatherHour, ...], Field(min_length=1, max_length=24)]
+    revised_demand_m3: dict[PlotId, Amount] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def check_profile(self) -> Self:
+        try:
+            zone = ZoneInfo(self.timezone)
+        except ZoneInfoNotFoundError as error:
+            raise ValueError("unknown weather timezone") from error
+        if self.issued_at.astimezone(zone).utcoffset() != self.issued_at.utcoffset():
+            raise ValueError("issued_at offset does not match the weather timezone")
+        if [slot.slot for slot in self.slots] != list(range(len(self.slots))):
+            raise ValueError("weather slots must be consecutive and start at zero")
+        if self.risk_start_slot >= len(self.slots):
+            raise ValueError("risk_start_slot is outside the weather horizon")
+        return self
+
+
+class WeatherPair(PlanningModel):
+    id: PlotId
+    central: WeatherProfile
+    adverse: WeatherProfile
+    reason: PlotId
+
+    @model_validator(mode="after")
+    def check_pair(self) -> Self:
+        central, adverse = self.central, self.adverse
+        if (
+            central.id == adverse.id or central.risk_start_slot != adverse.risk_start_slot
+            or central.issued_at != adverse.issued_at or central.timezone != adverse.timezone
+            or len(central.slots) != len(adverse.slots)
+        ):
+            raise ValueError("weather profiles must identify the same forecast window")
+        if central.slots[:central.risk_start_slot] != adverse.slots[:adverse.risk_start_slot]:
+            raise ValueError("weather profiles must agree before the risk window")
+        return self
+
+
+class ActionResult(Action):
+    tank_stock_m3: int
+    quota_remaining_m3: int
+    grid_wh: int
+
+
+class ApiPlotResult(PlotResult):
+    demand_m3: int
+    minimum_m3: int
+    coverage_bp: int | None
+    reason: str | None
+
+
+class ApiMetrics(Metrics):
+    delivered_on_time_m3: int
+    tank_stock_m3: int
+    quota_remaining_m3: int
+
+
+class Warning(PlanningModel):
+    message: str
+    type: str
+    source_id: str | None = None
+    period: str | None = None
+    value: float | None = None
+    reference: float | None = None
+    unit: str | None = None
+
+
+class ApiPlan(PlanningModel):
+    status: PlanStatus
+    actions: tuple[ActionResult, ...] | None = None
+    plot_results: tuple[ApiPlotResult, ...] | None = None
+    metrics: ApiMetrics | None = None
+    warnings: tuple[Warning, ...] = ()
+
+
+class ApiWeatherComparison(PlanningModel):
+    reference_on_adverse: ApiPlan
+    buffer_on_adverse: ApiPlan
+    early_pump_m3: int
+    additional_early_pump_m3: int | None = None
+    before_slot: int
+    expected_stock_m3: int
+    remaining_deficit_m3: int
+    quota_remaining_m3: int
+    reason: str
+    source_id: str
+    provenance: Literal[Provenance.SIMULATED, Provenance.ESTIMATED]
+
+
+class Comparison(PlanningModel):
+    baseline: ApiPlan
+    optimized: ApiPlan
+    weather_comparison: ApiWeatherComparison | None = None

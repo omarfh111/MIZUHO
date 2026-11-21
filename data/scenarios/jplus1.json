@@ -1,0 +1,57 @@
+{
+  "id": "jplus1",
+  "label": "Day-ahead weather reserve",
+  "description": "Solar generation falls from 11:00.",
+  "site_id": "jendouba-pilote",
+  "provenance": "simulated",
+  "slots": [
+    {"slot":0,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":1,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":2,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":3,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":4,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":5,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":6,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":7,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":8,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":9,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":10,"grid_available":true,"grid_cap_w":0,"solar_wh":1000},
+    {"slot":11,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":12,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":13,"grid_available":true,"grid_cap_w":0,"solar_wh":3500},
+    {"slot":14,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":15,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":16,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":17,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":18,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":19,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":20,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":21,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":22,"grid_available":true,"grid_cap_w":0,"solar_wh":0},
+    {"slot":23,"grid_available":true,"grid_cap_w":0,"solar_wh":0}
+  ],
+  "plots": [
+    {
+      "plot_id": "A",
+      "farmer_id": "EXP-01",
+      "crop": "Olive trees",
+      "surface_m2": 500,
+      "demand_m3": 8,
+      "minimum_m3": 8,
+      "allowed_slots": [13],
+      "deadline_slot": 13,
+      "past_deferrals": 0
+    }
+  ],
+  "site": {"tank_capacity_m3":8,"pump_max_m3_per_slot":10,"pump_wh_per_m3":500,"gravity_max_m3_per_slot":10},
+  "state": {
+    "current_slot": 0,
+    "tank_stock_m3": 1,
+    "quota_remaining_m3": 7,
+    "delivered_by_plot_m3": {},
+    "delivered_on_time_by_plot_m3": {}
+  },
+  "fixed_pump_m3": [0,0,0,0,0,0,0,0,0,0,0,0,0,10,0,0,0,0,0,0,0,0,0,0],
+  "fixed_deliveries": [[],[],[],[],[],[],[],[],[],[],[],[],[],[{"plot_id":"A","delivered_m3":8}],[],[],[],[],[],[],[],[],[],[]],
+  "weather_pair_id": "jplus1-demo"
+}

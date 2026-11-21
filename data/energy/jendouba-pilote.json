@@ -1,0 +1,57 @@
+{
+  "options": [
+    {
+      "id": "toiture",
+      "label": "Pump station rooftop",
+      "source_id": "solar",
+      "provenance": "simulated",
+      "capacity_kwp": 10,
+      "tilt_deg": 24,
+      "azimuth_deg": 195,
+      "losses_pct": 14,
+      "period": "Simulated day · 24 hours",
+      "profile_wh": [0,0,0,0,0,0,0,400,1200,2400,3500,4200,4500,4000,3200,1900,800,200,0,0,0,0,0,0],
+      "annual_production_kwh": null
+    },
+    {
+      "id": "ombriere",
+      "label": "Solar canopy",
+      "source_id": "solar",
+      "provenance": "simulated",
+      "capacity_kwp": 10,
+      "tilt_deg": 30,
+      "azimuth_deg": 180,
+      "losses_pct": 14,
+      "period": "Simulated day · 24 hours",
+      "profile_wh": [0,0,0,0,0,0,100,700,1600,2800,3800,4100,4200,3900,3100,2200,1300,450,0,0,0,0,0,0],
+      "annual_production_kwh": null
+    }
+  ],
+  "demand_wh": [0,0,0,0,0,0,0,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,2500,0,0,0,0],
+  "grid_available": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true
+  ]
+}

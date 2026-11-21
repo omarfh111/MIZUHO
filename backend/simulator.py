@@ -6,6 +6,12 @@ from .models import (
 )
 
 
+class StateError(ValueError):
+    def __init__(self, field: str, message: str, plot_id: str | None = None):
+        super().__init__(message)
+        self.location = ("state", field) if plot_id is None else ("state", field, plot_id)
+
+
 def available_power(slot: Slot) -> tuple[int, int]:
     """Return usable solar Wh and the grid limit in Wh for this one-hour slot."""
     return (slot.solar_wh, slot.grid_cap_w) if slot.grid_available else (0, 0)
@@ -17,9 +23,9 @@ def pump_limit(site: Site, slot: Slot) -> int:
 
 def validate_state(scenario: Scenario, state: State) -> None:
     if state.current_slot > len(scenario.slots):
-        raise ValueError("current_slot is outside the horizon")
+        raise StateError("current_slot", "Current slot is outside the scenario horizon.")
     if state.tank_stock_m3 > scenario.site.tank_capacity_m3:
-        raise ValueError("tank_stock_m3 exceeds tank capacity")
+        raise StateError("tank_stock_m3", "Water stock exceeds the reservoir capacity.")
     plots = {plot.plot_id: plot for plot in scenario.plots}
     history = state.delivered_by_plot_m3.keys() | state.delivered_on_time_by_plot_m3.keys()
     gravity = scenario.site.gravity_max_m3_per_slot
@@ -27,22 +33,28 @@ def validate_state(scenario: Scenario, state: State) -> None:
     for plot_id in history:
         plot = plots.get(plot_id)
         if plot is None:
-            raise ValueError(f"history contains an unknown plot: {plot_id}")
+            field = "delivered_by_plot_m3" if plot_id in state.delivered_by_plot_m3 else "delivered_on_time_by_plot_m3"
+            raise StateError(field, f"Unknown plot {plot_id}.", plot_id)
         total = state.delivered_by_plot_m3.get(plot_id, 0)
         timely = state.delivered_on_time_by_plot_m3.get(plot_id, 0)
-        if not 0 <= timely <= total <= plot.demand_m3:
-            raise ValueError(f"inconsistent delivery history for {plot_id}")
+        if total > plot.demand_m3:
+            raise StateError("delivered_by_plot_m3", f"Delivery history exceeds demand for plot {plot_id}.", plot_id)
+        if timely > total:
+            raise StateError("delivered_on_time_by_plot_m3", f"On-time deliveries exceed total deliveries for plot {plot_id}.", plot_id)
         past_slots = [slot for slot in plot.allowed_slots if slot < state.current_slot]
         on_time_slots = [slot for slot in past_slots if slot <= plot.deadline_slot]
         late_slots = [slot for slot in past_slots if slot > plot.deadline_slot]
-        for requested, candidates in ((timely, on_time_slots), (total - timely, late_slots)):
+        for requested, candidates, field in (
+            (timely, on_time_slots, "delivered_on_time_by_plot_m3"),
+            (total - timely, late_slots, "delivered_by_plot_m3"),
+        ):
             if requested > len(candidates) * gravity:
-                raise ValueError(f"delivery history is impossible for {plot_id}")
+                raise StateError(field, f"Past slots cannot accommodate deliveries for plot {plot_id}.", plot_id)
             if requested:
                 required_slots = (requested + gravity - 1) // gravity
                 occupied_slots.extend([candidates] * required_slots)
     if not can_allocate_history(occupied_slots, state.current_slot):
-        raise ValueError("delivery history exceeds the shared past slots")
+        raise StateError("delivered_by_plot_m3", "Delivery history exceeds the shared past slots.")
 
 
 def can_allocate_history(requests: list[list[int]], past_slot_count: int) -> bool:

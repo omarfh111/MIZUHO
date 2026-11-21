@@ -1,0 +1,19 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {"type":"Point","coordinates":[8.7702,36.5007]},
+      "properties": {
+        "site_id": "jendouba-pilote",
+        "label": "Jendouba",
+        "locality": "Northwest · Tunisia",
+        "source_id": "demo-site",
+        "status": "simulated",
+        "date": "2026-11-21",
+        "description": "Five plots supplied by a gravity-fed reservoir.",
+        "relief": "jendouba-demo"
+      }
+    }
+  ]
+}

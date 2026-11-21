@@ -12,8 +12,7 @@ def build_baseline(scenario: Scenario, state: State) -> Plan:
         Action(
             slot=slot.slot,
             pump_m3=scenario.fixed_pump_m3[slot.slot],
-            deliveries=(scenario.fixed_deliveries[slot.slot],)
-            if scenario.fixed_deliveries[slot.slot] is not None else (),
+            deliveries=scenario.fixed_deliveries[slot.slot],
         )
         for slot in scenario.slots[state.current_slot:]
     )
