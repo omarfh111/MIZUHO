@@ -18,8 +18,22 @@ function Metric({ fact }: { fact: AssistantAnswer['facts'][number] }) {
   </div>;
 }
 
+function SourceCitation({ citation }: { citation: AssistantAnswer['citations'][number] }) {
+  return <details className="assistant-citation">
+    <summary><BookOpenText size={15} /> {citation.organization} · {citation.title}</summary>
+    <div>
+      <p className="muted">{citation.section} · {dateLabel(citation.date)}
+        {citation.page != null && ` · p. ${citation.page}`}</p>
+      <blockquote>{citation.excerpt}</blockquote>
+      <p>{citation.limitation}</p>
+      <a href={citation.url} target="_blank" rel="noreferrer" className="text-button">Read the source <ExternalLink size={14} /></a>
+    </div>
+  </details>;
+}
+
 function Answer({ answer }: { answer: AssistantAnswer }) {
-  const referenced = new Set(answer.paragraphs.flatMap((paragraph) => paragraph.fact_ids));
+  const referencedFacts = new Set(answer.paragraphs.flatMap((paragraph) => paragraph.fact_ids));
+  const referencedCitations = new Set(answer.paragraphs.flatMap((paragraph) => paragraph.citation_ids));
   return <div className="assistant-answer">
     {answer.paragraphs.map((paragraph, index) => <section key={index} className="assistant-paragraph">
       <p>{paragraph.text}</p>
@@ -29,19 +43,12 @@ function Answer({ answer }: { answer: AssistantAnswer }) {
       })}
       {paragraph.citation_ids.map((id) => {
         const citation = answer.citations.find((item) => item.id === id);
-        return citation && <details key={id} className="assistant-citation">
-          <summary><BookOpenText size={15} /> {citation.organization} · {citation.title}</summary>
-          <div>
-            <p className="muted">{citation.section} · {dateLabel(citation.date)}
-              {citation.page != null && ` · p. ${citation.page}`}</p>
-            <blockquote>{citation.excerpt}</blockquote>
-            <p>{citation.limitation}</p>
-            <a href={citation.url} target="_blank" rel="noreferrer" className="text-button">Read the source <ExternalLink size={14} /></a>
-          </div>
-        </details>;
+        return citation && <SourceCitation key={id} citation={citation} />;
       })}
     </section>)}
-    {answer.facts.filter((fact) => !referenced.has(fact.id)).map((fact) => <Metric key={fact.id} fact={fact} />)}
+    {answer.facts.filter((fact) => !referencedFacts.has(fact.id)).map((fact) => <Metric key={fact.id} fact={fact} />)}
+    {answer.citations.filter((citation) => !referencedCitations.has(citation.id))
+      .map((citation) => <SourceCitation key={citation.id} citation={citation} />)}
     {answer.missing_information.length > 0 && <div className="assistant-missing">
       <strong>Missing information</strong>
       <ul>{answer.missing_information.map((item) => <li key={item}>{item}</li>)}</ul>

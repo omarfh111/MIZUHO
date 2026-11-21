@@ -182,16 +182,18 @@ def finalize(turn: Turn, answer: dict) -> AssistantAnswer:
             text = clean_text(entry.get("text"), 600)
             references = verified_ids(entry.get("citation_ids"), turn.citations)
             facts = verified_ids(entry.get("fact_ids"), turn.facts)
-            if not text or references is None or facts is None or not (references or facts):
+            if references is None or facts is None or not (references or facts):
+                continue
+            cited.update((key, turn.citations[key]) for key in references)
+            if not text:
                 continue
             paragraphs.append(GroundedParagraph(text=text, citation_ids=references, fact_ids=facts))
-            cited.update((key, turn.citations[key]) for key in references)
             used.update((key, turn.facts[key]) for key in facts)
     missing = answer.get("missing_information")
     gaps = sorted(turn.gaps)
     if isinstance(missing, list):
         gaps.extend(text for value in missing[:6] if (text := clean_text(value, 320)))
-    if not paragraphs and not gaps:
+    if not paragraphs and not cited and not gaps:
         gaps.append("There was not enough verified information to produce a grounded explanation.")
     for key, fact in turn.facts.items():
         if key in turn.requested_facts:

@@ -120,6 +120,22 @@ def test_invented_figures_and_references_cannot_be_rendered(context):
     assert answer.missing_information == ("Pipe measurements are unavailable.",)
 
 
+def test_verified_citation_survives_rejected_numerical_prose(context):
+    catalog, corpus = context
+    request = AssistantRequest(site_id="jendouba-pilote", question="What does ANME report?")
+    turn = Turn(request, catalog, corpus, None, monotonic() + 5, 5)
+    solar, = corpus.for_source("solar")
+    wapor, = corpus.for_source("wapor")
+    turn.citations.update({solar.id: solar, wapor.id: wapor})
+    answer = finalize(turn, {"paragraphs": [
+        {"text": "ANME measured 9000 kWh at the pilot.", "citation_ids": [solar.id], "fact_ids": []},
+        {"text": "FAO counted 800 farms.", "citation_ids": [wapor.id, "invented"], "fact_ids": []},
+    ]})
+    assert not answer.paragraphs
+    assert answer.citations == (solar,)
+    assert not answer.missing_information
+
+
 def test_explicitly_requested_allocation_is_preserved_when_prose_is_rejected(context):
     catalog, corpus = context
 
