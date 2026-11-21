@@ -42,4 +42,5 @@ caption { text-align: left; font-weight: 600; margin-top: 10px; }
 th, td { border-bottom: 1px solid var(--border); padding: 7px 6px; }
 footer { margin: 14px 0; }
 a { color: #10634f; }
+.header-link { display: inline-block; margin-top: 16px; color: #c2f3db; }
 @media (max-width: 480px) { main { padding: 12px; } section { padding: 12px; } }

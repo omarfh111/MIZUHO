@@ -1,0 +1,44 @@
+[
+  {
+    "id": "worldbank-ccdr-tunisia",
+    "title": "Tunisie — Résumé du rapport national sur le climat et le développement",
+    "publisher": "Banque mondiale",
+    "url": "https://documents1.worldbank.org/curated/en/099112723090014862/pdf/P179130020b44c0bc087a60cfe1bf09880d.pdf",
+    "themes": ["eau", "agriculture", "energie", "climat"]
+  },
+  {
+    "id": "worldbank-siliana-nature",
+    "title": "Tunisie — Solutions fondées sur la nature et adaptation dans le bassin de Siliana",
+    "publisher": "Banque mondiale",
+    "url": "https://documents1.worldbank.org/curated/en/099050625144519276/pdf/P180858-8ac899dd-23cf-4e37-a1f6-ae5055c3b78c.pdf",
+    "themes": ["eau", "agriculture", "climat"]
+  },
+  {
+    "id": "anme-pv-bt",
+    "title": "Référentiel technique des installations photovoltaïques raccordées en basse tension",
+    "publisher": "ANME",
+    "url": "https://www.anme.tn/sites/default/files/2025-03/referentiel-technique-des-installations-photovoltaiques-raccordees-au-reseau-electrique-national-basse-tension.pdf",
+    "themes": ["energie"]
+  },
+  {
+    "id": "anme-renewables",
+    "title": "Guide détaillé des projets d’énergie renouvelable en Tunisie",
+    "publisher": "ANME",
+    "url": "https://www.anme.tn/sites/default/files/2025-03/guide-detaille-des-energies-renouvelables-en-tunisie.pdf",
+    "themes": ["energie", "climat"]
+  },
+  {
+    "id": "steg-pv-micro",
+    "title": "Référentiel technique du photovoltaïque avec micro-onduleur",
+    "publisher": "STEG",
+    "url": "https://www.steg.com.tn/system/files/pdf/R%C3%A9ferentiel_technique_des_IPV_avec_Micro-Onduleurs_VF_Ao%C3%BBt_2024.pdf",
+    "themes": ["energie"]
+  },
+  {
+    "id": "fao-wapor-et",
+    "title": "WaPOR — Manuel des données d’évapotranspiration",
+    "publisher": "FAO",
+    "url": "https://storage.googleapis.com/fao-cog-data/WAPOR_DOCS/20190522_V1_WaPOR_v_1_Data_Manual_Evapotranspiration.pdf",
+    "themes": ["agriculture", "climat", "eau"]
+  }
+]

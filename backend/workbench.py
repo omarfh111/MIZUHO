@@ -12,6 +12,7 @@ from pydantic import Field, ValidationError
 from .baseline import replay_plan
 from .optimizer import optimize, with_grid_outages
 from .planning_models import PlanningModel, Scenario, SlotIndex, State
+from .rag_assistant import router as assistant_router
 from .simulator import simulate
 from .workbench_analysis import analyze_energy, analyze_equity, analyze_water
 
@@ -45,11 +46,17 @@ def load_case(case: dict) -> tuple[Scenario, State]:
 
 app = FastAPI(title="MIZUHO · Atelier M4/M5")
 app.mount("/assets", StaticFiles(directory=ASSETS), name="workbench-assets")
+app.include_router(assistant_router)
 
 
 @app.get("/", include_in_schema=False)
 def workbench_page():
     return FileResponse(ASSETS / "index.html")
+
+
+@app.get("/assistant", include_in_schema=False)
+def assistant_page():
+    return FileResponse(ASSETS / "assistant.html")
 
 
 @app.get("/api/scenario")

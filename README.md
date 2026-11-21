@@ -24,6 +24,20 @@ Le formulaire transmet les créneaux à `POST /api/incident`. Le serveur optimis
 
 Trois analyses déterministes vérifient la conservation de l’eau et du quota, le bilan énergétique et les déficits par parcelle. Elles exploitent les sorties du simulateur et du solveur. L’atelier fonctionne localement, y compris sans compte externe ni clé d’API.
 
+## Assistant documentaire tunisien
+
+L’atelier donne accès au chat à l’adresse `/assistant`. Le coordinateur détecte jusqu’à trois thèmes par question. Chaque thème sélectionne un spécialiste, qui lance une recherche filtrée dans Qdrant. Les résultats sont classés par pertinence et spécialité, puis regroupés par page. NVIDIA synthétise les passages. Les citations renvoient aux pages PDF et le chat affiche le parcours de recherche.
+
+```powershell
+Copy-Item .env.example .env
+..venvScriptspython.exe -m backend.rag_ingest
+..venvScriptspython.exe -m uvicorn backend.workbench:app --host 127.0.0.1 --port 8767
+```
+
+Renseigner les clés serveur dans `.env` avant d’ingérer les documents. En cas d’indisponibilité de Qdrant, la recherche utilise le corpus local. En cas d’indisponibilité de NVIDIA, le chat présente de courts extraits attribués. Avec NVIDIA, le serveur transmet la question, la question précédente et les passages sélectionnés au fournisseur.
+
+Le registre des [publications institutionnelles](data/rag_sources.json) indique les domaines couverts et les URL d’origine. L’ingestion vérifie que chaque téléchargement est un PDF, conserve son SHA-256 et la pagination, puis indexe les passages dans la collection dédiée `mizuho_tunisie_public_v1`. Une empreinte de corpus borne la recherche au lot actif. Les PDF et le corpus extrait sont conservés dans `.rag/`. L’API expose l’inventaire via `GET /api/assistant/sources` et la conversation via `POST /api/assistant/chat`.
+
 ## Intégration avec l’API
 
 Les types sont dans `backend/planning_models.py`. Le lot API peut les importer pour valider ses données. Sur le prototype, un exploitant correspond à une parcelle et le jour comporte au plus 24 créneaux d’une heure.

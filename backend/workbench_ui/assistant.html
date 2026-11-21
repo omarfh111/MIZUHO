@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MIZUHO — Assistant documentaire</title>
+  <link rel="stylesheet" href="/assets/workbench.css">
+  <link rel="stylesheet" href="/assets/assistant.css">
+  <script src="/assets/assistant.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <p>MIZUHO / Tunisie</p>
+      <h1>Assistant documentaire</h1>
+      <p>Explorez les liens entre l’eau, l’agriculture, l’énergie et le climat en Tunisie.</p>
+      <a class="header-link" href="/">Atelier de replanification</a>
+    </header>
+    <div class="assistant-layout">
+      <section aria-label="Conversation">
+        <div class="examples" aria-label="Questions d’exemple">
+          <button type="button">Que recommande le rapport sur les nappes souterraines en Tunisie ?</button>
+          <button type="button">Que signifie l’évapotranspiration dans les données WaPOR ?</button>
+          <button type="button">Quelles contraintes prendre en compte pour le photovoltaïque raccordé au réseau ?</button>
+        </div>
+        <div id="messages" role="log" aria-live="polite" aria-relevant="additions"></div>
+        <form id="chat-form">
+          <label for="question">Votre question</label>
+          <textarea id="question" required minlength="3" maxlength="1200" rows="3"></textarea>
+          <button id="send">Envoyer</button>
+        </form>
+        <p id="assistant-status" role="status"></p>
+      </section>
+      <section aria-labelledby="corpus-heading">
+        <h2 id="corpus-heading">Corpus tunisien</h2>
+        <p id="index-status" role="status">Chargement des publications…</p>
+        <ul id="catalog"></ul>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
