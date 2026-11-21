@@ -46,9 +46,9 @@ npm i @react-three/fiber@^9.8.2 @react-three/drei@^10.7.9 @react-three/postproce
 | 6 | Clean energy for every drop | The camera rises over Tunisia's operating renewable plants: the Sidi Daoud and Bizerte wind farms and the Tozeur solar plant |
 | 7 | MIZUHO | A dive back to the valley; a digital-twin grid settles; "Enter the observatory" |
 
-- **Input.** The film autoplays until the visitor scrolls, swipes, uses the arrow, Page or Space keys, or clicks the chapter rail. From then on, scene time follows input through a critically damped spring, which behaves the same at any frame rate. Scrolling past the last chapter enters the dashboard. Esc skips at any point.
+- **Input.** The film plays on its own. Scrolling, swiping, the arrow, Page or Space keys, or the chapter rail take over, and scene time follows input through a critically damped spring that behaves the same at any frame rate. After 2.5 s without input the film carries on by itself. Scrolling past the last chapter enters the dashboard, and Esc skips at any point. The only on-screen chrome is the brand and the chapter rail.
 - **Direction.** The whole film is a pure function of scene time (`core/director.ts`, `scene/choreography.ts`), so scrubbing backwards is exact. Each chapter frames its subject on the side opposite its copy.
-- **Honesty.** Geography is schematic, positions are approximate, and copy is qualitative. No live or simulated values are shown. A permanent note says so.
+- **Honesty.** Geography is schematic, positions are approximate, and copy is qualitative. No live or simulated values are shown.
 
 ## Resilience
 
