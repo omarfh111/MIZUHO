@@ -17,6 +17,9 @@ export interface ValleyLayout {
   plots: { matrices: Float32Array; colors: Float32Array; delays: Float32Array; count: number };
   panels: { matrices: Float32Array; delays: Float32Array; count: number };
   trees: { matrices: Float32Array; colors: Float32Array; delays: Float32Array; count: number };
+  turbines: { position: THREE.Vector3; yaw: number; height: number; phase: number }[];
+  power: THREE.BufferGeometry;
+  solarCenter: THREE.Vector3;
   reservoir: { geometry: THREE.BufferGeometry; center: THREE.Vector3; radius: number };
   river: THREE.BufferGeometry;
   canals: THREE.BufferGeometry;
@@ -318,12 +321,21 @@ async function buildValley(baseHeight: (x: number, z: number) => number, segment
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
-  const solarSites = [
-    new THREE.Vector3(station.x + 0.42, 0, station.z + 0.05),
-    new THREE.Vector3(c.x + ax * 1.6 + nx * 0.85, 0, c.z + az * 1.6 + nz * 0.85),
-  ];
+  const solarSites = [new THREE.Vector3(station.x + 0.42, 0, station.z + 0.05)];
   const cellA = 0.36;
   const cellN = 0.27;
+  const local = (x: number, z: number) => ({ along: (x - c.x) * ax + (z - c.z) * az, across: (x - c.x) * nx + (z - c.z) * nz });
+  // The reservoir sits on one bank; the utility-scale solar field takes the other.
+  const farSide = local(res.x, res.z).across > 0 ? -1 : 1;
+  const fields = [
+    { a0: -1.75, a1: -0.15, c0: 2.0, c1: 2.75 },
+    { a0: 0.1, a1: 1.65, c0: 2.0, c1: 2.7 },
+  ];
+  const inField = (x: number, z: number, pad = 0) => {
+    const { along, across } = local(x, z);
+    const ac = across * farSide;
+    return fields.some((f) => along > f.a0 - pad && along < f.a1 + pad && ac > f.c0 - pad && ac < f.c1 + pad);
+  };
   for (let i = -9; i <= 9; i++) {
     for (let j = -6; j <= 6; j++) {
       const along = i * cellA + (rand() - 0.5) * 0.05;
@@ -334,7 +346,7 @@ async function buildValley(baseHeight: (x: number, z: number) => number, segment
       const river = distanceToPolyline(x, z, riverLine);
       if (fromCenter > R * 0.8 || river < 0.16 || river > 1.75) continue;
       if (Math.hypot((x - res.x) / 1.15, (z - res.z) / 0.85) < reservoirRadius * 1.5) continue;
-      if (solarSites.some((s) => Math.hypot(x - s.x, z - s.z) < 0.5)) continue;
+      if (solarSites.some((s) => Math.hypot(x - s.x, z - s.z) < 0.5) || inField(x, z, 0.1)) continue;
       if (Math.hypot(x - station.x, z - station.z) < 0.3) continue;
       if (rand() < 0.08) continue;
       const block = fbm(x * 0.9 + 3, z * 0.9 + 11, 2);
@@ -352,24 +364,54 @@ async function buildValley(baseHeight: (x: number, z: number) => number, segment
   onProgress(0.55);
   await nextFrame();
 
-  /* Solar arrays: rows of panels tilted towards the south (+z). */
+  /* Solar: a small array by the station and a utility-scale field across the valley. */
   const panelMatrices: number[] = [];
   const panelDelays: number[] = [];
   const tilt = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -0.5);
-  solarSites.forEach((site, s) => {
-    const rows = s ? 7 : 5;
-    const cols = s ? 12 : 9;
-    for (let r = 0; r < rows; r++) {
-      for (let k = 0; k < cols; k++) {
-        const x = site.x + (k - cols / 2) * 0.075;
-        const z = site.z + (r - rows / 2) * 0.085;
-        const y = height(x, z) + 0.035;
-        m.compose(new THREE.Vector3(x, y, z), tilt, new THREE.Vector3(0.068, 0.006, 0.05));
-        panelMatrices.push(...m.elements);
-        panelDelays.push((k / cols) * 0.6 + (r / rows) * 0.4);
+  const addPanel = (x: number, z: number, delay: number) => {
+    const y = height(x, z) + 0.035;
+    m.compose(new THREE.Vector3(x, y, z), tilt, new THREE.Vector3(0.068, 0.006, 0.05));
+    panelMatrices.push(...m.elements);
+    panelDelays.push(delay);
+  };
+  {
+    const site = solarSites[0];
+    for (let r = 0; r < 5; r++) for (let k = 0; k < 9; k++) addPanel(site.x + (k - 4.5) * 0.075, site.z + (r - 2.5) * 0.085, (k / 9) * 0.3);
+  }
+  const fieldPoints: THREE.Vector3[] = [];
+  for (const f of fields) {
+    const corners = [[f.a0, f.c0], [f.a1, f.c0], [f.a0, f.c1], [f.a1, f.c1]].map(([al, ac]) => ({
+      x: c.x + ax * al + nx * ac * farSide, z: c.z + az * al + nz * ac * farSide,
+    }));
+    const minX = Math.min(...corners.map((p) => p.x));
+    const maxX = Math.max(...corners.map((p) => p.x));
+    const minZ = Math.min(...corners.map((p) => p.z));
+    const maxZ = Math.max(...corners.map((p) => p.z));
+    for (let z = minZ; z <= maxZ; z += 0.1) {
+      for (let x = minX; x <= maxX; x += 0.078) {
+        if (!inField(x, z) || Math.hypot(x - c.x, z - c.z) > R * 0.94) continue;
+        const along = local(x, z).along;
+        addPanel(x, z, 0.25 + ((along + 1.8) / 3.6) * 0.75);
+        fieldPoints.push(new THREE.Vector3(x, 0, z));
       }
     }
-  });
+  }
+  const solarCenter = fieldPoints.reduce((sum, p) => sum.add(p), new THREE.Vector3()).divideScalar(Math.max(1, fieldPoints.length));
+  solarCenter.y = height(solarCenter.x, solarCenter.z);
+
+  /* Wind turbines along both ridges, all facing the prevailing north-westerly. */
+  const turbines: { position: THREE.Vector3; yaw: number; height: number; phase: number }[] = [];
+  const ridge = [
+    ...[-2.2, -1.2, -0.2, 0.8, 1.8].map((al) => [al, 3.05 * farSide] as const),
+    ...[0.9, 1.75, 2.55].map((al) => [al, -2.55 * farSide] as const),
+  ];
+  for (const [al, ac] of ridge) {
+    const x = c.x + ax * al + nx * ac;
+    const z = c.z + az * al + nz * ac;
+    if (Math.hypot(x - c.x, z - c.z) > R * 0.93) continue;
+    if (Math.hypot((x - res.x) / 1.15, (z - res.z) / 0.85) < reservoirRadius * 1.6) continue;
+    turbines.push({ position: new THREE.Vector3(x, height(x, z), z), yaw: -0.8, height: 0.42 + rand() * 0.06, phase: rand() * Math.PI * 2 });
+  }
 
   /* Water network: river ribbon + canal tubes with a running "flow" coordinate. */
   // The national polyline is sparse: densify it first, then keep the stretch crossing the perimeter.
@@ -433,6 +475,37 @@ async function buildValley(baseHeight: (x: number, z: number) => number, segment
     return tube;
   });
   const canals = mergeGeometries(tubes)!;
+
+  const cables = [...turbines.map((t) => t.position), solarCenter].map((from) => {
+    const to = station.clone();
+    const top = 0.09;
+    const pts: THREE.Vector3[] = [];
+    for (let k = 0; k <= 24; k++) {
+      const u = k / 24;
+      const x = THREE.MathUtils.lerp(from.x, to.x, u);
+      const z = THREE.MathUtils.lerp(from.z, to.z, u);
+      const ground = height(x, z);
+      const sag = Math.sin(u * Math.PI * 4) ** 2 * 0.025;
+      pts.push(new THREE.Vector3(x, Math.max(ground, THREE.MathUtils.lerp(from.y, to.y, u)) + top - sag, z));
+    }
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const length = curve.getLength();
+    const tube = new THREE.TubeGeometry(curve, 96, 0.0045, 4, false);
+    const uv = tube.attributes.uv as THREE.BufferAttribute;
+    const flow = new Float32Array(uv.count);
+    const distance = new Float32Array(uv.count);
+    for (let k = 0; k < uv.count; k++) {
+      flow[k] = uv.getX(k) * 0.6;
+      distance[k] = uv.getX(k) * length;
+    }
+    tube.setAttribute('aFlow', new THREE.BufferAttribute(flow, 1));
+    tube.setAttribute('aDistance', new THREE.BufferAttribute(distance, 1));
+    tube.deleteAttribute('normal');
+    tube.deleteAttribute('uv');
+    return tube;
+  });
+  const power = mergeGeometries(cables)!;
+  cables.forEach((t) => t.dispose());
   tubes.forEach((t) => t.dispose());
   /* Olive trees: scattered on the hills, planted in rows in a few orchards. */
   const treeMatrices: number[] = [];
@@ -447,6 +520,8 @@ async function buildValley(baseHeight: (x: number, z: number) => number, segment
   const blocked = (x: number, z: number) =>
     Math.hypot((x - res.x) / 1.15, (z - res.z) / 0.85) < reservoirRadius * 1.25
     || solarSites.some((site) => Math.hypot(x - site.x, z - site.z) < 0.45)
+    || inField(x, z, 0.06)
+    || turbines.some((t) => Math.hypot(x - t.position.x, z - t.position.z) < 0.08)
     || Math.hypot(x - station.x, z - station.z) < 0.22
     || distanceToPolyline(x, z, riverLine) < 0.12;
   const plant = (x: number, z: number, scale: number) => {
@@ -488,8 +563,6 @@ async function buildValley(baseHeight: (x: number, z: number) => number, segment
 
   const plotCentroid = new THREE.Vector3(c.x + ax * -1.1 + nx * 0.7, 0, c.z + az * -1.1 + nz * 0.7);
   plotCentroid.y = height(plotCentroid.x, plotCentroid.z);
-  const solarPoi = solarSites[0].clone();
-  solarPoi.y = height(solarPoi.x, solarPoi.z);
 
   onProgress(1);
   return {
@@ -503,6 +576,9 @@ async function buildValley(baseHeight: (x: number, z: number) => number, segment
       matrices: new Float32Array(treeMatrices), colors: new Float32Array(treeColors),
       delays: new Float32Array(treeDelays), count: treeDelays.length,
     },
+    turbines,
+    power,
+    solarCenter,
     reservoir: { geometry: reservoirGeometry, center: reservoirCenter, radius: reservoirRadius },
     river,
     canals,
@@ -511,7 +587,8 @@ async function buildValley(baseHeight: (x: number, z: number) => number, segment
     pois: [
       { id: 'reservoir', label: 'Reservoir', position: reservoirCenter.clone() },
       { id: 'station', label: 'Pumping station', position: station.clone() },
-      { id: 'solar', label: 'Solar array', position: solarPoi },
+      { id: 'solar', label: 'Solar field', position: solarCenter.clone() },
+      ...(turbines.length ? [{ id: 'wind', label: 'Wind turbines', position: turbines[0].position.clone().add(new THREE.Vector3(0, 0.25, 0)) }] : []),
       { id: 'plots', label: 'Irrigated plots', position: plotCentroid },
     ],
     center: new THREE.Vector3(c.x, height(c.x, c.z), c.z),
