@@ -222,7 +222,9 @@ In a second terminal at the repository root, start Vite.
 npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
 
-Open the [dashboard](http://127.0.0.1:5173/). Check that the [API health route](http://127.0.0.1:8000/api/health) reports `ok`, the [assistant health route](http://127.0.0.1:8000/api/assistant/health) reports `available`, and the dashboard shows **API · simulated site**. Vite proxies `/api` to port 8000. For production, serve `frontend/dist` and route `/api` to FastAPI on the same origin.
+Open the dashboard and confirm it shows **API · simulated site**. The API health route should report `ok`, and the assistant health route should report `available` with seven indexed passages. To verify OpenAI access as well, ask Mizhuo what ANME says about photovoltaic potential in northwest Tunisia and open the cited excerpt. [Dashboard](http://127.0.0.1:5173/) · [API health](http://127.0.0.1:8000/api/health) · [Assistant health](http://127.0.0.1:8000/api/assistant/health)
+
+Vite proxies `/api` to port 8000. For production, serve `frontend/dist` and route `/api` to FastAPI on the same origin.
 
 ## Reproduce the pilot
 
@@ -278,3 +280,7 @@ Pop-Location
 ```
 
 With Chrome installed and both servers running, use `npm --prefix frontend run test:browser` to exercise the cinematic handoff, M6 schedule approval, and the M8 citation follow-up. The test sends three chat questions to the live assistant. Set `MIZHUO_TEST_URL` when testing a frontend served at a different URL.
+
+GitHub Actions runs the backend and frontend checks alongside CodeQL and Gitleaks. The dependency review job compares OSV advisories when a pull request changes dependency manifests. [CI workflow](.github/workflows/ci.yml) · [Security workflow](.github/workflows/security.yml)
+
+Regenerate the banner from the repository root with `python docs/tools/readme_hero.py`. [Banner source](docs/tools/readme_hero.py)
