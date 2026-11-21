@@ -1,13 +1,36 @@
+<div align="center">
+
 <picture>
   <source media="(prefers-reduced-motion: reduce)" srcset="docs/readme-hero.svg#still">
-  <img src="docs/readme-hero.svg" alt="MIZUHO. Water, land and sun meet at the Jendouba irrigation pilot." width="1280">
+  <img src="docs/readme-hero.svg" alt="MIZUHO. An animated isometric map of Tunisia where a raindrop falls on the Jendouba pilot, the Medjerda flows, reservoirs pulse and wind and sun power irrigation." width="100%">
 </picture>
 
-# MIZUHO
+<h1>MIZUHO</h1>
 
-Map the Jendouba pilot site, compare irrigation schedules during a power outage, and ask an evidence assistant to explain the result. One connected app brings together the FastAPI service, the 3D dashboard, and the LangGraph assistant.
+<p><em>Renewable-powered water intelligence for Tunisian agriculture.<br>Map the Jendouba pilot, compare irrigation schedules during a power outage, and ask an evidence assistant why.</em></p>
 
-[Run MIZUHO](#run-mizuho) · [Reproduce the pilot](#reproduce-the-pilot) · [API reference](#api-reference) · [Checks](#checks)
+[![M6 API and planning](https://img.shields.io/badge/M6-API_%26_CP--SAT_planning-62e3f0?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
+[![M7 3D dashboard](https://img.shields.io/badge/M7-3D_dashboard-c9ef86?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
+[![M8 Evidence assistant](https://img.shields.io/badge/M8-Evidence_assistant-f7ce76?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
+[![Jendouba pilot](https://img.shields.io/badge/%F0%9F%93%8D_Pilot-Jendouba%2C_Tunisia-eef6ef?style=for-the-badge&labelColor=0b1f1c)](#reproduce-the-pilot)
+
+[![CI](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml/badge.svg)](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat&logo=fastapi&logoColor=white)
+![OR-Tools](https://img.shields.io/badge/OR--Tools-CP--SAT-4285F4?style=flat&logo=google&logoColor=white)
+![LangGraph](https://img.shields.io/badge/LangGraph-1.0-1C3C3C?style=flat&logo=langchain&logoColor=white)
+![Qdrant](https://img.shields.io/badge/Qdrant-hybrid_retrieval-DC244C?style=flat)
+![React](https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react&logoColor=black)
+![Three.js](https://img.shields.io/badge/Three.js-r187-000000?style=flat&logo=threedotjs&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-7-646CFF?style=flat&logo=vite&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat&logo=typescript&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-22.12%2B-5FA04E?style=flat&logo=nodedotjs&logoColor=white)
+
+[How it works](#how-it-works) · [Run MIZUHO](#run-mizuho) · [Reproduce the pilot](#reproduce-the-pilot) · [API reference](#api-reference) · [Checks](#checks)
+
+</div>
+
+---
 
 | Module | What you can reproduce |
 | --- | --- |
