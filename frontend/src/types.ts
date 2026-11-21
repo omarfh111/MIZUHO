@@ -1,4 +1,4 @@
-import type { Feature, FeatureCollection, Geometry, Point } from 'geojson';
+import type { Feature, FeatureCollection, Geometry, MultiPolygon, Point, Polygon } from 'geojson';
 
 export type Provenance = 'observed' | 'estimated' | 'simulated' | 'unavailable';
 export type LayerId = 'plots' | 'solar' | 'wind' | 'anomalies' | 'wapor';
@@ -17,6 +17,62 @@ export interface SiteProperties {
 
 export type Site = Feature<Point, SiteProperties> & { outline?: Geometry };
 export type Sites = FeatureCollection<Point, SiteProperties> & { features: Site[] };
+
+export interface TunisiaSource {
+  id: string;
+  name: string;
+  url: string;
+  attribution: string;
+  license: string;
+  provenance: 'mapped' | 'estimated';
+  retrieved_at: string;
+  coverage: string;
+  sha256?: string | null;
+  assets?: string[];
+}
+
+export interface TunisiaCity {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  population: number | null;
+}
+
+export interface TunisiaRelief {
+  rows: number;
+  cols: number;
+  bounds: [west: number, south: number, east: number, north: number];
+  elevations: (number | null)[];
+  source: TunisiaSource;
+}
+
+export interface TunisiaClimate {
+  start: string;
+  end: string;
+  temperature_mean_c: number | null;
+  precipitation_mm: number | null;
+  irradiation_mean_kwh_m2_day: number | null;
+  days: number;
+  source: TunisiaSource;
+}
+
+export interface TunisiaCatalog {
+  boundary: FeatureCollection<Polygon | MultiPolygon>;
+  cities: TunisiaCity[];
+  sources: TunisiaSource[];
+}
+
+export interface TunisiaCityAnalysis {
+  city: TunisiaCity;
+  relief: TunisiaRelief | null;
+  climate: TunisiaClimate | null;
+}
+
+export interface TunisiaPeriod {
+  start: string;
+  end: string;
+}
 
 export interface LayerProperties {
   equipment?: 'pump' | 'grid';
@@ -268,7 +324,9 @@ export interface AssistantRequest {
   provider?: 'openai' | 'nvidia';
   telemetry?: import('./twin.ts').ReplayContext;
   question: string;
-  site_id: string;
+  site_id?: string;
+  city_id?: string;
+  city_period?: TunisiaPeriod;
   solar_option_id?: string;
   pvgis_option_id?: 'ombriere' | 'toiture';
   comparison?: CompareRequest;
@@ -290,7 +348,7 @@ export interface AssistantSimulationContext {
 export interface AssistantAnswer {
   paragraphs: { text: string; citation_ids: string[]; fact_ids: string[] }[];
   citations: Citation[];
-  facts: { id: string; text: string; provenance: Provenance }[];
+  facts: { id: string; text: string; provenance: Provenance; source_url?: string | null }[];
   missing_information: string[];
   tools_used: string[];
 }

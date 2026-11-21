@@ -5,6 +5,7 @@ const base = new URL(process.env.MIZHUO_TEST_URL ?? 'http://127.0.0.1:5173/');
 const provider = process.env.MIZHUO_TEST_PROVIDER ?? 'openai';
 assert.ok(['openai', 'nvidia'].includes(provider), 'Choose openai or nvidia for the live walkthrough.');
 base.searchParams.set('intro', '0');
+base.hash = 'map';
 const browser = await chromium.launch({
   ...(process.env.MIZHUO_CHROME_PATH ? { executablePath: process.env.MIZHUO_CHROME_PATH } : { channel: 'chrome' }),
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
@@ -165,6 +166,43 @@ try {
     assert.equal(Number(production), Number(canopy.production_kwh.toPrecision(6)));
     assert.ok(selectedCanopy.text.includes(canopy.profile_date));
   }
+  if (await panel.isVisible()) await page.keyboard.press('Escape');
+  await page.getByRole('link', { name: 'Tunisia', exact: true }).click();
+  await page.getByRole('searchbox', { name: 'Search cities' }).fill('Tozeur');
+  const archive = await (await page.request.get(new URL('/api/tunisia', base).href)).json();
+  const tozeur = archive.cities.find(city => /tozeur/i.test(city.name));
+  await page.getByRole('button', { name: `View ${tozeur.name}`, exact: true }).click();
+  const analysis = page.getByRole('region', { name: `${tozeur.name} analysis` });
+  const period = { start: '2025-07-01', end: '2025-07-07' };
+  await analysis.getByLabel('Start date').fill(period.start);
+  await analysis.getByLabel('End date').fill(period.end);
+  const cityProfilePending = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === `/api/tunisia/cities/${tozeur.id}` && url.searchParams.get('start') === period.start;
+  });
+  await analysis.getByRole('button', { name: 'Apply dates' }).click();
+  const cityProfile = await cityProfilePending;
+  assert.equal(cityProfile.status(), 200);
+  const climate = (await cityProfile.json()).climate;
+  await visible(analysis.getByText(/7 days/));
+  await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
+  await visible(panel.getByText('City archive and evidence'));
+  if (provider === 'nvidia') await panel.getByLabel('Answer model').selectOption(provider);
+  await panel.getByRole('textbox', { name: 'Your question' }).fill('What was the archived mean air temperature for this city in the selected window?');
+  const cityAnswerPending = waitForChat(page);
+  await panel.getByRole('button', { name: 'Send question' }).click();
+  const cityResponse = await cityAnswerPending;
+  assert.equal(cityResponse.status(), 200);
+  const cityRequest = cityResponse.request().postDataJSON();
+  assert.equal(cityRequest.city_id, tozeur.id);
+  assert.equal(cityRequest.site_id, undefined);
+  assert.deepEqual(cityRequest.city_period, period);
+  const cityAnswer = await cityResponse.json();
+  assert.ok(cityAnswer.tools_used.includes('get_city_data'));
+  assert.ok(cityAnswer.facts.some(fact => fact.source_url === climate.source.url &&
+    fact.text.includes(`${climate.temperature_mean_c} °C`) && fact.provenance === 'estimated'));
+  assert.ok(cityAnswer.missing_information.some(gap => gap.includes('validated farm demand')));
+  await visible(panel.getByRole('link', { name: 'Open dataset' }).first());
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
   mobile.on('pageerror', (error) => errors.push(error.message));
   const offline = new URL(base);
@@ -175,6 +213,7 @@ try {
   await visible(mobile.getByText('The assistant needs a connected evidence service.', { exact: false }));
   assert.deepEqual(errors, []);
   console.log('Chrome passed live allocation, ANME citation, session continuity, stale history, approval, and mobile offline fallback.');
+  console.log('Chrome passed the date-filtered city analysis and live sourced climate answer.');
   if (provider === 'nvidia') console.log('Chrome passed live Nemotron explanations for Assila WaPOR, the replay anomaly, and staged PVGIS.');
 } finally {
   await browser.close();

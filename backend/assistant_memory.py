@@ -93,7 +93,8 @@ class AssistantMemory:
 
 def planning_scope(request: AssistantRequest) -> str:
     comparison = request.comparison.model_dump(mode="json") if request.comparison else None
-    snapshot = [request.site_id, request.solar_option_id, request.pvgis_option_id, request.selected_scenario_id,
+    city_period = request.city_period.model_dump(mode="json") if request.city_period else None
+    snapshot = [request.site_id, request.city_id, city_period, request.solar_option_id, request.pvgis_option_id, request.selected_scenario_id,
                 request.simulation_revision, request.simulation_pending, comparison,
                 request.telemetry.model_dump(mode="json") if request.telemetry else None]
     return sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
@@ -110,7 +111,7 @@ def recall(turn: Turn, previous: dict) -> list[dict]:
         facts = {}
         for item in answer["facts"]:
             prior = DecisionFact.model_validate(item)
-            facts[prior.id] = turn.fact(prior.text, prior.provenance, remember=True)
+            facts[prior.id] = turn.fact(prior.text, prior.provenance, remember=True, source_url=prior.source_url)
         if citations or facts:
             answers.append({
                 "citations": [item.model_dump(mode="json", exclude={"limitation"}) for item in citations.values()],

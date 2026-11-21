@@ -98,7 +98,8 @@ def chat(request: Request, body: AssistantRequest) -> AssistantAnswer:
     service = runtime(request)
     providers = connected(service)
     try:
-        return run_assistant(body, service.catalog, service.corpus, providers, service.solver_budget, service.memory)
+        return run_assistant(body, service.catalog, service.corpus, providers, service.solver_budget, service.memory,
+                             tunisia_data_dir=request.app.state.tunisia_data_dir)
     except SessionBusy:
         raise HTTPException(409, "This session already has a question in progress.") from None
     except ServiceError as error:

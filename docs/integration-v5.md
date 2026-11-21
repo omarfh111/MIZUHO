@@ -1,6 +1,6 @@
 # MIZUHO V5 integration
 
-The map opens on the fictional Jendouba irrigation group. Switch to Assila to inspect mapped farmland, or open Simulation to operate the Jendouba digital twin. Both use the same FastAPI application. The parcel survey, station archive, electricity forecast and irrigation scenario refer to distinct places or periods.
+The dashboard opens on the national map. Select a governorate capital to inspect its Copernicus relief and NASA POWER climate archive, then open a nearby registered site when available. The **Site map** also gives direct access to the fictional Jendouba irrigation group and the mapped Assila survey. The city archives, parcel survey, station observations, electricity forecast and irrigation scenarios refer to distinct places or periods. [National sources and refresh](../data/tunisia/README.md)
 
 ## Integration matrix
 
@@ -15,6 +15,8 @@ The map opens on the fictional Jendouba irrigation group. Switch to Assila to in
 All three divergent source branches share merge base `239bb91` with M7. Their original standalone applications and history remain available on their source branches.
 
 ## Architecture and contracts
+
+- **National atlas.** FastAPI serves the geographic catalogue and recalculates climate statistics from source days for the requested interval. Three.js builds a separate mesh from each city's elevation grid. The same city and interval scope the assistant's answers and session memory.
 
 - **Survey.** The [importer](../tools/m1/import_survey.py) derives the local survey from the pinned M1 Git revision. The [survey adapter](../backend/agriculture.py) validates parcel IDs, geometry, source relationships and units. The map renders the WaPOR grid in one mesh. Polygon edits are mapped observations. Water-use estimates and rain-adjusted temperature associations carry their own periods and limitations.
 - **Planning.** [Planning models](../backend/models.py) define the public contract. A comparison request selects a scenario, observed or simulated starting state, outages and optional operating constraints. [Scenario preparation](../backend/compare.py) applies those inputs for both candidates. In incident mode, M4 validates the previous schedule and replays completed actions to a checkpoint. M5 optimizes only the suffix. An optional previous action trace pins the schedule the operator actually viewed.

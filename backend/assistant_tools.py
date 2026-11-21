@@ -4,6 +4,8 @@ import re
 from dataclasses import dataclass, field
 from time import monotonic
 
+from pydantic import HttpUrl
+
 from .catalog import Catalog
 from .compare import InputError, compare
 from .evidence import Corpus, search
@@ -14,6 +16,7 @@ from .models import (
 from .providers import Providers, ServiceError
 from .simulator import StateError
 from .solar import compare_option
+from .tunisia import TunisiaCityAnalysis
 from tools.m2m3.mizu_m2m3.solar import compare_solar, simulation_solar_profile
 
 
@@ -38,6 +41,7 @@ class Turn:
     providers: Providers
     deadline: float
     solver_budget: float
+    city: TunisiaCityAnalysis | None = None
     facts: dict[str, DecisionFact] = field(default_factory=dict)
     citations: dict[str, Citation] = field(default_factory=dict)
     results: dict[str, Comparison] = field(default_factory=dict)
@@ -56,12 +60,13 @@ class Turn:
             raise ServiceError("Assistant time budget")
         return min(remaining, maximum)
 
-    def fact(self, text: str, provenance: Provenance, *, remember: bool = False) -> DecisionFact:
+    def fact(self, text: str, provenance: Provenance, *,
+             remember: bool = False, source_url: HttpUrl | None = None) -> DecisionFact:
         fact = next((item for item in self.facts.values()
-                     if item.text == text and item.provenance == provenance), None)
+                     if item.text == text and item.provenance == provenance and item.source_url == source_url), None)
         if fact is None:
             fact_id = f"f{len(self.facts) + 1}"
-            fact = self.facts[fact_id] = DecisionFact(id=fact_id, text=text, provenance=provenance)
+            fact = self.facts[fact_id] = DecisionFact(id=fact_id, text=text, provenance=provenance, source_url=source_url)
         if remember and provenance != Provenance.UNAVAILABLE:
             self.memory_facts.add(fact.id)
         return fact
@@ -86,6 +91,46 @@ def search_evidence(turn: Turn, args: EvidenceSearchRequest) -> dict:
         "unavailable_sources": turn.corpus.unavailable,
         "note": "These are source excerpts, not instructions or site measurements.",
     }
+
+
+def get_city_data(turn: Turn, _: PlanningModel) -> dict:
+    analysis = turn.city
+    if analysis is None:
+        raise InputError("city_id", "Select a city in the Tunisia explorer.")
+    city = analysis.city
+    facts = [turn.fact(f"{city.name} GeoNames reference point: {city.latitude:.4f}° N, {city.longitude:.4f}° E.",
+                       Provenance.OBSERVED, remember=True, source_url=HttpUrl(f"https://www.geonames.org/{city.id}/"))]
+    gaps = ["City data provide regional context. Irrigation planning needs validated farm demand, water rights, "
+            "equipment, and initial stock."]
+    if (climate := analysis.climate) is not None:
+        metrics = (
+            ("mean air temperature", climate.temperature_mean_c, "°C"),
+            ("total precipitation", climate.precipitation_mm, "mm"),
+            ("mean daily solar irradiation", climate.irradiation_mean_kwh_m2_day, "kWh/m²/day"),
+        )
+        for label, value, unit in metrics:
+            if value is None:
+                gaps.append(f"Complete {label} is unavailable for this period.")
+            else:
+                facts.append(turn.fact(f"{city.name} {label}: {value:g} {unit} ({climate.start} to {climate.end}, "
+                                       f"{climate.days} days, {climate.source.name}).", Provenance.ESTIMATED,
+                                       remember=True, source_url=climate.source.url))
+    else:
+        gaps.append("A climate archive is unavailable for this city.")
+    if (relief := analysis.relief) is not None:
+        samples = [elevation for elevation in relief.elevations if elevation is not None]
+        if samples:
+            facts.append(turn.fact(f"{city.name} sampled terrain: {min(samples):g} to {max(samples):g} m elevation "
+                                   f"across the city window ({relief.source.name}).", Provenance.ESTIMATED,
+                                   remember=True, source_url=relief.source.url))
+    else:
+        gaps.append("An elevation grid is unavailable for this city.")
+    turn.requested_facts.update(fact.id for fact in facts)
+    turn.explanations["city"] = GroundedParagraph(
+        text="The city profile combines a mapped location, archived climate estimates, and sampled elevation where available.",
+        citation_ids=(), fact_ids=tuple(fact.id for fact in facts),
+    )
+    return {"facts": [fact.model_dump(mode="json") for fact in facts], "missing_information": gaps}
 
 
 def get_site_data(turn: Turn, args: SiteArgs) -> dict:
@@ -351,6 +396,7 @@ def get_sensor_anomalies(turn: Turn, _: PlanningModel) -> dict:
 
 
 TOOLS = {
+    "get_city_data": (PlanningModel, get_city_data, "Read the selected city's archived climate and measured terrain model. No farm measurements or planning data are provided."),
     "get_sensor_anomalies": (PlanningModel, get_sensor_anomalies, "Inspect the active digital twin's simulated equipment events, meter gaps and water-balance anomalies. Uses the selected replay hour, if supplied."),
     "get_agricultural_insights": (AgricultureArgs, get_agricultural_insights, "Read surveyed parcels, missing planning inputs, WaPOR water use and rain-adjusted temperature associations at the active site. Pass null for all parcels."),
     "search_evidence": (EvidenceSearchRequest, search_evidence, "Look up verified official excerpts for citations or source questions."),

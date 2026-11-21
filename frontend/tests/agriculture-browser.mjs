@@ -3,6 +3,7 @@ import { chromium } from 'playwright-core';
 
 const url = new URL(process.env.MIZHUO_TEST_URL || 'http://127.0.0.1:5173/');
 url.searchParams.set('intro', '0');
+url.hash = 'map';
 const surveyId = 'TN-32-BALTABOUAWENE-ASSILA';
 const browser = await chromium.launch({
   ...(process.env.MIZHUO_CHROME_PATH ? { executablePath: process.env.MIZHUO_CHROME_PATH } : { channel: 'chrome' }),

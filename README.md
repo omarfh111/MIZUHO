@@ -26,7 +26,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat&logo=typescript&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-22.12%2B-5FA04E?style=flat&logo=nodedotjs&logoColor=white)
 
-[How it works](#how-it-works) · [Run MIZUHO](#run-mizuho) · [Reproduce the pilot](#reproduce-the-pilot) · [API reference](#api-reference) · [Checks](#checks)
+[How it works](#how-it-works) · [Data and provenance](#data-and-provenance) · [Run MIZUHO](#run-mizuho) · [Reproduce the pilot](#reproduce-the-pilot) · [API reference](#api-reference) · [Checks](#checks)
 
 </div>
 
@@ -37,19 +37,19 @@
 | **M1 · Assila survey** | Explore five mapped parcels and dated WaPOR estimates with source metadata. Inspect missing farmer, demand, quota and scheduling data. |
 | **M2/M3 · Energy and telemetry** | Use archived PVGIS profiles, inspect a held-out load forecast and replay virtual sensors with controlled faults. |
 | **M6 · API and irrigation planning** | Load the site and scenarios, compare solar options, and run the M4 simulator and M5 CP-SAT optimizer through FastAPI. |
-| **M7 · 3D dashboard** | Inspect plots, solar potential and water anomalies. Compare schedules, approve a simulated plan, and replay the [cinematic introduction](frontend/src/experience/README.md). |
-| **M8 · Evidence assistant** | Search the reviewed corpus with Qdrant dense retrieval and BM25, trace citations to their sources, and ask follow-up questions about the current simulation. |
+| **M7 · National map and 3D dashboard** | Zoom from Tunisia to one of its 24 governorate capitals. Explore local relief and climate, open a nearby surveyed or simulated site when available, and replay the [cinematic introduction](frontend/src/experience/README.md). |
+| **M8 · Evidence assistant** | Search official passages with Qdrant dense retrieval and BM25. Ask about a city's archive or the current site simulation with the same LangGraph agent. |
 
 ## How it works
 
-One browser app talks to one FastAPI service. M6 plans irrigation, M8 explains it with cited evidence, and M7 shows both on a 3D map of the pilot.
+One browser app talks to one FastAPI service. The country map zooms to georeferenced city terrain. Known field sites connect that view to M1 profiles, M2 solar comparisons, M3 virtual telemetry and M4/M5 planning. M8 explains the evidence and results available in the active view.
 
 ```mermaid
 flowchart TD
   accTitle: MIZUHO application architecture
   accDescr: The dashboard sends requests to FastAPI for M6 irrigation planning and M8 evidence-backed answers.
   subgraph M7["M7 · Browser"]
-    intro["Cinematic intro"] --> dash["3D dashboard<br/>site map · simulation · Ask Mizhuo"]
+    intro["Cinematic intro"] --> dash["Dashboard<br/>Tunisia · Site map · Simulation"]
   end
 
   subgraph M6["M6 · FastAPI"]
@@ -58,6 +58,7 @@ flowchart TD
     compare --> cpsat["M5 · CP-SAT optimizer"]
     cpsat --> sim["M4 · Simulator replay"]
     api --> solar["Solar options"]
+    api --> atlas["City terrain and date-filtered climate"]
     data[("Site layers · scenarios<br/>solar profiles · fixtures")]
   end
 
@@ -71,7 +72,9 @@ flowchart TD
   tools -->|"verified plan facts"| compare
   compare -.-> data
   solar -.-> data
-  agent <--> llm["OpenAI<br/>gpt-6-luna"]
+  atlas --> archive[("GeoNames · geoBoundaries<br/>Copernicus DEM · NASA POWER")]
+  tools --> atlas
+  agent <--> llm["OpenAI or NVIDIA<br/>selectable answer provider"]
   search <--> qdrant[("Qdrant Cloud")]
 ```
 
@@ -116,22 +119,28 @@ sequenceDiagram
 
 ### Answering with evidence (M8)
 
-The assistant is a two-node LangGraph loop. It thinks, calls tools until it has what it needs, then answers with citations it can trace back to a source.
+The assistant uses a single two-node LangGraph loop with OpenAI or NVIDIA for answer generation. It selects from seven tools across its city and site contexts. The city context exposes sourced terrain and climate plus documentary search. The site context adds the agricultural survey, M6 calculations and M3 replay measurements.
 
 ```mermaid
 flowchart TD
   accTitle: M8 evidence assistant tool loop
   accDescr: LangGraph decides whether to call evidence or planning tools and returns grounded answers with verified citations.
-  q(["Your question"]) --> think["Think<br/>gpt-6-luna"]
+  q(["Your question"]) --> think["Think<br/>OpenAI or NVIDIA"]
   think -->|"needs facts"| tools{{"Tools"}}
   tools --> t1["search_evidence<br/>cited official excerpts"]
   tools --> t2["get_site_data<br/>layers and solar options"]
   tools --> t3["get_simulation_results<br/>run M6 plans"]
   tools --> t4["explain_decision<br/>allocation and binding limits"]
+  tools --> t5["get_agricultural_insights<br/>mapped parcels and WaPOR"]
+  tools --> t6["get_sensor_anomalies<br/>virtual measurements"]
+  tools --> t7["get_city_data<br/>dated climate and elevation"]
   t1 --> think
   t2 --> think
   t3 --> think
   t4 --> think
+  t5 --> think
+  t6 --> think
+  t7 --> think
   think -->|"enough to answer"| a(["Grounded answer<br/>with citations"])
   a -.-> mem[("Verified facts and citations<br/>up to 6 answers · 1 h idle expiry")]
   mem -.-> think
@@ -160,6 +169,17 @@ flowchart TD
 ```
 
 <sub>The <a href="docs/m8-retrieval-benchmark.md">retrieval benchmark</a> compares dense and hybrid search on 36 English, French and Arabic questions.</sub>
+
+## Data and provenance
+
+| Data | What the application uses |
+| --- | --- |
+| Mapped geography | GeoNames governorate capitals, geoBoundaries administrative areas, and OpenStreetMap parcel boundaries for the Assila survey. |
+| Archived regional estimates | Copernicus DEM surface elevations for city terrain, NASA POWER gridded daily climate, FAO WaPOR satellite-derived water use, and JRC PVGIS solar generation estimates. The date filter recalculates climate statistics from the archived daily values. |
+| Archived instrument observations | The Bouhertma FieldClimate archive provides measured hourly solar radiation in W/m² at one station. |
+| Simulated data | Jendouba planning scenarios, physical replay, virtual pump and flow readings, load history, and injected faults. The 13 m³ discrepancy is a demonstration case. |
+
+City profiles show the source, coverage, and retrieval date. A city needs verified parcels, water allocation, equipment specifications, and starting conditions before it can be used for operational planning. The built-in planning pilot uses simulated conditions. [National data refresh and sources](data/tunisia/README.md) · [Data manifest](data/manifest.json)
 
 ## Run MIZUHO
 
@@ -233,6 +253,7 @@ Vite proxies `/api` to port 8000. For production, serve `frontend/dist` and rout
 ## Reproduce the pilot
 
 For a judge walkthrough of the eight operating and sensor demonstrations, see the [integration matrix, architecture and replay guide](docs/integration-v5.md).
+Start in **Tunisia**, select a city and inspect its climate period and elevation source. Select **Jendouba** for the nearby simulated field site, or open **Site map** from the main navigation. See the [judge validation report](docs/judge-validation.md) for the field workflow regression coverage.
 
 1. On the **Site map**, enable **Water anomalies** and select the distribution meter to see the simulated **13 m³** discrepancy. Open **Compare solar options** to inspect the two 10 kWp profiles and their assumptions.
 2. In **Simulation**, select **A/B demo** and **Calculate schedules**. During the outage, the fixed schedule delivers **10 m³** to A and **0 m³** to B. The proposed schedule delivers **5 m³** to each plot, raising minimum coverage from **0%** to **50%**. Approve the proposed simulated plan.
@@ -268,6 +289,7 @@ The running backend serves [OpenAPI documentation](http://127.0.0.1:8000/docs).
 | Purpose | Routes |
 | --- | --- |
 | Health and geography | `GET /api/health`, `GET /api/scenarios`, `GET /api/sites`, `GET /api/layers/{site_id}/{layer_id}` |
+| National map and profiles | `GET /api/tunisia`, `GET /api/tunisia/cities/{id}` with optional inclusive `start` and `end` dates |
 | Agricultural survey and weather station | `GET /api/sites/{site_id}/agriculture`, `GET /api/weather/bouhertma?day=2026-05-08` |
 | Archived solar comparison, hourly PV and planning weather | `POST /api/solar/compare-archive`, `POST /api/solar/profile`, `POST /api/weather` |
 | Verified replay and virtual instrumentation | `POST /api/telemetry/replay`, `POST /api/telemetry/project`, `POST /api/telemetry/forecast` |
@@ -290,10 +312,10 @@ Pop-Location
 
 With Chrome installed and both servers running, use `npm --prefix frontend run test:browser` to exercise the cinematic handoff, M6 schedule approval, and the M8 citation follow-up. The test sends three chat questions to the live assistant. Set `MIZHUO_TEST_URL` when testing a frontend served at a different URL.
 
-Run `npm --prefix frontend run test:integration` against those same local servers for the survey map and desktop/mobile twin tests. These checks do not require provider credentials.
+Run `npm --prefix frontend run test:integration` against those same local servers for the national explorer, survey map, and desktop/mobile twin tests. These checks do not require provider credentials.
 
 To repeat the live evidence walkthrough with Nemotron in PowerShell, set `$env:MIZHUO_TEST_PROVIDER='nvidia'` and run `node frontend/tests/m8-browser.mjs`. Clear the test setting with `Remove-Item Env:MIZHUO_TEST_PROVIDER` to return to the default walkthrough.
 
-GitHub Actions runs backend and frontend checks. A browser job exercises the built dashboard and local API in desktop and mobile Chrome viewports for the survey, twin and incident workflows without provider keys. Security checks include CodeQL, Gitleaks and an OSV dependency comparison on pull requests that change dependency manifests. [CI workflow](.github/workflows/ci.yml) · [Security workflow](.github/workflows/security.yml)
+GitHub Actions runs backend and frontend checks. A browser job exercises the national explorer, survey, twin and incident workflows against the built dashboard and local API in desktop and mobile Chrome without provider keys. Security checks include CodeQL, Gitleaks and an OSV dependency comparison on pull requests that change dependency manifests. [CI workflow](.github/workflows/ci.yml) · [Security workflow](.github/workflows/security.yml)
 
 Regenerate the animated and static banners from the repository root with `python docs/tools/readme_hero.py`. [Banner source](docs/tools/readme_hero.py)

@@ -1,0 +1,129 @@
+.city-relief {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #99bba52e;
+  border-radius: 1rem;
+  color: #e1ece3;
+  background: #15271f;
+}
+
+.city-relief-stage {
+  position: relative;
+  isolation: isolate;
+  min-height: 262px;
+  aspect-ratio: 1.52;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 23px, #cbe4cc08 24px 25px),
+    repeating-linear-gradient(to right, transparent 0 23px, #cbe4cc08 24px 25px),
+    radial-gradient(ellipse at 48% 35%, #294235, #13251e 80%);
+}
+
+.city-relief-mount {
+  position: absolute;
+  inset: 0;
+}
+
+.city-relief-mount canvas {
+  display: block;
+  cursor: grab;
+}
+
+.city-relief-mount canvas:active { cursor: grabbing; }
+
+.city-relief-controls {
+  position: absolute;
+  right: .75rem;
+  bottom: .75rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(2.5rem, auto));
+  gap: .25rem;
+  padding: .25rem;
+  border: 1px solid #aac8ae40;
+  border-radius: .7rem;
+  background: #15271fed;
+}
+
+.city-relief-controls button {
+  display: grid;
+  min-height: 2.5rem;
+  place-items: center;
+  border: 0;
+  border-radius: .46rem;
+  color: #ecf5e9;
+  background: transparent;
+}
+
+.city-relief-controls button:is(:hover, :focus-visible) {
+  color: #ecfaab;
+  background: #334d38;
+}
+
+.city-relief-compass {
+  position: absolute;
+  top: .75rem;
+  right: .75rem;
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .38rem .52rem;
+  border: 1px solid #aac8ae40;
+  border-radius: .6rem;
+  color: #e2edbe;
+  background: #15271fe0;
+}
+
+.city-relief-compass span { display: grid; place-items: center; }
+.city-relief-compass b { font-size: .72rem; }
+
+.city-relief-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .65rem 1rem;
+  padding: .75rem .9rem;
+  font-size: .75rem;
+  color: #bfd5c8;
+}
+
+.city-relief-legend {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: #ebf1e1;
+}
+
+.city-relief-scale {
+  width: clamp(2.4rem, 9vw, 6rem);
+  height: .44rem;
+  border-radius: 1rem;
+}
+
+.city-relief-raster {
+  position: absolute;
+  inset: .8rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  color: #bfd5c8;
+  font-size: .78rem;
+}
+
+.city-relief-raster canvas {
+  width: auto;
+  height: calc(100% - 1.6rem);
+  max-width: 100%;
+  image-rendering: pixelated;
+  border: 1px solid #aac8ae40;
+}
+
+@media (max-width: 560px) {
+  .city-relief-stage { aspect-ratio: 1.08; }
+  .city-relief-controls button { min-height: 2.75rem; min-width: 2.75rem; }
+}

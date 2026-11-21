@@ -1,0 +1,2 @@
+# GeoTIFF decoding is required only when refreshing the public atlas archive.
+Pillow==13.0.0

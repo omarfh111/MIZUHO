@@ -2,7 +2,7 @@ import { ArrowUp, BookOpenText, ExternalLink, LoaderCircle, Sparkles } from 'luc
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, askAssistant, getAssistantHealth, type DataMode } from '../api.ts';
 import { dateLabel, provenanceLabel } from '../format.ts';
-import type { AssistantAnswer, AssistantHealth, AssistantSimulationContext, Site, SolarOption } from '../types.ts';
+import type { AssistantAnswer, AssistantHealth, AssistantSimulationContext, Site, SolarOption, TunisiaCity, TunisiaPeriod } from '../types.ts';
 import { Modal } from './EvidencePanel.tsx';
 
 const suggestions = [
@@ -14,6 +14,10 @@ const surveySuggestions = [
   'What does WaPOR estimate for parcel P-01?',
   'Which measurements are missing before these parcels can be scheduled?',
   'Does the temperature analysis establish a cause for changes in water use?',
+];
+const citySuggestions = [
+  'What do the archived climate and elevation estimates show for this city?',
+  'Which field measurements are needed to plan irrigation here?',
 ];
 
 function createSessionId() {
@@ -27,8 +31,11 @@ function createSessionId() {
 
 function Metric({ fact }: { fact: AssistantAnswer['facts'][number] }) {
   return <div className="assistant-fact">
-    <span className={`assistant-provenance provenance-${fact.provenance}`}>MIZUHO · {provenanceLabel[fact.provenance]}</span>
+    <span className={`assistant-provenance provenance-${fact.provenance}`}>{fact.source_url ? 'Source data' : 'MIZUHO'} · {provenanceLabel[fact.provenance]}</span>
     <span>{fact.text}</span>
+    {fact.source_url && <a href={fact.source_url} target="_blank" rel="noreferrer" className="text-button">
+      Open dataset <ExternalLink size={14} />
+    </a>}
   </div>;
 }
 
@@ -78,8 +85,8 @@ interface Turn {
   error?: string;
 }
 
-export default function AssistantPanel({ site, mode, solar, simulation, open, close }: {
-  site: Site; mode: DataMode; solar: SolarOption | null; simulation?: AssistantSimulationContext;
+export default function AssistantPanel({ site, city, period, mode, solar, simulation, open, close }: {
+  site?: Site; city?: TunisiaCity; period?: TunisiaPeriod; mode: DataMode; solar: SolarOption | null; simulation?: AssistantSimulationContext;
   open: boolean; close: () => void;
 }) {
   const [sessionId] = useState(createSessionId);
@@ -94,7 +101,7 @@ export default function AssistantPanel({ site, mode, solar, simulation, open, cl
   const last = turns.at(-1);
   const pending = Boolean(last && !last.answer && !last.error);
   const available = mode !== 'demo' && (health === 'available' || health === 'incomplete');
-  const scope = JSON.stringify([site.properties.site_id, solar?.id, solar?.source_id, simulation]);
+  const scope = JSON.stringify([site?.properties.site_id, city?.id, period, solar?.id, solar?.source_id, simulation]);
 
   useEffect(() => {
     if (!open || mode === 'demo') return;
@@ -130,7 +137,7 @@ export default function AssistantPanel({ site, mode, solar, simulation, open, cl
     };
     const archive = solar?.source_id === 'pvgis-sarah3-jendouba-2023';
     askAssistant({
-      provider, question: prompt, site_id: site.properties.site_id, session_id: sessionId,
+      provider, question: prompt, site_id: site?.properties.site_id, city_id: city?.id, city_period: period, session_id: sessionId,
       solar_option_id: archive ? undefined : solar?.id,
       pvgis_option_id: archive && (solar.id === 'ombriere' || solar.id === 'toiture') ? solar.id : undefined,
       comparison: simulation?.comparison, selected_scenario_id: simulation?.scenarioId,
@@ -146,8 +153,9 @@ export default function AssistantPanel({ site, mode, solar, simulation, open, cl
   if (!open) return null;
   return <Modal title="Mizhuo assistant" icon={<Sparkles size={23} />} close={close} kind="assistant-modal">
     <div className="assistant-header">
-      <span className="assistant-site">{site.properties.label}</span>
-      <span className="assistant-context">{simulation?.comparison ? 'Current comparison available' : 'Site and evidence'}</span>
+      <span className="assistant-site">{city?.name ?? site?.properties.label}</span>
+      <span className="assistant-context">{city ? 'City archive and evidence' : simulation?.comparison ? 'Current comparison available' : 'Site and evidence'}</span>
+      {period && <span className="assistant-context">{dateLabel(period.start)} – {dateLabel(period.end)}</span>}
       {available && health === 'incomplete' && <span className="assistant-context">Evidence index incomplete</span>}
       {available && nvidia && <label className="field"><span>Answer model</span>
         <select disabled={pending} value={provider} onChange={(e) => setProvider(e.target.value === 'nvidia' ? 'nvidia' : 'openai')}>
@@ -164,9 +172,10 @@ export default function AssistantPanel({ site, mode, solar, simulation, open, cl
         </div>
         : health === 'checking' && <p className="assistant-notice" role="status"><LoaderCircle size={16} /> Checking evidence access…</p>}
       {available && turns.length === 0 && <div className="assistant-welcome">
-          <h3>Ask about a plan or its evidence</h3>
-          <p>Explore the assumptions, official sources, or trade-offs behind an irrigation decision.</p>
-          <div className="assistant-suggestions">{(site.properties.survey_available ? surveySuggestions : suggestions).map((suggestion) =>
+          <h3>{city ? `Ask about ${city.name}` : 'Ask about a plan or its evidence'}</h3>
+          <p>{city ? 'Explore archived climate, sampled terrain, and the data needed to plan irrigation.' :
+            'Explore the assumptions, official sources, or trade-offs behind an irrigation decision.'}</p>
+          <div className="assistant-suggestions">{(city ? citySuggestions : site?.properties.survey_available ? surveySuggestions : suggestions).map((suggestion) =>
             <button key={suggestion} type="button" onClick={() => send(suggestion)}>{suggestion}</button>)}</div>
         </div>}
       {turns.map((turn, index) => <article key={index} className="assistant-turn">
