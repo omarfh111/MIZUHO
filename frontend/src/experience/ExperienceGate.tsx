@@ -414,7 +414,12 @@ export function ExperienceGate({
             </>
           ) : null}
 
-          <Loader progress={progress} stage={LOADING_STAGES[stage]} leaving={phase !== 'loading'} />
+          <Loader
+            progress={progress}
+            stage={LOADING_STAGES[stage]}
+            leaving={phase !== 'loading'}
+            particles={caps.tier === 'high' ? 16000 : 7000}
+          />
 
           <button
             type="button"

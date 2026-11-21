@@ -1,126 +1,148 @@
 import { gsap } from 'gsap';
-import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { BRAND, TAGLINE } from '../core/content.ts';
+import { createOpeningField, type OpeningField } from './opening-gl.ts';
 
 interface Props {
-  /** Real loading progress, 0 → 1. The fill eases towards it but never runs ahead. */
+  /** Real loading progress, 0 → 1. The condensation eases towards it but never runs ahead. */
   progress: number;
   stage: string;
   leaving: boolean;
+  particles: number;
 }
 
-/** Wavy top edge, repeated horizontally and slid sideways to animate the surface. */
-const WAVE = `url("data:image/svg+xml,${encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="2000" viewBox="0 0 240 2000"><path d="M0 14 C40 2 80 2 120 14 S200 26 240 14 V2000 H0Z" fill="#000"/></svg>',
-)}")`;
+const FONT = '"Space Grotesk Variable", "Space Grotesk", system-ui, sans-serif';
 
 /**
- * The opening, about three seconds: the wordmark fills with water as the
- * scene really loads, then a drop gathers under the final letter and falls
- * into the film, where the 3D drop takes over.
+ * The opening, about three seconds. Luminous water mist swirls in the dark
+ * and condenses into the wordmark as the scene genuinely loads; then the
+ * letters spiral into one drop, which falls into the film.
  */
-export function Loader({ progress, stage, leaving }: Props) {
-  const shown = useRef({ value: 0 });
+export function Loader({ progress, stage, leaving, particles }: Props) {
   const root = useRef<HTMLDivElement>(null);
-  const word = useRef<HTMLDivElement>(null);
-  const fill = useRef<HTMLDivElement>(null);
-  const line = useRef<HTMLSpanElement>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const field = useRef<OpeningField | null>(null);
+  const state = useRef({ condense: 0, release: 0, pointer: null as [number, number] | null });
   const number = useRef<HTMLSpanElement>(null);
-  const meter = useRef<HTMLSpanElement>(null);
-  const lastLetter = useRef<HTMLSpanElement>(null);
-  const drip = useRef<HTMLSpanElement>(null);
+  const [gl, setGl] = useState(true);
 
+  // Particle field lifecycle: one rAF loop for the whole opening.
   useEffect(() => {
-    const render = () => {
-      const v = shown.current.value;
-      const h = word.current?.offsetHeight ?? 0;
-      // The visible water level sits inside the glyph band (cap height ≈ 15 %–85 % of the box).
-      const level = h * (0.86 - v * 0.74);
-      fill.current?.style.setProperty('--level', `${level.toFixed(1)}px`);
-      if (line.current) line.current.style.transform = `translateY(${level.toFixed(1)}px)`;
-      if (number.current) number.current.textContent = String(Math.round(v * 100)).padStart(2, '0');
-      if (meter.current) meter.current.style.transform = `scaleX(${v})`;
-      root.current?.setAttribute('aria-valuenow', String(Math.round(v * 100)));
+    const el = canvas.current;
+    if (!el) return;
+    let f: OpeningField | null = null;
+    try {
+      f = createOpeningField(el, particles);
+    } catch {
+      f = null;
+    }
+    if (!f) {
+      setGl(false);
+      return;
+    }
+    field.current = f;
+    let cancelled = false;
+    const font = `600 200px ${FONT}`;
+    const place = () => !cancelled && f!.setHomes(BRAND, FONT);
+    (document.fonts?.load(font) ?? Promise.resolve()).then(place, place);
+    const onResize = () => {
+      f!.resize();
+      place();
     };
-    const tween = gsap.to(shown.current, { value: progress, duration: 0.7, ease: 'power2.out', onUpdate: render });
-    render();
+    window.addEventListener('resize', onResize);
+    const start = performance.now();
+    let frame = 0;
+    const loop = (now: number) => {
+      const aspect = el.clientWidth / Math.max(1, el.clientHeight);
+      f!.frame({
+        time: (now - start) / 1000,
+        condense: state.current.condense,
+        release: state.current.release,
+        pointer: state.current.pointer,
+        drop: [aspect < 1.25 ? 0 : aspect * 0.32, aspect < 1.25 ? -0.05 : 0.02],
+      });
+      frame = requestAnimationFrame(loop);
+    };
+    frame = requestAnimationFrame(loop);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', onResize);
+      f!.dispose();
+    };
+  }, [particles]);
+
+  // Progress → condensation, eased, never ahead of the real value.
+  useEffect(() => {
+    const tween = gsap.to(state.current, {
+      condense: progress,
+      duration: 0.8,
+      ease: 'power2.out',
+      onUpdate: () => {
+        if (number.current) number.current.textContent = String(Math.round(state.current.condense * 100)).padStart(2, '0');
+        root.current?.setAttribute('aria-valuenow', String(Math.round(state.current.condense * 100)));
+      },
+    });
     return () => {
       tween.kill();
     };
   }, [progress]);
 
-  // Hand-over: letters lift away, a drop gathers under the last letter and falls.
+  // Release: the wordmark spirals into a single drop, then the curtain lifts.
   useLayoutEffect(() => {
     if (!leaving || !root.current) return;
     const ctx = gsap.context(() => {
-      const box = lastLetter.current?.getBoundingClientRect();
-      const host = root.current!.getBoundingClientRect();
-      if (box && drip.current) {
-        gsap.set(drip.current, { left: box.left - host.left + box.width / 2, top: box.bottom - host.top - box.height * 0.12 });
-        gsap.timeline()
-          .fromTo(drip.current, { scale: 0, opacity: 1 }, { scale: 1, duration: 0.22, ease: 'back.out(3)' })
-          .to(drip.current, {
-            y: host.height * 0.5 - (box.bottom - host.top) + host.height * 0.02,
-            x: host.width * 0.58 - (box.left - host.left + box.width / 2),
-            scaleY: 1.5,
-            scaleX: 0.8,
-            duration: 0.5,
-            ease: 'power2.in',
-          })
-          .to(drip.current, { opacity: 0, scale: 2.4, duration: 0.18, ease: 'power1.out' });
-      }
-      gsap.to('.mx-open__glyph', { yPercent: -40, opacity: 0, filter: 'blur(14px)', duration: 0.55, stagger: 0.035, ease: 'power3.in', delay: 0.12 });
-      gsap.to('.mx-open__meta, .mx-open__tagline, .mx-open__line', { opacity: 0, duration: 0.3 });
-      gsap.to(root.current, { '--mx-open-bg': 0, duration: 0.55, delay: 0.32, ease: 'power1.inOut' });
-      gsap.set(root.current, { pointerEvents: 'none', delay: 0.3 });
-      gsap.set(root.current, { visibility: 'hidden', delay: 1.0 });
+      gsap.to(state.current, { condense: 1, duration: 0.2 });
+      gsap.to(state.current, { release: 1, duration: 0.95, ease: 'power2.in' });
+      gsap.to('.mx-open__tagline, .mx-open__meta, .mx-open__fallback', { opacity: 0, y: -8, duration: 0.35, ease: 'power2.in' });
+      gsap.fromTo('.mx-open__flash', { scale: 0.2, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.25, delay: 0.82, ease: 'power2.out' });
+      gsap.to('.mx-open__flash', { scale: 3, opacity: 0, duration: 0.6, delay: 1.07, ease: 'power2.out' });
+      gsap.to(root.current, { '--mx-open-bg': 0, duration: 0.6, delay: 0.7, ease: 'power1.inOut' });
+      gsap.to(canvas.current, { opacity: 0, duration: 0.35, delay: 1.0 });
+      gsap.set(root.current, { pointerEvents: 'none', delay: 0.4 });
+      gsap.set(root.current, { visibility: 'hidden', delay: 1.6 });
     }, root);
     return () => ctx.revert();
   }, [leaving]);
 
-  const letters = BRAND.split('');
+  const onPointer = (event: ReactPointerEvent) => {
+    const el = canvas.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const aspect = rect.width / Math.max(1, rect.height);
+    state.current.pointer = [((event.clientX - rect.left) / rect.width * 2 - 1) * aspect, -((event.clientY - rect.top) / rect.height * 2 - 1)];
+  };
+
   return (
     <div
       ref={root}
       className="mx-open"
       data-leaving={leaving || undefined}
+      data-gl={gl || undefined}
       role="progressbar"
-      aria-label="Loading MIZUHO"
+      aria-label={`Loading ${BRAND}`}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuetext={stage}
+      onPointerMove={onPointer}
+      onPointerLeave={() => { state.current.pointer = null; }}
     >
       <div className="mx-open__caustics" aria-hidden />
-      <div className="mx-open__center">
-        <div ref={word} className="mx-open__word" aria-hidden>
-          <div className="mx-open__outline">
-            {letters.map((ch, i) => (
-              <span key={i} className="mx-open__glyph" style={{ '--i': i } as CSSProperties}>{ch}</span>
-            ))}
-          </div>
-          <div ref={fill} className="mx-open__fill" style={{ WebkitMaskImage: WAVE, maskImage: WAVE }}>
-            {letters.map((ch, i) => (
-              <span
-                key={i}
-                ref={i === letters.length - 1 ? lastLetter : undefined}
-                className="mx-open__glyph"
-                style={{ '--i': i } as CSSProperties}
-              >
-                {ch}
-              </span>
-            ))}
-          </div>
-          <span ref={line} className="mx-open__line" />
+      <canvas ref={canvas} className="mx-open__field" aria-hidden />
+      {!gl ? (
+        <div className="mx-open__fallback" aria-hidden>
+          {BRAND.split('').map((ch, i) => <span key={i} style={{ '--i': i } as CSSProperties}>{ch}</span>)}
         </div>
-        <h1 className="mx-open__sr">{BRAND}</h1>
-        <p className="mx-open__tagline">{TAGLINE}</p>
-      </div>
+      ) : null}
+      <h1 className="mx-open__sr">{BRAND}</h1>
+      <p className="mx-open__tagline">
+        {TAGLINE.split(' ').map((w, i) => <span key={i} style={{ '--i': i } as CSSProperties}>{w}</span>)}
+      </p>
       <div className="mx-open__meta">
         <span className="mx-open__stage" key={stage}>{stage}</span>
-        <span className="mx-open__track"><span ref={meter} /></span>
-        <span className="mx-open__pct"><span ref={number}>00</span>%</span>
+        <span className="mx-open__pct"><span ref={number}>00</span></span>
       </div>
-      <span ref={drip} className="mx-open__drip" aria-hidden />
+      <span className="mx-open__flash" aria-hidden />
     </div>
   );
 }
