@@ -1,4 +1,6 @@
 fastapi==0.115.12
+httpx==0.28.1
+langgraph==1.0.5
 ortools==9.14.6206
 pydantic==2.11.5
 python-dotenv==1.1.1

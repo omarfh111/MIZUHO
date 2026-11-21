@@ -46,5 +46,61 @@
     "page": null,
     "url": "https://www.ecmwf.int/en/research/modelling-and-prediction/quantifying-forecast-uncertainty",
     "limitation": "Both hourly profiles are simulated. Local day-ahead forecast records are unavailable."
+  },
+  "ins-households": {
+    "title": "RGPH 2024 · Ménages",
+    "organization": "Institut National de la Statistique (INS)",
+    "date": "2025",
+    "page": 3,
+    "url": "https://www.ins.tn/sites/default/files-ftp3/files/2025-09/PROD-Menage-BULLETIN-FR.pdf#page=3",
+    "limitation": "This census describes households and their main water source. It provides no irrigation withdrawal or private borehole measurements."
+  },
+  "sonede-distribution": {
+    "title": "Exploitation et distribution de l’eau",
+    "organization": "SONEDE",
+    "date": "2023",
+    "page": null,
+    "url": "https://www.sonede.com.tn/a-propos/nos-metiers/exploitation-et-distribution-de-leau/",
+    "limitation": "The figures describe public drinking-water distribution. They do not quantify the pilot's irrigation deliveries or explain a specific outage."
+  },
+  "groundwater-kebili": {
+    "title": "Nappes profondes · Kébili",
+    "organization": "Tunisian Ministry of Agriculture, Water Resources and Fisheries",
+    "date": "2026-10-12",
+    "page": null,
+    "url": "https://catalog.data.gov.tn/fr/dataset/exploitation-de-la-nappes-profondes-kebili",
+    "limitation": "The records cover deep aquifers in Kébili. They cannot establish Jendouba borehole conditions."
+  },
+  "dgre-aquifers": {
+    "title": "Rapport sur les Indicateurs de Développement Durable",
+    "organization": "Tunisian Ministry of Environment · DGRE data",
+    "date": "2023",
+    "page": 7,
+    "url": "https://environnement.gov.tn/fileadmin/Bibliotheque/SNTE/Rapport_IDD_2023.pdf#page=8",
+    "limitation": "The DGRE series is a historical national aggregate for deep aquifers. It does not establish a local borehole's condition or permitted withdrawal."
+  },
+  "world-bank-irrigation": {
+    "title": "Tunisia: Major Push to Strengthen Water Security and Resilience",
+    "organization": "World Bank",
+    "date": "2026-04-01",
+    "page": null,
+    "url": "https://www.worldbank.org/en/news/press-release/2026/04/01/tunisia-major-push-to-strengthen-water-security-and-resilience",
+    "limitation": "This announcement states project commitments. It does not verify site-level improvements or irrigation outcomes."
+  },
+  "jendouba-borehole": {
+    "title": "Jendouba pilot borehole measurements",
+    "organization": "Mizhuo evidence register",
+    "date": null,
+    "page": null,
+    "url": null,
+    "limitation": "No observed water level, pumping test or metered withdrawal is available for a pilot borehole."
+  },
+  "site-pvgis": {
+    "title": "Site-level photovoltaic yield and loads",
+    "organization": "Mizhuo evidence register",
+    "date": null,
+    "page": null,
+    "url": null,
+    "limitation": "No verified PVGIS output, measured load series, annual costs or site survey is available for the two demo options."
   }
 }

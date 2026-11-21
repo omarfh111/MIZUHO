@@ -1,12 +1,13 @@
-import { Activity, ArrowLeft, ArrowUpRight, Droplets, FlaskConical, Map, MapPin, Radio, Waves } from 'lucide-react';
+import { Activity, ArrowLeft, ArrowUpRight, Droplets, FlaskConical, Map, MapPin, Radio, Sparkles, Waves } from 'lucide-react';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { getCatalog, type Catalog } from './api.ts';
 import EvidencePanel from './components/EvidencePanel.tsx';
 import SiteMap from './components/SiteMap.tsx';
 import SolarComparison from './components/SolarComparison.tsx';
-import type { SolarOption } from './types.ts';
+import type { AssistantSimulationContext, SolarOption } from './types.ts';
 
 const Simulation = lazy(() => import('./components/Simulation.tsx'));
+const AssistantPanel = lazy(() => import('./components/AssistantPanel.tsx'));
 type Page = 'map' | 'simulation';
 const currentPage = (): Page => window.location.hash === '#simulation' ? 'simulation' : 'map';
 
@@ -20,6 +21,8 @@ export default function App() {
   const [solar, setSolar] = useState<SolarOption | null>(null);
   const [source, setSource] = useState<string | null>(null);
   const [solarIds, setSolarIds] = useState<string[] | null>(null);
+  const [assistantOpen, setAssistantOpen] = useState<boolean>();
+  const [assistantSimulation, setAssistantSimulation] = useState<AssistantSimulationContext>();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -108,7 +111,8 @@ export default function App() {
         onCompare={setSolarIds} onEvidence={setSource} onSimulate={() => navigate('simulation')} />}
       {catalog && site && visitedSimulation && <div hidden={page !== 'simulation'}>
         {scenarios.length ? <Suspense fallback={<div className="surface page-fallback" role="status">Loading the simulator…</div>}>
-          <Simulation key={siteId} scenarios={scenarios} mode={catalog.mode} solar={solar} onClearSolar={() => setSolar(null)} onEvidence={setSource} />
+          <Simulation key={siteId} scenarios={scenarios} mode={catalog.mode} solar={solar} onClearSolar={() => setSolar(null)} onEvidence={setSource}
+            onAssistantContext={setAssistantSimulation} />
         </Suspense> : <div className="surface page-fallback"><p>No scenarios are available for this site.</p></div>}
       </div>}
       <footer className="footer"><span><Waves size={15} /> Mizhuo</span>
@@ -119,5 +123,11 @@ export default function App() {
         setSolar(option); setSolarIds(null); navigate('simulation');
       }} />}
     {catalog && source && <EvidencePanel key={source} source={source} mode={catalog.mode} close={() => setSource(null)} />}
+    {catalog && site && <button type="button" className="assistant-launch button button-primary" aria-haspopup="dialog"
+      onClick={() => setAssistantOpen(true)}><Sparkles size={19} /> Ask Mizhuo</button>}
+    {catalog && site && assistantOpen !== undefined && <Suspense fallback={null}>
+      <AssistantPanel site={site} mode={catalog.mode} solar={solar} simulation={assistantSimulation} open={assistantOpen}
+        close={() => setAssistantOpen(false)} />
+    </Suspense>}
   </>;
 }

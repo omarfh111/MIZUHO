@@ -1,12 +1,12 @@
 import { BookOpenText, ExternalLink } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { X } from 'lucide-react';
-import { getEvidence, type DataMode } from '../api.ts';
+import { getEvidence, getPassages, type DataMode } from '../api.ts';
 import { dateLabel } from '../format.ts';
-import type { Evidence } from '../types.ts';
+import type { Citation, Evidence } from '../types.ts';
 
-export function Modal({ title, icon, children, close, wide = false }: {
-  title: string; icon: ReactNode; children: ReactNode; close: () => void; wide?: boolean;
+export function Modal({ title, icon, children, close, wide = false, kind = '' }: {
+  title: string; icon: ReactNode; children: ReactNode; close: () => void; wide?: boolean; kind?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -15,7 +15,7 @@ export function Modal({ title, icon, children, close, wide = false }: {
     element.showModal();
     return () => { element.close(); };
   }, []);
-  return <dialog ref={dialog} className={`modal ${wide ? 'modal-wide' : ''}`}
+  return <dialog ref={dialog} className={`modal ${wide ? 'modal-wide' : ''} ${kind}`}
     aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); close(); }}
     onClick={(event) => { if (event.target === event.currentTarget) close(); }}>
     <div className="modal-content">
@@ -30,12 +30,16 @@ export function Modal({ title, icon, children, close, wide = false }: {
 
 export default function EvidencePanel({ source, mode, close }: { source: string; mode: DataMode; close: () => void }) {
   const [evidence, setEvidence] = useState<Evidence | null>(null);
+  const [passages, setPassages] = useState<Citation[]>([]);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     getEvidence(source, mode, controller.signal).then(setEvidence).catch(() => {
       if (!controller.signal.aborted) setFailed(true);
     });
+    if (mode === 'live') {
+      getPassages(source, controller.signal).then(setPassages).catch(() => {});
+    }
     return () => controller.abort();
   }, [source, mode]);
   return <Modal title="Data source" icon={<BookOpenText size={22} />} close={close}>
@@ -45,6 +49,11 @@ export default function EvidencePanel({ source, mode, close }: { source: string;
         <p className="evidence-meta">{evidence.organization} · {dateLabel(evidence.date)}
           {evidence.page != null && ` · p. ${evidence.page}`}</p>
         <p>{evidence.limitation}</p>
+        {passages.map((passage) => <div key={passage.id} className="evidence-passage">
+          <p><strong>{passage.section}</strong> · {dateLabel(passage.date)}
+            {passage.page != null && ` · p. ${passage.page}`}</p>
+          <blockquote>{passage.excerpt}</blockquote>
+        </div>)}
         {evidence.url && <a className="button button-secondary" href={evidence.url} target="_blank" rel="noreferrer">
           Open source <ExternalLink size={15} /></a>}
       </div>}

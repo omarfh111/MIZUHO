@@ -1,7 +1,7 @@
 import type { FeatureCollection, Geometry, Position } from 'geojson';
 import { demoEvidence, demoLayers, demoScenarios, demoSiteId, demoSites, demoSolar } from './demo/catalog.ts';
 import { demoCompare } from './demo/planner.ts';
-import type { CompareRequest, Comparison, Evidence, Layer, LayerId, Plan, Scenario, SiteProperties, Sites, SolarOption, SolarRequest } from './types.ts';
+import type { AssistantAnswer, AssistantHealth, AssistantRequest, Citation, CompareRequest, Comparison, Evidence, Layer, LayerId, Plan, Scenario, SiteProperties, Sites, SolarOption, SolarRequest } from './types.ts';
 
 export type DataMode = 'live' | 'demo';
 export type FieldErrors = Record<string, string>;
@@ -21,11 +21,11 @@ function validationFields(payload: unknown): FieldErrors {
   ]));
 }
 
-async function request<T>(path: string, signal: AbortSignal, body?: unknown): Promise<T> {
+async function request<T>(path: string, signal: AbortSignal, body?: unknown, timeout = 30000): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`/api/${path}`, {
-      signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(timeout)]),
       headers: {
         Accept: 'application/json',
         'Accept-Language': 'en',
@@ -154,4 +154,16 @@ export async function getEvidence(source: string, mode: DataMode, signal: AbortS
   const record = await request<Evidence & { titre?: string; organisme?: string; limite?: string }>(`evidence/${encodeURIComponent(source)}`, signal);
   return { ...record, title: record.title ?? record.titre ?? 'Reference source',
     organization: record.organization ?? record.organisme ?? '', limitation: record.limitation ?? record.limite ?? '' };
+}
+
+export function getPassages(source: string, signal: AbortSignal): Promise<Citation[]> {
+  return request(`evidence/${encodeURIComponent(source)}/passages`, signal);
+}
+
+export function getAssistantHealth(signal: AbortSignal): Promise<AssistantHealth> {
+  return request('assistant/health', signal, undefined, 12000);
+}
+
+export function askAssistant(body: AssistantRequest, signal: AbortSignal): Promise<AssistantAnswer> {
+  return request('assistant/chat', signal, body, 50000);
 }

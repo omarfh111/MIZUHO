@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import Field, TypeAdapter
 
+from .assistant_api import create_runtime, router as assistant_router
 from .catalog import DATA_DIR, load_catalog
 from .compare import InputError, compare
 from .models import (
@@ -25,7 +26,7 @@ DEV_ORIGINS = ",".join(
 SOLVER_BUDGET = TypeAdapter(Annotated[float, Field(ge=0, le=15, allow_inf_nan=False)])
 
 
-def create_app(data_dir: Path = DATA_DIR, *, solver_timeout: float | None = None) -> FastAPI:
+def create_app(data_dir: Path = DATA_DIR, *, solver_timeout: float | None = None, assistant_factory=create_runtime) -> FastAPI:
     load_dotenv(Path(__file__).resolve().parents[1] / ".env")
     budget = SOLVER_BUDGET.validate_python(
         getenv("MIZHUO_SOLVER_TIMEOUT_SECONDS", "5") if solver_timeout is None else solver_timeout
@@ -37,9 +38,15 @@ def create_app(data_dir: Path = DATA_DIR, *, solver_timeout: float | None = None
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.catalog = load_catalog(data_dir)
-        yield
+        service = assistant_factory(data_dir, app.state.catalog, budget)
+        app.state.assistant = service
+        try:
+            yield
+        finally:
+            service.close()
 
     app = FastAPI(title="Mizhuo API", version="1.0.0", lifespan=lifespan)
+    app.include_router(assistant_router)
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"],
                        allow_headers=["Accept", "Accept-Language", "Content-Type"])
 
