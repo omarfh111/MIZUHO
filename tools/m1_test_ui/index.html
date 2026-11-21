@@ -451,6 +451,12 @@ function table(cols, rows) {
   return '<div class="tbl"><table><thead><tr>' + cols.map(c => `<th${c[3] ? ' class="num"' : ""}>${esc(c[1])}</th>`).join("") + "</tr></thead><tbody>" +
     rows.map(r => "<tr>" + cols.map(c => { const v = c[2] ? c[2](r) : r[c[0]]; return `<td${c[3] ? ' class="num"' : ""}>${v === null || v === undefined ? MISSING : v}</td>`; }).join("") + "</tr>").join("") + "</tbody></table></div>";
 }
+if (location.protocol === "file:") document.addEventListener("DOMContentLoaded", () => {
+  const b = document.createElement("div");
+  b.style.cssText = "position:sticky;top:0;z-index:2000;padding:10px 16px;background:var(--bad-bg);color:var(--bad);border-bottom:1px solid var(--bad);font-weight:600";
+  b.innerHTML = "Page ouverte comme fichier : la carte et les API ne marchent pas. Lancez <code>python scripts/m1_test_server.py</code> puis ouvrez <a href=\"http://localhost:8765\">http://localhost:8765</a>.";
+  document.body.prepend(b);
+});
 async function guard(n, out, fn) {
   status(n, "run", "En cours…");
   try { await fn(); } catch (e) { status(n, "bad", "Erreur"); if (out) $(out).innerHTML = `<div class="result err">${esc(e.message)}</div>`; }
