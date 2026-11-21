@@ -42,11 +42,14 @@ try {
   desktop.on('request', request => {
     if (new URL(request.url()).pathname === '/api/tunisia') nationalRequests++;
   });
-  const catalogueResponse = desktop.waitForResponse(response => new URL(response.url()).pathname === '/api/tunisia');
+  // Obtain the expected catalogue independently of any in-flight request the dashboard may cancel.
+  const source = await desktop.request.get(new URL('/api/tunisia', url).href);
+  assert.equal(source.status(), 200);
+  const catalogue = await source.json();
   await desktop.goto(url.href);
   await desktop.getByRole('heading', { name: 'Explore Tunisia', level: 1 }).waitFor();
-  const catalogue = await (await catalogueResponse).json();
   await directory(desktop).waitFor();
+  assert.ok(nationalRequests > 0, 'The dashboard requested the national catalogue');
   assert.ok(catalogue.cities.length >= 24);
   assert.equal(await directory(desktop).getByRole('button', { name: /^View / }).count(), catalogue.cities.length);
   assert.equal(await map(desktop).getAttribute('data-view'), 'country');
