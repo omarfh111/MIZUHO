@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MIZUHO — Atelier de replanification</title>
+  <link rel="stylesheet" href="/assets/workbench.css">
+  <script src="/assets/workbench.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <p>MIZUHO / M4–M5</p>
+      <h1>Atelier de replanification</h1>
+      <p>Déclarez une coupure et calculez un nouveau tour d’eau avec le moteur physique.</p>
+    </header>
+    <section aria-labelledby="inputs">
+      <h2 id="inputs">Scénario et incident</h2>
+      <label for="file">Importer un scénario JSON</label>
+      <input id="file" type="file" accept=".json,application/json">
+      <p id="source" class="muted"></p>
+      <form id="incident" hidden>
+        <label for="start">Début de la coupure</label>
+        <select id="start"></select>
+        <label for="duration">Durée (en heures)</label>
+        <input id="duration" type="number" min="1" step="1" value="1" required>
+        <button id="solve">Calculer</button>
+      </form>
+      <p id="status" role="status" aria-live="polite">Chargement du scénario…</p>
+    </section>
+    <div id="results" hidden>
+      <section aria-labelledby="timeline">
+        <div class="heading">
+          <h2 id="timeline">Chronologie du réservoir</h2>
+          <label for="mode">Plan</label>
+          <select id="mode">
+            <option value="with_replan">Avec recalcul</option>
+            <option value="without_replan">Sans recalcul</option>
+            <option value="nominal">Initial sans incident</option>
+          </select>
+        </div>
+        <div id="chart" role="group" aria-label="Stock à la fin de chaque créneau"></div>
+        <p class="muted">Hauteur = stock · Ambre = coupure · Cliquez sur un créneau pour l’inspecter.</p>
+        <p id="slot-detail" aria-live="polite"></p>
+        <dl class="metrics" id="slot-metrics"></dl>
+      </section>
+      <section aria-labelledby="audit">
+        <h2 id="audit">Contrôles spécialisés</h2>
+        <dl class="metrics" id="analyses"></dl>
+        <table>
+          <caption>Déficit à l’échéance par parcelle</caption>
+          <thead><tr><th scope="col">Parcelle</th><th scope="col">Sans recalcul</th><th scope="col">Avec recalcul</th></tr></thead>
+          <tbody id="equity"></tbody>
+        </table>
+      </section>
+    </div>
+    <footer><a href="/docs">Documentation de l’API</a></footer>
+  </main>
+</body>
+</html>

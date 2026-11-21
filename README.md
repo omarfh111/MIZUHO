@@ -12,6 +12,18 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
+## Atelier de replanification
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn backend.workbench:app --host 127.0.0.1 --port 8767
+```
+
+Ouvrir `http://127.0.0.1:8767/` et importer un scénario JSON contenant les champs de `Scenario` et un objet `state`. Le [scénario de démonstration de Jendouba](https://github.com/omarfh111/MIZUHO/blob/75598f4/data/scenarios/announced.json) constitue un exemple d’entrée. Ses paramètres sont simulés. Pour précharger un fichier local, définir la variable `MIZUHO_SCENARIO_FILE` avant de démarrer Uvicorn.
+
+Le formulaire transmet les créneaux à `POST /api/incident`. Le serveur optimise le plan initial, le rejoue jusqu’à la coupure, puis compare deux suites à partir du même état simulé. La première suit le planning initial dans les limites physiques de la coupure. La seconde réoptimise les créneaux restants avec CP-SAT. Chaque requête exécute les calculs sur le scénario fourni. L’interface affiche le statut interrompu, faisable ou optimal selon le résultat du solveur.
+
+Trois analyses déterministes vérifient la conservation de l’eau et du quota, le bilan énergétique et les déficits par parcelle. Elles exploitent les sorties du simulateur et du solveur. L’atelier fonctionne localement, y compris sans compte externe ni clé d’API.
+
 ## Intégration avec l’API
 
 Les types sont dans `backend/planning_models.py`. Le lot API peut les importer pour valider ses données. Sur le prototype, un exploitant correspond à une parcelle et le jour comporte au plus 24 créneaux d’une heure.
