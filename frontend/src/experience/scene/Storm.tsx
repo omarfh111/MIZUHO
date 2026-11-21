@@ -75,9 +75,9 @@ const streakVertex = /* glsl */ `
     o.x += (o.y - uBoxMin.y) * .18;
     // Cylindrical billboard: the quad turns around the vertical axis to face the camera.
     vec3 toCam = uCam - o;
-    vec3 side = normalize(vec3(toCam.z, 0., -toCam.x));
+    vec3 side = normalize(vec3(toCam.z, 0., -toCam.x) + vec3(1e-4, 0., 0.));
     float len = 1.6 + aSeed.y * 2.2;
-    float width = .05 + aSeed.x * .05;
+    float width = .035 + aSeed.x * .035;
     vec3 p = o + side * position.x * width + vec3(.18, 1., 0.) * position.y * len;
     float lat = -o.z / 24. + 34.;
     vAlpha = (.35 + .65 * aSeed.y) * smoothstep(35.1, 35.9, lat);
@@ -205,7 +205,7 @@ export function Storm({ world, director, streaks }: { world: World; director: Di
       shafts[i].material.uniforms.uOpacity.value = amount;
       shafts[i].material.uniforms.uFlash.value = flash;
     });
-    rain.material.uniforms.uOpacity.value = amount * 0.8;
+    rain.material.uniforms.uOpacity.value = amount * 0.5;
     rain.material.uniforms.uFlash.value = flash;
     (rain.material.uniforms.uCam.value as THREE.Vector3).copy(camera.position);
   });
