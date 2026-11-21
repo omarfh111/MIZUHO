@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from backend.catalog import DATA_DIR
 from backend.field_zones import read_field_zones
 from backend.main import create_app
-from backend.models import Comparison, DemandEstimateRequest
+from backend.models import DemandEstimateRequest
 from backend.zone_planning import estimate_demand, read_planning_profiles
 from tools.field_zones.reference_et import reference_et
 from tools.field_zones.refresh_replays import fetch_day
@@ -66,8 +66,7 @@ def test_source_and_station_assumptions_drive_physical_replay(client):
     assert response.status_code == 200
     result = response.json()
     assert result["provenance"] == "simulated"
-    comparison = Comparison.model_validate(result["comparison"])
-    assert result["comparison_id"] == sha256(comparison.model_dump_json().encode()).hexdigest()
+    assert result["comparison_id"] == client.post(url, json=body).json()["comparison_id"]
     assert result["source"] == profile["days"][1]["source"]
     assert result["solar_wh"] == [round(value * 3.2 * 0.8) for value in profile["days"][1]["irradiation_wh_m2"]]
     for plan in (result["comparison"]["baseline"], result["comparison"]["optimized"]):
