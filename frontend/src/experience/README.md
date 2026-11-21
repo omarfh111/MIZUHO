@@ -2,25 +2,19 @@
 
 A ~3 s opening followed by a scrubbable 3D film: one raindrop's journey across Tunisia, from cloud to crop, powered by the sun and the wind. It ends by revealing the dashboard (M7). Everything lives in this folder and is mounted through one wrapper.
 
-## Integrating with M7
+## Application entry
 
 ```tsx
-import { ExperienceGate } from './experience';
+import { ExperienceGate } from './experience/index.ts';
 
 createRoot(root).render(
-  <ExperienceGate preload={() => import('./App')}>
+  <ExperienceGate mountChildrenEarly>
     <App />
   </ExperienceGate>,
 );
 ```
 
-M7 needs these dependencies (versions match the harness):
-
-```
-npm i @react-three/fiber@^9.8.2 @react-three/drei@^10.7.9 @react-three/postprocessing@^3.2.2 postprocessing@^6.39.6 gsap@^3.15.1
-```
-
-`three`, `react`, `react-dom` and the two `@fontsource-variable` fonts are already in M7.
+The dashboard starts loading during the opening. Only its terrain renderer is suspended while the film is active, so replay preserves simulation inputs, approved plans and assistant sessions.
 
 | Prop | Default | Purpose |
 | --- | --- | --- |
@@ -46,23 +40,22 @@ npm i @react-three/fiber@^9.8.2 @react-three/drei@^10.7.9 @react-three/postproce
 | 6 | Clean energy for every drop | The camera rises over Tunisia's operating renewable plants: the Sidi Daoud and Bizerte wind farms and the Tozeur solar plant |
 | 7 | MIZUHO | A dive back to the valley; a digital-twin grid settles; "Enter the observatory" |
 
-- **Input.** The film plays on its own. Scrolling, swiping, the arrow, Page or Space keys, or the chapter rail take over, and scene time follows input through a critically damped spring that behaves the same at any frame rate. After 2.5 s without input the film carries on by itself. Scrolling past the last chapter enters the dashboard, and Esc skips at any point. The only on-screen chrome is the brand and the chapter rail.
+- **Input.** The film plays on its own. Scrolling, swiping, the arrow, Page or Space keys, or the chapter rail take over. After 2.5 s without input the film carries on by itself. Scrolling past the last chapter enters the dashboard. Skip intro and Escape work from the opening onward.
 - **Direction.** The whole film is a pure function of scene time (`core/director.ts`, `scene/choreography.ts`), so scrubbing backwards is exact. Each chapter frames its subject on the side opposite its copy.
 - **Honesty.** Geography is schematic, positions are approximate, and copy is qualitative. No live or simulated values are shown.
 
 ## Resilience
 
 - The 3D layer is a lazy chunk, so returning visitors who skip it never download it.
-- There is no WebGL 2, the scene fails to build, or the context is lost: a vector intro or an immediate reveal takes over.
-- `prefers-reduced-motion`: the intro is skipped by default. On replay, chapters cut through a short dip instead of flying.
-- `PerformanceMonitor` lowers the resolution, then drops post-processing on weak GPUs.
+- The vector intro takes over if WebGL 2 is unavailable, scene warmup times out or the context is lost.
+- Reduced-motion visitors go directly to the dashboard. Replay opens manually navigated vector chapters without camera motion.
+- The mobile tier uses fewer particles and a lower resolution, with vector opening and post-processing disabled. Desktop quality can adapt to lower frame rates.
 
-## Standalone harness
-
-`frontend/experience-preview` runs the experience in front of an M7 stand-in:
+## Verification
 
 ```
-cd frontend/experience-preview
-npm install
-npm run dev
+cd frontend
+npm run test:browser
 ```
+
+Run the app and its backend first. The browser checks use the real application entry point, including desktop and mobile playback, Skip and Replay, renderer cleanup and the M6/M8 walkthrough.
