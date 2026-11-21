@@ -49,7 +49,7 @@ flowchart TD
   accTitle: MIZUHO application architecture
   accDescr: The dashboard sends requests to FastAPI for M6 irrigation planning and M8 evidence-backed answers.
   subgraph M7["M7 · Browser"]
-    intro["Cinematic intro"] --> dash["Dashboard<br/>Tunisia · Site map · Simulation"]
+    intro["Cinematic intro"] --> dash["Dashboard<br/>Land &amp; agriculture · Water &amp; energy · Irrigation planning"]
   end
 
   subgraph M6["M6 · FastAPI"]
@@ -181,7 +181,7 @@ flowchart TD
 
 City profiles show the source, coverage, and retrieval date. A city needs verified parcels, water allocation, equipment specifications, and starting conditions before it can be used for operational planning. The built-in planning pilot uses simulated conditions. [National data refresh and sources](data/tunisia/README.md) · [Data manifest](data/manifest.json)
 
-The agricultural selector also includes three georeferenced study windows at Korba, Chebika on the Kairouan plain, and Gafsa–El Ksar. Switch between WorldCover land cover and elevation on each map. The site cards report the original raster pixel counts, local climate summaries and the field inputs needed to plan irrigation. [Zone studies and refresh](data/field_zones/README.md)
+The agricultural selector includes three georeferenced study windows at Korba, Chebika on the Kairouan plain and Gafsa–El Ksar. Inspect a location on its WorldCover and elevation surfaces. Each planner uses two archived local days of NASA POWER hourly irradiation and explicit assumptions for equipment, water and demand. Its playback shows simulated volumes at two hypothetical sectors anchored on classified cropland. [Zone studies](data/field_zones/README.md) · [Regional replay inputs and API example](data/zone_planning/README.md) · [V5 capability audit](docs/v5-capability-audit.md)
 
 ## Run MIZUHO
 
@@ -248,17 +248,17 @@ In a second terminal at the repository root, start Vite.
 npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
 
-Open the dashboard and confirm it shows **API · simulated site**. The API health route should report `ok`. With the provider keys and index configured, assistant health should report `available` with seven indexed passages. Ask what ANME says about photovoltaic potential in northwest Tunisia and open the cited excerpt. [Dashboard](http://127.0.0.1:5173/) · [API health](http://127.0.0.1:8000/api/health) · [Assistant health](http://127.0.0.1:8000/api/assistant/health)
+Open **Land & agriculture → Site map** and select the Jendouba pilot to see **API · simulated site**. The API health route should report `ok`. With provider keys and the index configured, assistant health should report `available` with seven indexed passages. Ask what ANME says about photovoltaic potential in northwest Tunisia and open the cited excerpt. [Dashboard](http://127.0.0.1:5173/) · [API health](http://127.0.0.1:8000/api/health) · [Assistant health](http://127.0.0.1:8000/api/assistant/health)
 
 Vite proxies `/api` to port 8000. For production, serve `frontend/dist` and route `/api` to FastAPI on the same origin.
 
 ## Reproduce the pilot
 
 For a judge walkthrough of the eight operating and sensor demonstrations, see the [integration matrix, architecture and replay guide](docs/integration-v5.md).
-Start in **Tunisia**, select a city and inspect its climate period and elevation source. Select **Jendouba** for the nearby simulated field site, or open **Site map** from the main navigation. See the [judge validation report](docs/judge-validation.md) for the field workflow regression coverage.
+Start in **Land & agriculture → Tunisia**, select a city and inspect its climate period and elevation source. Select **Jendouba** to open the nearby simulated pilot, or choose a registered site in **Site map**. **Water & energy** shows the Bouhertma instrument archive and PVGIS comparison for Jendouba, the WaPOR survey for Assila, or regional climate for a study zone. [Judge validation report](docs/judge-validation.md)
 
 1. On the **Site map**, enable **Water anomalies** and select the distribution meter to see the simulated **13 m³** discrepancy. Open **Compare solar options** to inspect the two 10 kWp profiles and their assumptions.
-2. In **Simulation**, select **A/B demo** and **Calculate schedules**. During the outage, the fixed schedule delivers **10 m³** to A and **0 m³** to B. The proposed schedule delivers **5 m³** to each plot, raising minimum coverage from **0%** to **50%**. Approve the proposed simulated plan.
+2. In **Irrigation planning**, select **A/B demo** and **Calculate schedules**. During the outage, the fixed schedule delivers **10 m³** to A and **0 m³** to B. The proposed schedule delivers **5 m³** to each plot, raising minimum coverage from **0%** to **50%**. Approve the proposed simulated plan.
 3. With the A/B result current, open **Ask Mizhuo** and ask *Why did grower A receive only 5 m³ in the A/B demo?* The assistant can use M6's current comparison. Ask *What does ANME say about photovoltaic potential in northwest Tunisia?*, open the citation, then ask *Which official source did you just cite?* to check the session follow-up.
 4. Change the water stock to see the result marked stale until recalculated. Select **Day-ahead weather reserve** to see the proposed plan pump **2 m³** before **11:00**, raising on-time delivery from **6 m³** to **8 m³**. With a quota of **5 m³**, the remaining shortfall is **2 m³**. **Day-ahead reserve · Stable profile** requires **0 m³** of early pumping.
 
@@ -293,6 +293,8 @@ The running backend serves [OpenAPI documentation](http://127.0.0.1:8000/docs).
 | Health and geography | `GET /api/health`, `GET /api/scenarios`, `GET /api/sites`, `GET /api/layers/{site_id}/{layer_id}` |
 | National map and profiles | `GET /api/tunisia`, `GET /api/tunisia/cities/{id}` with optional inclusive `start` and `end` dates |
 | Researched agricultural zones | `GET /api/sites/{site_id}/field-zone` returns land cover, terrain, climate and source metadata |
+| Regional planning | `GET /api/sites/{site_id}/planning` lists archived days and cropland anchors. `POST` to the same route to compare schedules with explicit operating assumptions. |
+| Regional demand estimate | `POST /api/sites/{site_id}/demand-estimate` applies crop coefficient, area, effective-rain fraction and efficiency to the archived day's FAO-56 reference ET and rainfall. |
 | Agricultural survey and weather station | `GET /api/sites/{site_id}/agriculture`, `GET /api/weather/bouhertma?day=2026-05-08` |
 | Archived solar comparison, hourly PV and planning weather | `POST /api/solar/compare-archive`, `POST /api/solar/profile`, `POST /api/weather` |
 | Verified replay and virtual instrumentation | `POST /api/telemetry/replay`, `POST /api/telemetry/project`, `POST /api/telemetry/forecast` |
@@ -313,7 +315,7 @@ npm run build
 Pop-Location
 ```
 
-With Chrome installed and both servers running, use `npm --prefix frontend run test:browser` to exercise the cinematic handoff, M6 schedule approval, and the M8 citation follow-up. The test sends three chat questions to the live assistant. Set `MIZHUO_TEST_URL` when testing a frontend served at a different URL.
+With Chrome installed and both servers running, use `npm --prefix frontend run test:browser` to exercise the cinematic handoff, M6 schedule approval, and live M8 answers and citation follow-ups. Set `MIZHUO_TEST_URL` when testing a frontend served at a different URL.
 
 Run `npm --prefix frontend run test:integration` against those same local servers for the national explorer, survey map, and desktop/mobile twin tests. These checks do not require provider credentials.
 
