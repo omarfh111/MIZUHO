@@ -271,6 +271,17 @@ Read the daily commitments for the selected plan. Open **Compare your own rotati
 
 To review a completed day, open **Check a recorded delivery day**, download the blank CSV and enter anonymous parcel commitments and metered volumes. The browser reports which recorded deadlines were met and how many parcels had a reading. Missing observations stay unknown. The file stays in browser memory and is cleared when you leave the planning view or change sites. [Field validation protocol](docs/v5-capability-audit.md#how-a-water-group-could-validate-the-pilot)
 
+### Try the same decision in different places
+
+| Location | What you can verify |
+| --- | --- |
+| Jendouba pilot | Compare five simulated parcel commitments, your own rotation, and a fair plan. Inspect virtual meters during replay. The separate Bouhertma instrument archive and the PVGIS equipment comparison belong to this area. |
+| Korba, Chebika and Gafsa–El Ksar | Load or enter station assumptions. Compare rotations, test stored water only, and replay outages on each area's own terrain. The two delivery sectors are hypothetical. Their locations use WorldCover cropland cells and the solar input uses the selected day's NASA POWER archive. |
+| Assila | Inspect five mapped parcel boundaries and dated WaPOR estimates. Review a recorded delivery day from a local CSV. A planning run requires field data on demand, equipment and authorized withdrawals. |
+| 24 governorate capitals | Inspect local climate and relief. Test household electricity continuity with a user-specified circuit. A city link opens a nearby registered site when there is one unambiguous match. Otherwise the user chooses a site explicitly. |
+
+For a controlled comparison, use the same 3.2 kWp array, initially empty 20 m³ tank, zero grid import, and 30 m³ demand per sector. With the remaining inputs in the [regional regression case](tests/test_zone_planning.py), optimized on-time deliveries on **15 January 2025** are **8 m³ at Korba, 7 m³ at Chebika and 13 m³ at Gafsa**. On **15 July 2025**, they are **31, 31 and 25 m³** respectively. These are modelled station outcomes using archived local irradiation. Actual service performance requires dated delivery readings.
+
 For a judge walkthrough of the eight operating and sensor demonstrations, see the [integration matrix, architecture and replay guide](docs/integration-v5.md).
 Start in **Land & agriculture → Tunisia**, select a city and inspect its climate period and elevation source. Select **Jendouba** to open the nearby simulated pilot, or choose a registered site in **Site map**. **Water & energy** shows the Bouhertma instrument archive and PVGIS comparison for Jendouba, the WaPOR survey for Assila, or regional climate for a study zone. [Judge validation report](docs/judge-validation.md)
 
