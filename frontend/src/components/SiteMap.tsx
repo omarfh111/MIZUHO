@@ -101,7 +101,7 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
             <div className="map-controls">
               <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => controls.current?.zoom(1)}><Plus size={19} /></button>
               <button type="button" aria-label="Zoom out" title="Zoom out" onClick={() => controls.current?.zoom(-1)}><Minus size={19} /></button>
-              <button type="button" aria-label="Reset map view" title="Recentrer" onClick={() => controls.current?.reset()}><Crosshair size={17} /></button>
+              <button type="button" aria-label="Reset map view" title="Reset map view" onClick={() => controls.current?.reset()}><Crosshair size={17} /></button>
             </div>
             <div className="map-hint">Drag to rotate</div>
           </>}
@@ -125,7 +125,7 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
           {sites.length > 1 && <select className="site-select" aria-label="Pilot site" value={properties.site_id} onChange={(event) => onSelectSite(event.target.value)}>
             {sites.map(({ properties }) => <option key={properties.site_id} value={properties.site_id}>{properties.label}</option>)}
           </select>}
-          {(hardwareError || !hasDemoRelief) && inspectable.length > 0 && <select className="site-select" aria-label="Inspect an area"
+          {inspectable.length > 0 && <select className="site-select" aria-label="Inspect an area"
             value={active ? inspectable.indexOf(active) : -1}
             onChange={(event) => setActive(inspectable[Number(event.target.value)] ?? null)}>
             <option value={-1}>Site overview</option>

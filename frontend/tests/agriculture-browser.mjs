@@ -17,10 +17,15 @@ try {
     const selector = page.getByRole('combobox', { name: 'Pilot site' });
     if (viewport.width > 1000) {
       await page.route(`**/api/layers/${surveyId}/wapor`, route => route.fulfill({ status: 503 }));
+      await page.route(`**/api/sites/${surveyId}/agriculture`, route => route.fulfill({ status: 503 }), { times: 1 });
     } else {
       await page.route(`**/api/layers/${surveyId}/wapor`, route => route.fulfill({ status: 502 }), { times: 1 });
     }
     await selector.selectOption(surveyId);
+    if (viewport.width > 1000) {
+      await page.getByRole('alert').filter({ hasText: 'Agricultural survey unavailable.' }).waitFor();
+      await page.getByRole('button', { name: 'Retry survey' }).click();
+    }
     const panel = page.getByRole('region', { name: 'Agricultural survey' });
     await panel.getByRole('link', { name: 'P-05' }).waitFor();
     assert.equal(await panel.locator('tbody tr').count(), 5);

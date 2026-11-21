@@ -57,29 +57,37 @@ export default function DigitalTwin({ site, request, comparison, onContext }: Pr
   const weather = comparison.weather_comparison;
   const selected = plan === 'baseline' ? weather?.reference_on_adverse ?? comparison.baseline :
     weather?.buffer_on_adverse ?? comparison.optimized;
-  const body = useMemo(() => selected.actions && ({
+  const physicalReplay = useMemo(() => selected.actions && ({
     comparison: request, plan, weather_profile: weather ? 'adverse' as const : 'central' as const,
     actions: selected.actions.map(({ slot, pump_m3, deliveries }) => ({ slot, pump_m3, deliveries })),
+  }), [selected.actions, request, plan, weather]);
+  const body = useMemo(() => physicalReplay && ({
+    ...physicalReplay,
     missing_flow_slots: missing, balance_anomaly_slots: imbalance,
-  }), [selected.actions, request, plan, weather, missing, imbalance]);
-  const [result, setResult] = useState<{ body: typeof body; replay?: Replay; error?: string }>();
+  }), [physicalReplay, missing, imbalance]);
+  const [result, setResult] = useState<{ body: typeof body; physicalReplay: typeof physicalReplay; replay: Replay }>();
+  const [failure, setFailure] = useState<{ body: typeof body; attempt: number; message: string }>();
   const lastFrame = useRef<Replay['frames'][number] | undefined>(undefined);
-  const replay = result?.body === body ? result?.replay : undefined;
-  const error = result?.body === body ? result?.error : undefined;
+  // Virtual faults leave the physical trace unchanged. Keep the current controls and timeline mounted while refreshing readings.
+  const replay = result?.physicalReplay === physicalReplay ? result?.replay : undefined;
+  const readings = result?.body === body ? replay : undefined;
+  const error = failure?.body === body && failure?.attempt === attempt ? failure.message : undefined;
   const frame = replay?.frames[Math.min(index, replay.frames.length - 1)];
   if (frame) lastFrame.current = frame;
 
   useEffect(() => {
     if (!body) return;
     const controller = new AbortController();
-    setResult(undefined);
     getReplay(body, controller.signal).then((replay) => {
-      if (!controller.signal.aborted) setResult({ body, replay });
+      if (!controller.signal.aborted) {
+        setResult({ body, physicalReplay, replay });
+        setFailure(undefined);
+      }
     }).catch((error: Error) => {
-      if (!controller.signal.aborted) setResult({ body, error: error.message });
+      if (!controller.signal.aborted) setFailure({ body, attempt, message: error.message });
     });
     return () => controller.abort();
-  }, [body, attempt]);
+  }, [body, physicalReplay, attempt]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -91,11 +99,11 @@ export default function DigitalTwin({ site, request, comparison, onContext }: Pr
   }, [site.properties.site_id]);
 
   useEffect(() => {
-    if (!body || !frame) { onContext(undefined); return; }
+    if (!body || !frame || !readings) { onContext(undefined); return; }
     const { comparison: _comparison, ...selection } = body;
     onContext({ ...selection, selected_slot: frame.slot });
     return () => onContext(undefined);
-  }, [body, frame, onContext]);
+  }, [body, frame, readings, onContext]);
 
   useEffect(() => {
     if (!playing || !replay) return;
@@ -107,8 +115,9 @@ export default function DigitalTwin({ site, request, comparison, onContext }: Pr
   const toggle = (slots: number[], slot: number) => slots.includes(slot) ? slots.filter((s) => s !== slot) : [...slots, slot].sort((a,b) => a-b);
   const selectMarker = (properties: LayerProperties | null) => inspect(properties?.plot_id ?? properties?.equipment ?? (properties?.option_id ? 'solar' : 'reservoir'));
   const parcel = frame?.parcels.find(({ plot_id }) => plot_id === equipment);
-  const events = replay ? [...replay.events, ...replay.alerts].filter((event) => event.simulation_slot === frame?.slot) : [];
-  const signals = replay?.measurements.filter((signal) => signal.simulation_slot === frame?.slot) ?? [];
+  const events = readings ? [...readings.events, ...readings.alerts].filter((event) => event.simulation_slot === frame?.slot) : [];
+  const signals = readings?.measurements.filter((signal) => signal.simulation_slot === frame?.slot) ?? [];
+  const retryReplay = <button type="button" onClick={() => retry((value) => value + 1)}>Retry replay</button>;
   const plotMarker = layers?.plots.features.find(({ properties }) => properties.plot_id === equipment)?.properties;
   return <section className="surface twin" aria-label="Operational digital twin">
     <header className="twin-head"><div className="title-with-icon"><div className="section-icon"><Activity size={20}/></div>
@@ -118,7 +127,7 @@ export default function DigitalTwin({ site, request, comparison, onContext }: Pr
           {id === 'baseline' ? (request.incident ? 'Previous schedule' : weather ? 'Nominal on adverse' : 'Fixed schedule') :
             (request.incident ? 'Recovery plan' : weather ? 'Reserve on adverse' : 'Optimized plan')}</button>)}</div></header>
     {!frame && <p className="twin-message" role="status">{!body ? 'This plan has no actions to replay.' : error ??
-      (replay ? 'No simulation slots available.' : 'Loading physical replay…')}{error && <button type="button" onClick={() => retry(attempt + 1)}>Retry replay</button>}</p>}
+      (replay ? 'No simulation slots available.' : 'Loading physical replay…')}{error && retryReplay}</p>}
       <div className="twin-body" hidden={!frame}><div className="map-viewport twin-map">
         {hardwareError || layerError ? <div className="map-loading">Terrain unavailable. Use the equipment inspector below.</div> :
           layers && lastFrame.current && !cinematic && <Suspense fallback={null}><TerrainMap site={site} layers={layers} active={plotMarker ?? null}
@@ -153,9 +162,11 @@ export default function DigitalTwin({ site, request, comparison, onContext }: Pr
           <label><input type="checkbox" checked={missing.includes(frame.slot)} onChange={() => { play(false); setMissing(toggle(missing,frame.slot)); }}/> Missing flow reading</label>
           <label><input type="checkbox" checked={imbalance.includes(frame.slot)} onChange={() => { play(false); setImbalance(toggle(imbalance,frame.slot)); }}/> Water-balance discrepancy</label>
         </fieldset><p className="muted small">Faults affect virtual measurements. Physical stock and approved actions come from the simulator.</p>
+        {!readings ? <p role="status">{error ?? 'Updating virtual readings…'} {error && retryReplay}</p> : <>
         <table><thead><tr><th>Equipment</th><th>Measurement</th><th>Value</th><th>Quality</th></tr></thead><tbody>{signals.map((s) =>
           <tr key={s.sensor_id}><th>{s.equipment_id}</th><td>{s.metric}</td><td>{reading(s.value,s.unit)}</td><td>{s.quality}</td></tr>)}</tbody></table>
         <ul>{events.map((e,i) => <li key={i}>{clock.format(new Date(e.timestamp))} · {e.equipment_id} · {e.message}</li>)}</ul>
+        </>}
       </details>
       <details className="twin-details" open={forecastOpen} onToggle={(e) => setForecastOpen(e.currentTarget.open)}><summary>Day-ahead load forecast</summary>
         {forecastOpen && <Forecast siteId={site.properties.site_id}/>}
