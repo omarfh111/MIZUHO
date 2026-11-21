@@ -19,7 +19,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat&logo=fastapi&logoColor=white)
 ![OR-Tools](https://img.shields.io/badge/OR--Tools-CP--SAT-4285F4?style=flat&logo=google&logoColor=white)
 ![LangGraph](https://img.shields.io/badge/LangGraph-1.0-1C3C3C?style=flat&logo=langchain&logoColor=white)
-![Qdrant](https://img.shields.io/badge/Qdrant-hybrid_retrieval-DC244C?style=flat)
+![Qdrant](https://img.shields.io/badge/Qdrant-dense_index-DC244C?style=flat)
 ![React](https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react&logoColor=black)
 ![Three.js](https://img.shields.io/badge/Three.js-r187-000000?style=flat&logo=threedotjs&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF?style=flat&logo=vite&logoColor=white)
@@ -43,7 +43,9 @@
 One browser app talks to one FastAPI service. M6 plans irrigation, M8 explains it with cited evidence, and M7 shows both on a 3D map of the pilot.
 
 ```mermaid
-flowchart LR
+flowchart TD
+  accTitle: MIZUHO application architecture
+  accDescr: The dashboard sends requests to FastAPI for M6 irrigation planning and M8 evidence-backed answers.
   subgraph M7["M7 · Browser"]
     intro["Cinematic intro"] --> dash["3D dashboard<br/>site map · simulation · Ask Mizhuo"]
   end
@@ -59,19 +61,19 @@ flowchart LR
 
   subgraph M8["M8 · Evidence assistant"]
     agent["LangGraph agent"] --> tools["Tools"]
-    tools --> search["Hybrid search<br/>dense + BM25"]
+    tools --> search["Hybrid search<br/>dense + local BM25"]
   end
 
-  dash -- "/api" --> api
-  dash -- "Ask Mizhuo" --> agent
-  tools -- "current plan" --> compare
+  dash -->|"/api"| api
+  api -->|"/api/assistant/chat"| agent
+  tools -->|"verified plan facts"| compare
   compare -.-> data
   solar -.-> data
   agent <--> llm["OpenAI<br/>gpt-6-luna"]
   search <--> qdrant[("Qdrant Cloud")]
 ```
 
-<sub>Vite proxies <code>/api</code> to FastAPI on port 8000 in development; in production both are served from one origin. Site layers, scenarios and solar profiles are simulated.</sub>
+<sub>Vite proxies <code>/api</code> to FastAPI on port 8000 in development. In production, serve both from one origin. Site layers, scenarios and solar profiles are simulated.</sub>
 
 ### Planning through an outage (M6)
 
@@ -79,6 +81,8 @@ The fixed schedule and the optimized plan are computed from the same scenario, t
 
 ```mermaid
 sequenceDiagram
+  accTitle: Comparing irrigation schedules during an outage
+  accDescr: FastAPI evaluates the fixed schedule first, then verifies an optimized plan when the solver finds one.
   autonumber
   actor You
   participant D as Dashboard
@@ -90,16 +94,23 @@ sequenceDiagram
   You->>D: Calculate schedules
   D->>A: POST /api/compare
   A->>B: Build the fixed schedule
+  B-->>A: Fixed schedule
+  A->>S: Replay the fixed schedule
+  S-->>A: Baseline delivery per plot
   A->>O: Optimize, fairness first, time-limited
-  O-->>A: Plan, or NO_SOLUTION
-  A->>S: Replay the plan
-  S-->>A: Delivered water per plot
+  alt Feasible plan found
+    O-->>A: Proposed schedule
+    A->>S: Replay the proposed schedule
+    S-->>A: Proposed delivery per plot
+  else No verified plan
+    O-->>A: NO_SOLUTION
+  end
   A-->>D: Baseline and proposed results
   D-->>You: Minimum coverage 0% → 50%
   You->>D: Approve the simulated plan
 ```
 
-<sub>In the A/B demo the fixed schedule delivers 10 m³ to A and 0 m³ to B during the outage; the proposed schedule delivers 5 m³ to each. When the solver returns no solution, the fixed schedule stays available.</sub>
+<sub>In the A/B demo the fixed schedule delivers 10 m³ to A and 0 m³ to B during the outage. The proposed schedule delivers 5 m³ to each. When the solver returns no solution, the fixed schedule stays available.</sub>
 
 ### Answering with evidence (M8)
 
@@ -107,15 +118,20 @@ The assistant is a two-node LangGraph loop. It thinks, calls tools until it has 
 
 ```mermaid
 flowchart TD
+  accTitle: M8 evidence assistant tool loop
+  accDescr: LangGraph decides whether to call evidence or planning tools and returns grounded answers with verified citations.
   q(["Your question"]) --> think["Think<br/>gpt-6-luna"]
   think -->|"needs facts"| tools{{"Tools"}}
   tools --> t1["search_evidence<br/>cited official excerpts"]
   tools --> t2["get_site_data<br/>layers and solar options"]
   tools --> t3["get_simulation_results<br/>run M6 plans"]
   tools --> t4["explain_decision<br/>allocation and binding limits"]
-  t1 & t2 & t3 & t4 --> think
+  t1 --> think
+  t2 --> think
+  t3 --> think
+  t4 --> think
   think -->|"enough to answer"| a(["Grounded answer<br/>with citations"])
-  a -.-> mem[("Session memory<br/>6 answers · resets after 1 h")]
+  a -.-> mem[("Verified facts and citations<br/>up to 6 answers · 1 h idle expiry")]
   mem -.-> think
 ```
 
@@ -124,14 +140,20 @@ flowchart TD
 Every citation resolves to a verified excerpt of a registered source. Stable IDs and content hashes let re-ingestion reuse unchanged embeddings.
 
 ```mermaid
-flowchart LR
-  reg[("data/sources.json<br/>source registry")] --> ex["docs/evidence/<br/>verified excerpts"]
-  ex --> man["data/m8_corpus.json<br/>corpus manifest"]
-  man --> ingest["python -m backend.evidence"]
-  ingest -->|"text-embedding-3-small<br/>1,536 dims"| qd[("Qdrant collection<br/>7 passages")]
+flowchart TD
+  accTitle: Evidence ingestion and hybrid retrieval
+  accDescr: Verified excerpts and source metadata supply the Qdrant dense index and local BM25. Search fuses both rankings and checks provenance before citing passages.
+  reg["data/sources.json<br/>source registry"] --> corpus["Verified local corpus"]
+  ex["docs/evidence/<br/>verified excerpts"] --> corpus
+  man["data/m8_corpus.json<br/>corpus manifest"] --> corpus
+  corpus --> ingest["python -m backend.evidence"]
+  ingest -->|"text-embedding-3-small<br/>1,536 dimensions"| qd[("Qdrant collection<br/>7 indexed passages")]
   qd --> dense["Dense search"]
-  man --> bm25["BM25"]
-  dense & bm25 --> fuse["Rank fusion"]
+  corpus --> bm25["Local BM25"]
+  query["Evidence question"] --> dense
+  query --> bm25
+  dense --> fuse["Check passage provenance<br/>and fuse ranks"]
+  bm25 --> fuse
   fuse --> cite["Citations in answers"]
 ```
 
