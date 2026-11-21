@@ -38,6 +38,10 @@ try {
   const desktop = await browser.newPage({ viewport: { width: 1360, height: 900 }, reducedMotion: 'no-preference' });
   const errors = [];
   desktop.on('pageerror', error => errors.push(error.message));
+  let nationalRequests = 0;
+  desktop.on('request', request => {
+    if (new URL(request.url()).pathname === '/api/tunisia') nationalRequests++;
+  });
   const catalogueResponse = desktop.waitForResponse(response => new URL(response.url()).pathname === '/api/tunisia');
   await desktop.goto(url.href);
   await desktop.getByRole('heading', { name: 'Explore Tunisia', level: 1 }).waitFor();
@@ -114,13 +118,16 @@ try {
   assert.notDeepEqual(tunisRange, northRange);
   assert.notDeepEqual(tunisProfile.relief.elevations, jendoubaProfile.relief.elevations);
   await north.getByRole('button', { name: 'Open simulated Jendouba pilot' }).click();
+  const beforeReturning = nationalRequests;
   await desktop.waitForURL(current => current.hash === '#map');
   assert.equal(new URL(desktop.url()).searchParams.get('city'), jendouba.id);
   assert.equal(await desktop.getByRole('combobox', { name: 'Agricultural site' }).inputValue(), 'jendouba-pilote');
   await desktop.getByRole('link', { name: 'Tunisia', exact: true }).click();
   await analysis(desktop, jendouba.name).waitFor();
+  assert.equal(nationalRequests, beforeReturning, 'Returning to the map reuses its decoded boundaries');
   await desktop.reload();
   await checkClimate(desktop, jendouba.name, jendoubaProfile);
+  assert.ok(nationalRequests > beforeReturning, 'A full reload obtains fresh cartography');
   await desktop.getByRole('button', { name: 'Back to Tunisia' }).click();
   assert.equal(await map(desktop).getAttribute('data-view'), 'country');
   assert.equal(new URL(desktop.url()).searchParams.has('city'), false);

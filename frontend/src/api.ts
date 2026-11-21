@@ -66,8 +66,17 @@ function unreadable() {
   return new ApiError('The API response could not be read.', 502);
 }
 
-export function getTunisia(signal: AbortSignal): Promise<TunisiaCatalog> {
-  return request('tunisia', signal);
+let nationalCatalog: { value: TunisiaCatalog; expiresAt: number } | undefined;
+
+export async function getTunisia(signal: AbortSignal): Promise<TunisiaCatalog> {
+  signal.throwIfAborted();
+  if (nationalCatalog && nationalCatalog.expiresAt > Date.now()) return nationalCatalog.value;
+  const value = await request<TunisiaCatalog>('tunisia', signal);
+  if (value.boundary?.type !== 'FeatureCollection' || !Array.isArray(value.boundary.features) ||
+      !Array.isArray(value.cities) || !Array.isArray(value.sources)) throw unreadable();
+  signal.throwIfAborted();
+  nationalCatalog = { value, expiresAt: Date.now() + 5 * 60_000 };
+  return value;
 }
 
 export function getFieldZone(siteId: string, signal: AbortSignal): Promise<FieldZone> {
