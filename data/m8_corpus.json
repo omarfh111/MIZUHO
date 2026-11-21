@@ -1,0 +1,11 @@
+[
+  {"source_id": "solar", "file": "anme.md", "section": "Photovoltaic potential and annual solar output by region"},
+  {"source_id": "wapor", "file": "fao.md", "section": "Jendouba evapotranspiration and irrigation advisory pilot", "published_date": "2026-04-03"},
+  {"source_id": "ins-households", "file": "ins.md", "section": "Section 8, Table 6 · Main household water source"},
+  {"source_id": "sonede-distribution", "file": "sonede.md", "section": "Public drinking-water distribution volume"},
+  {"source_id": "groundwater-kebili", "file": "kebili.md", "section": "Open dataset description · deep groundwater aquifers in Kébili"},
+  {"source_id": "dgre-aquifers", "file": "dgre.md", "section": "Deep aquifer water abstraction and exploitation ratio"},
+  {"source_id": "world-bank-irrigation", "file": "world-bank.md", "section": "Irrigation Water Security, Resilience and Value-Addition Project"},
+  {"source_id": "jendouba-borehole", "section": "Local measurements", "unavailable_reason": "No observed water level, pumping test or metered withdrawals are available for a pilot borehole."},
+  {"source_id": "site-pvgis", "section": "Local photovoltaic evidence", "unavailable_reason": "No verified PVGIS export, measured site load, or annual costs are available for the demo options."}
+]

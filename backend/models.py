@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import Annotated, Literal, Self
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, HttpUrl, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, HttpUrl, StringConstraints, model_validator
 
 
 Amount = Annotated[int, Field(strict=True, ge=0, le=1_000_000_000)]
@@ -452,3 +452,62 @@ class Comparison(PlanningModel):
     baseline: ApiPlan
     optimized: ApiPlan
     weather_comparison: ApiWeatherComparison | None = None
+
+
+class Citation(PlanningModel):
+    id: str
+    source_id: str
+    title: str
+    organization: str
+    date: str | None
+    page: str | int | None
+    url: HttpUrl
+    section: str
+    excerpt: str
+    limitation: str
+
+
+class EvidenceSearchRequest(PlanningModel):
+    query: Annotated[str, StringConstraints(min_length=3, max_length=600, strip_whitespace=True)]
+
+
+class DecisionFact(PlanningModel):
+    id: str
+    text: str
+    provenance: Provenance
+
+
+class AssistantRequest(PlanningModel):
+    question: Annotated[str, StringConstraints(min_length=3, max_length=1600, strip_whitespace=True)]
+    site_id: Annotated[str, Field(min_length=1, max_length=120)]
+    solar_option_id: Annotated[str, Field(min_length=1, max_length=120)] | None = None
+    comparison: CompareRequest | None = None
+    recent_questions: Annotated[tuple[Annotated[str, StringConstraints(max_length=1600)], ...], Field(max_length=3)] = ()
+
+
+class GroundedParagraph(PlanningModel):
+    text: str
+    citation_ids: tuple[str, ...]
+    fact_ids: tuple[str, ...]
+
+
+class AssistantAnswer(PlanningModel):
+    paragraphs: tuple[GroundedParagraph, ...]
+    citations: tuple[Citation, ...]
+    facts: tuple[DecisionFact, ...]
+    missing_information: tuple[str, ...]
+    tools_used: tuple[str, ...]
+
+
+class IndexStatus(PlanningModel):
+    status: Literal["available", "unavailable", "incomplete"]
+    documents: int
+    expected_chunks: int
+    indexed_chunks: int | None = None
+    unavailable_sources: tuple[str, ...] = ()
+
+
+class AssistantHealth(PlanningModel):
+    status: Literal["available", "unavailable", "incomplete"]
+    configured: bool
+    index: IndexStatus
