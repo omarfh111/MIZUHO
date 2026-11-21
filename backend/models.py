@@ -31,6 +31,9 @@ class Slot(PlanningModel):
     solar_wh: Amount
     pump_available: bool = True
     gravity_available: bool = True
+    island_backup_w: Amount = 0
+    # One-off physical withdrawal from stock at the opening of this hour, clipped to available water.
+    tank_loss_m3: Amount = 0
 
 
 class Plot(PlanningModel):
@@ -119,6 +122,8 @@ class SlotBalance(PlanningModel):
     pump_wh: int
     solar_wh: int
     grid_wh: int
+    backup_wh: int = 0
+    physical_loss_m3: int = 0
 
 
 class PlotResult(PlanningModel):

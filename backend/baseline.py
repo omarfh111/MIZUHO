@@ -30,6 +30,7 @@ def replay_plan(scenario: Scenario, state: State, requests: Sequence[Action]) ->
     actions = []
     for slot in scenario.slots[state.current_slot:]:
         request = indexed.get(slot.slot) or Action(slot=slot.slot)
+        stock -= min(stock, slot.tank_loss_m3)
         pumped = min(request.pump_m3, pump_limit(site, slot), site.tank_capacity_m3 - stock, quota)
         stock += pumped
         quota -= pumped

@@ -145,7 +145,7 @@ def read_planning_profiles(root: Path, zones: dict[str, FieldZone]) -> dict[str,
     return profiles
 
 
-def compare_zone(profile: ZonePlanningProfile, request: ZonePlanRequest, max_time_seconds: float) -> ZonePlanResult:
+def zone_scenario(profile: ZonePlanningProfile, request: ZonePlanRequest) -> tuple[Scenario, State, IrradiationDay]:
     day = next((item for item in profile.days if item.date == request.date), None)
     if day is None:
         raise InputError("date", "No complete archived irradiation day for this site and date.")
@@ -186,6 +186,12 @@ def compare_zone(profile: ZonePlanningProfile, request: ZonePlanRequest, max_tim
                        grid_available=hour not in request.outage_hours) for hour, wh in enumerate(solar_wh))
     scenario = Scenario(site=site, slots=slots, plots=plots, fixed_pump_m3=fixed_pumps,
                         fixed_deliveries=fixed_deliveries)
+    return scenario, state, day
+
+
+def compare_zone(profile: ZonePlanningProfile, request: ZonePlanRequest, max_time_seconds: float) -> ZonePlanResult:
+    scenario, state, day = zone_scenario(profile, request)
+    solar_wh = tuple(slot.solar_wh for slot in scenario.slots)
     baseline = build_baseline(scenario, state)
     optimized = optimize(scenario, state, max_time_seconds=max_time_seconds)
     return ZonePlanResult(site_id=profile.site_id, date=day.date, source=day.source, solar_wh=solar_wh,

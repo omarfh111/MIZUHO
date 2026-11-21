@@ -15,8 +15,10 @@ from pydantic import Field, TypeAdapter
 from .assistant_api import create_runtime, router as assistant_router
 from .agriculture import Survey
 from .catalog import DATA_DIR, load_catalog
+from .civic import router as civic_router
 from .compare import InputError, compare
 from .field_zones import FieldZone
+from .resilience import router as resilience_router
 from .models import (
     CompareRequest, Comparison, Evidence, Health, Layer, ScenarioRecord, Sites, SolarComparison, SolarRequest,
     DemandEstimateRequest, ZonePlanRequest,
@@ -56,9 +58,12 @@ def create_app(data_dir: Path = DATA_DIR, *, solver_timeout: float | None = None
 
     app = FastAPI(title="Mizhuo API", version="1.0.0", lifespan=lifespan)
     app.state.tunisia_data_dir = data_dir / "tunisia"
+    app.state.resilience_budget = budget
+    app.include_router(resilience_router)
     app.include_router(assistant_router)
     app.include_router(telemetry_router)
     app.include_router(tunisia_router)
+    app.include_router(civic_router)
     app.add_middleware(GZipMiddleware, minimum_size=4096, compresslevel=4)
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"],
                        allow_headers=["Accept", "Accept-Language", "Content-Type"])
