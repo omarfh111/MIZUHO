@@ -134,6 +134,17 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .ic { flex: none; font-weight: 800; }
 .ic.ok { color: var(--ok); } .ic.bad { color: var(--bad); }
 
+/* LLM explanation */
+.llm { margin-top: 12px; padding: 14px 16px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); background: linear-gradient(180deg, var(--accent-soft), var(--panel-2) 70%); }
+.llm-h { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.llm-text p { margin: 8px 0 0; font-size: 15px; line-height: 1.6; }
+.llm-text p:first-child { margin-top: 2px; }
+.llm-meta { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+.llm-wait { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
+button.sm { padding: 4px 10px; font-size: 13px; }
+details.fallback { margin-top: 10px; }
+details.fallback summary { cursor: pointer; font-size: 13px; color: var(--muted); font-weight: 600; }
+details.fallback .answer { margin-top: 8px; }
 /* temperature */
 .answer { display: flex; gap: 14px; align-items: flex-start; padding: 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); margin-top: 12px; }
 .answer .big { font-size: 24px; }
@@ -503,7 +514,33 @@ async function step7() { await guard(7, "o7", async () => {
   renderTemp();
   const n = k => TEMP.plots.filter(p => ["increase", "decrease"].includes(p.effect[k].verdict)).length;
   status(7, "ok", `Effet : ${n("all_year_equal_rain")}/5 sur l'année · ${n("dry_season")}/5 en été`);
+  if (!EXPL) await explainTemp(false);
 }); }
+
+/* LLM explanation */
+let EXPL = null;
+function mdLite(t) {
+  return t.split(/\n{2,}/).map(par => "<p>" + esc(par.trim()).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\n/g, "<br>") + "</p>").join("");
+}
+function llmHtml() {
+  const head = (label, extra = "") => `<div class="llm-h"><span class="chip c-run">✦ ${label}</span>${extra}</div>`;
+  if (!EXPL) return head("Explication IA") + `<p class="llm-wait">Clique « Générer » pour obtenir l'explication.</p>`;
+  if (EXPL.loading) return head("Explication IA") + `<p class="llm-wait">Génération en cours…</p>`;
+  if (EXPL.error) return head("Explication IA", `<button class="ghost sm" onclick="explainTemp(true)">Réessayer</button>`) +
+    `<p class="err">${esc(EXPL.error)}</p>` + (EXPL.configured === false ? `<p class="llm-meta">Copie <code>.env.example</code> en <code>.env</code>, mets ta clé dans <code>LLM_API_KEY</code>, puis clique « Réessayer ». Le résumé calculé sans IA reste disponible ci-dessous.</p>` : "");
+  return head("Explication générée par IA", `<button class="ghost sm" onclick="explainTemp(true)">↻ Régénérer</button>`) +
+    `<div class="llm-text">${mdLite(EXPL.text)}</div>
+    <p class="llm-meta">Modèle <code>${esc(EXPL.model)}</code> · ${esc(EXPL.generated_at.replace("T", " ").slice(0, 16))} UTC${EXPL.cached ? " · en cache" : ""}. Texte rédigé par un modèle de langage à partir des seuls chiffres du tableau ci-dessous : vérifie-le avec ces chiffres.</p>`;
+}
+async function explainTemp(refresh) {
+  EXPL = {loading: true}; if (TEMP) renderTemp();
+  try {
+    const r = await fetch("/api/temperature/explain", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({refresh})});
+    const j = await r.json();
+    EXPL = r.ok ? j : {error: j.error || `HTTP ${r.status}`, configured: j.configured};
+  } catch (e) { EXPL = {error: e.message}; }
+  if (TEMP) renderTemp();
+}
 function renderTemp() {
   const T = TEMP, cd = T.climatic_demand;
   const sig = e => ["increase", "decrease"].includes(e.verdict);
@@ -517,12 +554,13 @@ function renderTemp() {
   const anyYear = T.plots.some(p => sig(p.effect.all_year_equal_rain)), anyDry = T.plots.some(p => sig(p.effect.dry_season));
   const yes = anyYear || anyDry;
   const maxYear = Math.max(...T.plots.map(p => Math.abs(p.effect.all_year_equal_rain.slope || 0)));
-  let html = `<div class="answer"><div class="big">${yes ? "Oui" : "Non"}</div><div>
+  let html = `<div class="llm" id="llmbox">${llmHtml()}</div>`;
+  html += `<details class="fallback"${EXPL && EXPL.error ? " open" : ""}><summary>Résumé calculé sans IA (règles fixes)</summary><div class="answer"><div class="big">${yes ? "Oui" : "Non"}</div><div>
     <b>${yes ? (anyDry ? "La température a un effet mesurable sur l'eau utilisée, y compris en saison sèche." : "Oui sur l'année, mais faible ; non en saison sèche.") : "Aucun effet significatif de la température sur l'eau utilisée."}</b>
     <p><b>Sur l'année, à pluie égale :</b> ${line("all_year_equal_rain")}</p>
     <p><b>En saison sèche (juin–sept.) :</b> ${line("dry_season")}</p>
     <p>La demande climatique, elle, monte fortement avec la chaleur : ET de référence ${nf(cd.slope, 3)} mm/j par °C (r = ${fmt(cd.r, 2)}, p = ${cd.p}), soit environ ${fmt(cd.slope / (maxYear || 1), 0)} fois plus que la hausse de l'eau réellement utilisée.
-    Quand il fait chaud, les parcelles ne reçoivent donc pas l'eau supplémentaire que la chaleur demande : c'est l'eau disponible qui limite, pas la température.</p></div></div>`;
+    Quand il fait chaud, les parcelles ne reçoivent donc pas l'eau supplémentaire que la chaleur demande : c'est l'eau disponible qui limite, pas la température.</p></div></div></details>`;
   html += table([
     ["plot_id", "Parcelle", r => `<b>${r.plot_id}</b>`],
     ["dry", "Saison sèche (juin–sept.)", r => vd(r.effect.dry_season)],

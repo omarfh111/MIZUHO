@@ -17,7 +17,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from backend import agriculture as agri  # noqa: E402
+from backend import llm  # noqa: E402
 from backend import temperature_effect as tfx  # noqa: E402
+from backend import temperature_explain as texp  # noqa: E402
 
 UI = ROOT / "tools" / "m1_test_ui" / "index.html"
 PORT = int(os.environ.get("PORT", "8765"))
@@ -122,11 +124,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._run(tfx.load_temperature_effect)
         if path == "/api/tests":
             return self._run(step_tests)
+        if path == "/api/llm":
+            return self._run(llm.public_config)
         self._json({"error": "not found"}, 404)
 
     def do_POST(self) -> None:
         n = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(n) or b"{}")
+        if self.path == "/api/temperature/explain":
+            try:
+                return self._json(texp.explain(tfx.load_temperature_effect(), bool(body.get("refresh"))))
+            except llm.LLMNotConfigured as e:
+                return self._json({"error": str(e), "configured": False}, 503)
+            except llm.LLMError as e:
+                return self._json({"error": str(e), "configured": True}, 502)
         routes = {"/api/convert": step_convert, "/api/coverage": step_coverage, "/api/validate": step_validate}
         fn = routes.get(self.path)
         if fn is None:

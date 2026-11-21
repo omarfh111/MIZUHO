@@ -73,6 +73,14 @@ Site `TN-32-BALTABOUAWENE-ASSILA`: imada Assila, Délégation Balta Bouawene, Go
 
 Reference ET rises by +0.24 mm/day per °C (r = 0.93), about 9 times the largest rise in water actually used. Reading: heat raises the demand strongly, but in summer the parcels do not get more water when it is hotter, so water supply, not temperature, limits their use.
 
+### Plain-language explanation (LLM)
+
+Step 7 of the test bench asks a language model to explain the result. Configure it with `.env` (copy `.env.example`); any OpenAI-compatible endpoint works. The default is NVIDIA's API catalog (`https://integrate.api.nvidia.com/v1`) with `nvidia/nemotron-3.5-lightning-30b-a3b`.
+
+- `backend/temperature_explain.py` sends the model only the computed numbers (slopes, p-values, verdicts, limits), never the raw series. The prompt forbids adding any figure.
+- The text is labelled "générée par IA", with the model name and time, and is cached per model and result.
+- Without a key, or if the endpoint fails, the page shows the rule-based summary instead, so the demo works offline.
+
 Limits: an association, not a proof of cause; consecutive dekads are autocorrelated, so p-values are optimistic; the temperature grid is about 50 km wide; the OSM parcels were drawn in 2025 and land use may have differed in earlier years.
 
 ## Fields left `null` (no public source)
