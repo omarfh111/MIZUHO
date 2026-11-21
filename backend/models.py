@@ -260,6 +260,7 @@ class SiteProperties(PlanningModel):
     # Opt in only for the matching fictional geometry bundled with M7.
     relief: Literal["jendouba-demo"] | None = None
     survey_available: bool | None = None
+    field_zone: bool | None = None
 
 
 class LayerProperties(PlanningModel):

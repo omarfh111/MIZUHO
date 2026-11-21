@@ -1,0 +1,3 @@
+-r ../tunisia/requirements.txt
+certifi==2026.11.20
+rasterio==1.5.2

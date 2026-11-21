@@ -16,6 +16,7 @@ from .assistant_api import create_runtime, router as assistant_router
 from .agriculture import Survey
 from .catalog import DATA_DIR, load_catalog
 from .compare import InputError, compare
+from .field_zones import FieldZone
 from .models import (
     CompareRequest, Comparison, Evidence, Health, Layer, ScenarioRecord, Sites, SolarComparison, SolarRequest,
 )
@@ -89,6 +90,13 @@ def create_app(data_dir: Path = DATA_DIR, *, solver_timeout: float | None = None
     @app.get("/api/sites", response_model_exclude_none=True)
     def sites(request: Request) -> Sites:
         return request.app.state.catalog.sites
+
+    @app.get("/api/sites/{site_id}/field-zone")
+    def field_zone(request: Request, site_id: str) -> FieldZone:
+        zone = request.app.state.catalog.field_zones.get(site_id)
+        if zone is None:
+            raise HTTPException(404, "No researched agricultural zone for this site.")
+        return zone
 
     @app.get("/api/sites/{site_id}/agriculture")
     def agriculture(request: Request, site_id: str) -> Survey:
