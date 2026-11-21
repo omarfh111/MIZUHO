@@ -91,6 +91,18 @@ try {
     const cell = gridView.getByRole('button', { name: /^11:00, 4 h,/ });
     const detail = await waiting(await Promise.all([response(page,'case'), cell.click()]));
     const review = page.getByRole('region', { name: 'Selected outage case' });
+    const comparison = review.getByRole('table', { name: 'Daily results by sharing rule' });
+    await comparison.waitFor();
+    const rules = ['fixed', 'fair', 'urgent'].map(id => detail.rules[id].metrics);
+    const kWh = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 3 });
+    for (const [label, expected] of [
+      ['Delivered on time', rules.map(m => `${amount(m.delivered_on_time_m3)} m³`)],
+      ['Water withdrawn', rules.map(m => `${amount(m.withdrawn_m3)} m³`)],
+      ['Grid electricity', rules.map(m => `${kWh.format(m.grid_wh / 1000)} kWh`)],
+    ]) {
+      const row = comparison.getByRole('row').filter({ has: page.getByRole('rowheader', { name: label, exact: true }) });
+      assert.deepEqual(await row.getByRole('cell').allTextContents(), expected);
+    }
     const replay = review.getByRole('region', { name: 'Selected outage replay' });
     const tab = name => review.getByRole('group', { name: 'Explore this interruption' }).getByRole('button', { name, exact: true });
     await replay.locator('canvas').waitFor();

@@ -75,6 +75,12 @@ def test_jendouba_pump_limited_case_distinguishes_four_and_eight_hour_outages(cl
     four, eight = grid.json()["cells"]
     assert (four["coverage_bp"], four["deficit_m3"], four["reserve_m3"], four["reserve_status"]) == (9000, 4, 13, "minimum")
     assert (eight["coverage_bp"], eight["deficit_m3"], eight["reserve_m3"], eight["reserve_status"]) == (7000, 12, None, "unreachable")
+    case = client.post(PILOT + "case", json={"plan": plan, "target_percent": 80, "start": 11, "duration": 4})
+    assert case.status_code == 200
+    rules = case.json()["rules"]
+    fields = ("delivered_on_time_m3", "withdrawn_m3", "grid_wh")
+    assert tuple(rules["fixed"]["metrics"][field] for field in fields) == (18, 6, 3000)
+    assert tuple(rules["fair"]["metrics"][field] for field in fields) == (46, 36, 18000)
 
 
 def test_fixed_fair_and_priority_are_distinct_at_equal_resources(client):

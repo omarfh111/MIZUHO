@@ -17,6 +17,14 @@ export function OutageEntry({ open }: { open: () => void }) {
 }
 
 const ruleNames: Record<ShareRule, string> = { fixed: 'Fixed turn', fair: 'Fair coverage', urgent: 'Urgent parcel first' };
+const sharingRules: ShareRule[] = ['fixed', 'fair', 'urgent'];
+const sharingMeasures: { label: string; format: (plan: Plan) => string }[] = [
+  { label: 'Delivered on time', format: p => `${value(p.metrics?.delivered_on_time_m3)} m³` },
+  { label: 'Water withdrawn', format: p => `${value(p.metrics?.withdrawn_m3)} m³` },
+  { label: 'Grid electricity', format: p => `${kilo(p.metrics?.grid_wh)} kWh` },
+  { label: 'Least served', format: p => percent(p.metrics?.worst_coverage_bp) },
+  { label: 'Unmet minimum', format: p => `${value(unmetMinimum(p))} m³` },
+];
 const alternativeNames = { current: 'Current installation', larger_tank: 'Larger reservoir', backup: 'Islandable pump backup' };
 const defaultSettings: CaseSettings = { heat_percent: 125, loss_m3: 3, extra_tank_m3: 10, backup_w: 2000 };
 const nFields = [
@@ -115,11 +123,12 @@ function CaseReview({ site, capacity, profile, details, settings, study, setStud
       <button key={id} type="button" aria-pressed={study === id} onClick={() => setStudy(id)}>{name}</button>)}</div>
     {study === 'sharing' && <section aria-label="Sharing rule comparison">
       <h3>Who receives water on time?</h3><p>Every rule starts with the same stock and quota. Urgency gives first priority to {details.urgent_plot_id}.</p>
-      <table className="outage-table"><thead><tr><th>Rule</th><th>Least served</th><th>Unmet minimum</th><th>Grid</th></tr></thead>
-        <tbody>{(Object.keys(ruleNames) as ShareRule[]).map(id => <tr key={id}><th><button className="text-button" type="button"
-          aria-pressed={rule === id} onClick={() => { setRule(id); setPrefill(true); }}>{ruleNames[id]}</button></th>
-          <td>{percent(details.rules[id].metrics?.worst_coverage_bp)}</td><td>{value(unmetMinimum(details.rules[id]))} m³</td>
-          <td>{kilo(details.rules[id].metrics?.grid_wh)} kWh</td></tr>)}</tbody></table>
+      <table className="outage-table" aria-label="Daily results by sharing rule"><thead><tr><th scope="col">Daily result</th>
+        {sharingRules.map(id => <th scope="col" key={id}><button className="text-button" type="button"
+          aria-pressed={rule === id && (id !== 'fair' || prefill)} onClick={() => { setRule(id); setPrefill(true); }}>{ruleNames[id]}</button></th>)}
+        </tr></thead><tbody>{sharingMeasures.map(measure => <tr key={measure.label}><th scope="row">{measure.label}</th>
+          {sharingRules.map(id => <td key={id}>{measure.format(details.rules[id])}</td>)}
+        </tr>)}</tbody></table>
       {rule === 'fair' && <label className="outage-check"><input type="checkbox" checked={prefill} onChange={e => setPrefill(e.target.checked)} />
         Allow pre-outage pumping above the fixed-turn schedule</label>}
       {rule === 'fair' && <p>At the same quota the fair plan reaches {percent(details.rules.fair.metrics?.worst_coverage_bp)} coverage with prefill available
