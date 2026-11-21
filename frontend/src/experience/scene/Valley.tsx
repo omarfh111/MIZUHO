@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import type { Director } from '../core/director.ts';
 import {
   beaconFragment, beaconVertex, canalFragment, canalVertex, panelFragment, panelVertex, plotFragment, plotVertex,
-  waterFragment, waterVertex,
+  treeFragment, treeVertex, waterFragment, waterVertex,
 } from './shaders.ts';
 import { PALETTE, shared } from './uniforms.ts';
 import type { ValleyLayout } from './world.ts';
@@ -52,6 +52,12 @@ export function Valley({ valley, director }: Props) {
     geometry.translate(0, -0.01, 0);
   });
   const panelGeo = useInstanced(valley.panels.count, valley.panels.matrices, { aDelay: [valley.panels.delays, 1] });
+  const treeGeo = useMemo(() => {
+    const geometry = new THREE.IcosahedronGeometry(1, 1);
+    geometry.setAttribute('aColor', new THREE.InstancedBufferAttribute(valley.trees.colors, 3));
+    geometry.setAttribute('aDelay', new THREE.InstancedBufferAttribute(valley.trees.delays, 1));
+    return { geometry, matrices: valley.trees.matrices, count: valley.trees.count };
+  }, [valley]);
 
   const materials = useMemo(() => {
     const water = (river: boolean) => new THREE.ShaderMaterial({
@@ -78,6 +84,11 @@ export function Valley({ valley, director }: Props) {
         fragmentShader: plotFragment,
         uniforms: { ...shared, uReveal: { value: 0 }, uAccent: { value: PALETTE.leaf } },
       }),
+      trees: new THREE.ShaderMaterial({
+        vertexShader: treeVertex,
+        fragmentShader: treeFragment,
+        uniforms: { ...shared, uReveal: { value: 0 } },
+      }),
       panels: new THREE.ShaderMaterial({
         vertexShader: panelVertex,
         fragmentShader: panelFragment,
@@ -102,7 +113,8 @@ export function Valley({ valley, director }: Props) {
     Object.values(materials).forEach((m) => m.dispose());
     plotGeo.geometry.dispose();
     panelGeo.geometry.dispose();
-  }, [materials, plotGeo, panelGeo]);
+    treeGeo.geometry.dispose();
+  }, [materials, plotGeo, panelGeo, treeGeo]);
 
   const station = useRef<THREE.Group>(null);
   const dam = useRef<THREE.Mesh>(null);
@@ -118,6 +130,7 @@ export function Valley({ valley, director }: Props) {
     materials.canals.uniforms.uFlow.value = director.canals;
     materials.plots.uniforms.uReveal.value = director.plots;
     materials.panels.uniforms.uReveal.value = director.solar;
+    materials.trees.uniforms.uReveal.value = director.valley;
     materials.beacon.uniforms.uOpacity.value = director.labels;
     const built = THREE.MathUtils.smoothstep(director.reservoir, 0.1, 0.8);
     if (station.current) station.current.scale.setScalar(Math.max(0.0001, THREE.MathUtils.smoothstep(director.canals, 0, 0.25)));
@@ -152,6 +165,7 @@ export function Valley({ valley, director }: Props) {
       <mesh geometry={valley.canals} material={materials.canals} renderOrder={3} dispose={null} />
       <InstancedField {...plotGeo} material={materials.plots} />
       <InstancedField {...panelGeo} material={materials.panels} />
+      <InstancedField {...treeGeo} material={materials.trees} />
       {valley.pois.map((poi) => (
         <mesh key={poi.id} position={poi.position} geometry={beaconGeometry} material={materials.beacon} renderOrder={4} />
       ))}

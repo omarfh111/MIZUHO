@@ -16,6 +16,7 @@ export interface ValleyLayout {
   geometry: THREE.BufferGeometry;
   plots: { matrices: Float32Array; colors: Float32Array; delays: Float32Array; count: number };
   panels: { matrices: Float32Array; delays: Float32Array; count: number };
+  trees: { matrices: Float32Array; colors: Float32Array; delays: Float32Array; count: number };
   reservoir: { geometry: THREE.BufferGeometry; center: THREE.Vector3; radius: number };
   river: THREE.BufferGeometry;
   canals: THREE.BufferGeometry;
@@ -433,6 +434,55 @@ async function buildValley(baseHeight: (x: number, z: number) => number, segment
   });
   const canals = mergeGeometries(tubes)!;
   tubes.forEach((t) => t.dispose());
+  /* Olive trees: scattered on the hills, planted in rows in a few orchards. */
+  const treeMatrices: number[] = [];
+  const treeColors: number[] = [];
+  const treeDelays: number[] = [];
+  const foliage = ['#3f5a2c', '#4b6431', '#56703a', '#5f6f3c', '#3a5230'].map((hex) => new THREE.Color(hex));
+  const plotZone = (x: number, z: number) => {
+    const along = (x - c.x) * ax + (z - c.z) * az;
+    const across = (x - c.x) * nx + (z - c.z) * nz;
+    return Math.abs(along) < 9.5 * cellA && Math.abs(across) < 6.6 * cellN + 0.15 && distanceToPolyline(x, z, riverLine) < 1.8;
+  };
+  const blocked = (x: number, z: number) =>
+    Math.hypot((x - res.x) / 1.15, (z - res.z) / 0.85) < reservoirRadius * 1.25
+    || solarSites.some((site) => Math.hypot(x - site.x, z - site.z) < 0.45)
+    || Math.hypot(x - station.x, z - station.z) < 0.22
+    || distanceToPolyline(x, z, riverLine) < 0.12;
+  const plant = (x: number, z: number, scale: number) => {
+    const y = height(x, z);
+    const color = foliage[Math.floor(rand() * foliage.length)];
+    const s = scale * (0.75 + rand() * 0.5);
+    m.compose(new THREE.Vector3(x, y + s * 0.6, z), q.setFromAxisAngle(up, rand() * Math.PI * 2), new THREE.Vector3(s, s * 0.78, s));
+    treeMatrices.push(...m.elements);
+    treeColors.push(color.r, color.g, color.b);
+    treeDelays.push(Math.min(1, Math.hypot(x - station.x, z - station.z) / (R * 1.8)));
+  };
+  const scattered = segments > 180 ? 2600 : 1300;
+  for (let i = 0, tries = 0; i < scattered && tries < scattered * 6; tries++) {
+    const a = rand() * Math.PI * 2;
+    const r = Math.sqrt(rand()) * R * 0.93;
+    const x = c.x + Math.cos(a) * r;
+    const z = c.z + Math.sin(a) * r;
+    if (plotZone(x, z) || blocked(x, z)) continue;
+    // Denser on hillsides, sparse on the flat floor.
+    const hill = smoothstep(0.6, 2.2, distanceToPolyline(x, z, riverLine));
+    if (rand() > 0.25 + hill * 0.75) continue;
+    plant(x, z, 0.03);
+    i++;
+  }
+  for (const [ox, oz, rows, cols] of [[-2.35, -0.55, 6, 9], [2.05, 0.95, 5, 8], [-0.4, 1.6, 4, 10]] as const) {
+    for (let r2 = 0; r2 < rows; r2++) {
+      for (let k = 0; k < cols; k++) {
+        const along = ox + (k - cols / 2) * 0.085;
+        const across = oz + (r2 - rows / 2) * 0.085;
+        const x = c.x + ax * along + nx * across;
+        const z = c.z + az * along + nz * across;
+        if (Math.hypot(x - c.x, z - c.z) > R * 0.9 || plotZone(x, z) || blocked(x, z)) continue;
+        plant(x, z, 0.024);
+      }
+    }
+  }
   onProgress(0.9);
   await nextFrame();
 
@@ -449,6 +499,10 @@ async function buildValley(baseHeight: (x: number, z: number) => number, segment
       delays: new Float32Array(plotDelays), count: plotDelays.length,
     },
     panels: { matrices: new Float32Array(panelMatrices), delays: new Float32Array(panelDelays), count: panelDelays.length },
+    trees: {
+      matrices: new Float32Array(treeMatrices), colors: new Float32Array(treeColors),
+      delays: new Float32Array(treeDelays), count: treeDelays.length,
+    },
     reservoir: { geometry: reservoirGeometry, center: reservoirCenter, radius: reservoirRadius },
     river,
     canals,
