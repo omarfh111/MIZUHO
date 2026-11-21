@@ -119,6 +119,24 @@ flowchart TD
   mem -.-> think
 ```
 
+### From sources to citations
+
+Every citation resolves to a verified excerpt of a registered source. Stable IDs and content hashes let re-ingestion reuse unchanged embeddings.
+
+```mermaid
+flowchart LR
+  reg[("data/sources.json<br/>source registry")] --> ex["docs/evidence/<br/>verified excerpts"]
+  ex --> man["data/m8_corpus.json<br/>corpus manifest"]
+  man --> ingest["python -m backend.evidence"]
+  ingest -->|"text-embedding-3-small<br/>1,536 dims"| qd[("Qdrant collection<br/>7 passages")]
+  qd --> dense["Dense search"]
+  man --> bm25["BM25"]
+  dense & bm25 --> fuse["Rank fusion"]
+  fuse --> cite["Citations in answers"]
+```
+
+<sub>The <a href="docs/m8-retrieval-benchmark.md">retrieval benchmark</a> compares dense and hybrid search on 36 English, French and Arabic questions.</sub>
+
 ## Run MIZUHO
 
 Use Git, Python **3.12**, Node.js **22.12 or later**, an OpenAI project key with access to `gpt-6-luna` and `text-embedding-3-small`, and a Qdrant Cloud cluster with an API key that can read and write the evidence collection.
