@@ -170,7 +170,7 @@ Use Git, Python **3.12** and Node.js **22.12 or later**. Once dependencies are i
 Run these commands from PowerShell. On macOS or Linux, use `.venv/bin/python` wherever the commands show `.\.venv\Scripts\python.exe`.
 
 ```powershell
-git clone --branch integration/mizu-nexus-v5 https://github.com/omarfh111/MIZUHO.git
+git clone --branch main https://github.com/omarfh111/MIZUHO.git
 cd MIZUHO
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
@@ -290,6 +290,6 @@ With Chrome installed and both servers running, use `npm --prefix frontend run t
 
 Run `npm --prefix frontend run test:integration` against those same local servers for the survey map and desktop/mobile twin tests. These checks do not require provider credentials.
 
-GitHub Actions runs the backend and frontend checks alongside CodeQL and Gitleaks. The dependency review job compares OSV advisories when a pull request changes dependency manifests. [CI workflow](.github/workflows/ci.yml) · [Security workflow](.github/workflows/security.yml)
+GitHub Actions runs backend and frontend checks. A browser job exercises the built dashboard and local API in desktop and mobile Chrome viewports for the survey, twin and incident workflows without provider keys. Security checks include CodeQL, Gitleaks and an OSV dependency comparison on pull requests that change dependency manifests. [CI workflow](.github/workflows/ci.yml) · [Security workflow](.github/workflows/security.yml)
 
 Regenerate the animated and static banners from the repository root with `python docs/tools/readme_hero.py`. [Banner source](docs/tools/readme_hero.py)
