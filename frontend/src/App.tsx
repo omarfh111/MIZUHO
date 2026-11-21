@@ -1,6 +1,7 @@
 import { Activity, ArrowLeft, ArrowUpRight, Droplets, FlaskConical, Globe2, Map, MapPin, Radio, Sparkles, Sun, Waves } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { getCatalog, type Catalog } from './api.ts';
+import { getCatalog, getTunisia, type Catalog } from './api.ts';
+import { nearestSiteCity, siteFromLocation } from './siteLocation.ts';
 import EvidencePanel from './components/EvidencePanel.tsx';
 import SiteMap from './components/SiteMap.tsx';
 import SolarComparison from './components/SolarComparison.tsx';
@@ -35,6 +36,8 @@ export default function App() {
   const [zonePlan, setZonePlan] = useState<RegionPlanContext>();
   const [city, setCity] = useState<TunisiaCity | null>(null);
   const [cityId, setCityId] = useState(() => new URLSearchParams(window.location.search).get('city') ?? '');
+  const [locationError, setLocationError] = useState('');
+  const [locationAttempt, retryLocation] = useState(0);
   const [period, setPeriod] = useState<TunisiaPeriod>();
   const applySite = useCallback((id: string) => {
     setSiteId(id);
@@ -68,9 +71,7 @@ export default function App() {
     getCatalog(controller.signal).then((result) => {
       if (controller.signal.aborted) return;
       setCatalog(result);
-      const requested = new URLSearchParams(window.location.search).get('site');
-      setSiteId(requested === null ? result.sites.features[0]?.properties.site_id ?? '' :
-        result.sites.features.find(s => s.properties.site_id === requested)?.properties.site_id ?? '');
+      setSiteId(siteFromLocation(result.sites.features, new URLSearchParams(window.location.search)));
     }).catch((error) => {
       if (!controller.signal.aborted) setFailure(error instanceof Error ? error.message : 'Service unavailable.');
     });
@@ -87,14 +88,32 @@ export default function App() {
         setPeriod(undefined);
       }
       if (!catalog) return;
-      const requested = query.get('site');
-      const next = requested === null ? catalog.sites.features[0]?.properties.site_id :
-        catalog.sites.features.find(s => s.properties.site_id === requested)?.properties.site_id;
-      if ((next ?? '') !== siteId) applySite(next ?? '');
+      const next = siteFromLocation(catalog.sites.features, query);
+      if (next !== siteId) applySite(next);
     };
     window.addEventListener('popstate', followLocation);
     return () => window.removeEventListener('popstate', followLocation);
   }, [applySite, catalog, siteId, cityId]);
+
+  useEffect(() => {
+    setLocationError('');
+    if (!cityId || siteId || page === 'tunisia' || catalog?.mode !== 'live') return;
+    if (city?.id === cityId && new URLSearchParams(location.search).has('site')) return;
+    const controller = new AbortController();
+    getTunisia(controller.signal).then(atlas => {
+      const query = new URLSearchParams(location.search);
+      if (controller.signal.aborted || query.get('city') !== cityId) return;
+      const selected = atlas.cities.find(item => item.id === cityId);
+      if (!selected) { setLocationError('This city link is outside the national catalogue.'); return; }
+      setCity(selected);
+      if (query.has('site')) return;
+      const nearby = catalog.sites.features.filter(site => nearestSiteCity(site.geometry.coordinates, atlas.cities) === cityId);
+      selectSite(nearby.length === 1 ? nearby[0].properties.site_id : '');
+    }).catch(() => {
+      if (!controller.signal.aborted) setLocationError('The city catalogue could not be loaded.');
+    });
+    return () => controller.abort();
+  }, [catalog, city?.id, cityId, siteId, page, selectSite, locationAttempt]);
 
   useEffect(() => {
     const followHash = () => {
@@ -124,7 +143,7 @@ export default function App() {
       : properties.survey_available ? `Open ${properties.label} survey` : `Open simulated ${properties.label} pilot`,
     onOpen: () => { selectSite(properties.site_id); navigate('map'); },
   })) : [];
-  const activeCity = page === 'tunisia' ? city : null;
+  const activeCity = page === 'tunisia' || !site ? city : null;
   const activeSite = page === 'tunisia' ? undefined : site;
 
   return <>
@@ -191,8 +210,10 @@ export default function App() {
       </div>}
       {page !== 'tunisia' && catalog && !site && <section className="surface resource-card">
         <h2>Choose a field site</h2>
-        <p>{city ? `Select a registered site to leave the ${city.name} city profile and inspect local inputs.` :
-          'Select a site from the catalogue to continue.'}</p>
+        {locationError ? <p role="alert">{locationError}{' '}
+          <button type="button" className="text-button" onClick={() => retryLocation(n => n + 1)}>Retry city lookup</button></p> :
+          <p>{city ? `Select a registered site to leave the ${city.name} city profile and inspect local inputs.` :
+            'Select a site from the catalogue to continue.'}</p>}
         <SitePicker sites={catalog.sites.features} siteId="" select={selectSite} />
       </section>}
       {catalog && site && page === 'map' && <SiteMap key={siteId} site={site} sites={catalog.sites.features} scenario={scenarios[0]}

@@ -6,6 +6,36 @@ url.searchParams.set('intro', '0');
 url.hash = 'energy';
 const browser = await chromium.launch(process.env.MIZHUO_CHROME_PATH
   ? { executablePath: process.env.MIZHUO_CHROME_PATH } : { channel: 'chrome' });
+
+async function checkCityOnlyLinks(page) {
+  const atlas = await page.request.get(new URL('/api/tunisia', url).href);
+  assert.equal(atlas.status(), 200);
+  const { cities } = await atlas.json();
+  const picker = page.getByRole('combobox', { name: 'Agricultural site' });
+  const link = new URL(url);
+  link.searchParams.delete('site');
+  link.hash = 'simulation';
+  link.searchParams.set('city', cities.find(city => city.name === 'Tozeur').id);
+  await page.route('**/api/tunisia', route => route.fulfill({ status: 503 }), { times: 1 });
+  await page.goto(link.href);
+  await page.getByRole('button', { name: 'Retry city lookup' }).click();
+  await page.getByText(/leave the Tozeur city profile/).waitFor();
+  assert.equal(await picker.inputValue(), '');
+  assert.equal(await page.getByRole('combobox', { name: 'Scenario', exact: true }).count(), 0);
+  await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Mizhuo assistant' });
+  await dialog.getByText('Tozeur', { exact: true }).waitFor();
+  await dialog.getByText('City archive and evidence').waitFor();
+  await page.keyboard.press('Escape');
+
+  for (const [cityName, site] of [['Nabeul', 'korba-cap-bon'], ['Kairouan', 'kairouan-chebika'], ['Gafsa', 'gafsa-oasis']]) {
+    link.searchParams.set('city', cities.find(city => city.name === cityName).id);
+    await page.goto(link.href);
+    await page.getByRole('heading', { name: 'Set planning assumptions' }).waitFor();
+    assert.equal(await picker.inputValue(), site);
+    assert.equal(new URL(page.url()).searchParams.get('site'), site);
+  }
+}
 try {
   for (const width of [390, 1440]) {
     const page = await browser.newPage({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
@@ -69,6 +99,7 @@ try {
     assert.equal(await picker.inputValue(), '');
     await page.reload();
     await page.getByRole('heading', { name: 'Choose a field site' }).waitFor();
+    if (width === 1440) await checkCityOnlyLinks(page);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
     assert.deepEqual(errors, []);
     await page.close();
