@@ -2,6 +2,7 @@
 
 import json
 import re
+from pathlib import Path
 from time import monotonic
 from typing import TypedDict
 
@@ -15,6 +16,7 @@ from .compare import InputError, effective_scenario
 from .evidence import Corpus
 from .models import AssistantAnswer, AssistantRequest, GroundedParagraph
 from .providers import Providers, ServiceError
+from .tunisia import ARCHIVE_DIR, ArchiveUnavailableError, ClimatePeriodError, get_city_analysis
 from tools.m2m3.mizu_m2m3.solar import simulation_solar_profile
 
 MAX_ROUNDS = 4
@@ -53,6 +55,10 @@ For missing evidence, list which observation or input is needed instead of makin
 When uncertain, state what cannot be verified and identify the missing information. Do not cite unrelated passages.
 """
 
+CITY_INSTRUCTIONS = """The user is exploring a Tunisian city. Call get_city_data for local facts.
+City-level climate estimates and terrain describe regional context. They do not establish field irrigation need,
+equipment availability, or an operating schedule. Explain which field inputs a real plan would need."""
+
 NUMERIC = re.compile(
     r"\d|[¼½¾⅓⅔⅛⅜⅝⅞]|\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
     r"thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|"
@@ -78,6 +84,7 @@ SCENARIO_ARGS = object_schema({
     "quota_m3": {"type": ["integer", "null"], "description": "Optional reduced quota in whole cubic meters; null preserves the current quota."},
 })
 ARGUMENT_SCHEMAS = {
+    "get_city_data": object_schema({}),
     "get_sensor_anomalies": object_schema({}),
     "get_agricultural_insights": object_schema({"plot_id": {"type": ["string", "null"]}}),
     "search_evidence": object_schema({"query": STRING}),
@@ -91,6 +98,7 @@ FUNCTIONS = [
     {"type": "function", "name": name, "description": description, "strict": True, "parameters": ARGUMENT_SCHEMAS[name]}
     for name, (_, _, description) in TOOLS.items()
 ]
+CITY_TOOLS = {"get_city_data", "search_evidence"}
 
 
 class GraphState(TypedDict):
@@ -104,10 +112,12 @@ class GraphState(TypedDict):
 def think(state: GraphState) -> dict:
     turn = state["turn"]
     respond = turn.providers.respond_nvidia if turn.request.provider == "nvidia" else turn.providers.respond
+    city_mode = turn.city is not None
     data = respond({
-        "instructions": INSTRUCTIONS,
+        "instructions": INSTRUCTIONS + ("\n" + CITY_INSTRUCTIONS if city_mode else ""),
         "input": state["messages"],
-        "tools": FUNCTIONS,
+        "tools": [tool for tool in FUNCTIONS
+                  if (tool["name"] in CITY_TOOLS if city_mode else tool["name"] != "get_city_data")],
         "tool_choice": "auto",
         "max_output_tokens": 1200,
         "parallel_tool_calls": True,
@@ -172,7 +182,10 @@ def tools(state: GraphState) -> dict:
     results = []
     for call in state["pending"]:
         turn.remaining()
-        data = run_tool(turn, call["name"], call["arguments"])
+        name = call["name"]
+        allowed = name in CITY_TOOLS if turn.city else name != "get_city_data"
+        data = (run_tool(turn, name, call["arguments"]) if allowed else
+                {"error": "This tool is unavailable for the active location."})
         results.append({"type": "function_call_output", "call_id": call["call_id"], "output": json.dumps(data, ensure_ascii=False)})
     return {"messages": [*state["messages"], *results], "pending": []}
 
@@ -275,9 +288,27 @@ def finalize(turn: Turn, answer: dict) -> AssistantAnswer:
 
 
 def run_assistant(request: AssistantRequest, catalog: Catalog, corpus: Corpus, providers: Providers,
-                  solver_budget: float, memory: AssistantMemory | None = None) -> AssistantAnswer:
+                  solver_budget: float, memory: AssistantMemory | None = None, *,
+                  tunisia_data_dir: Path = ARCHIVE_DIR) -> AssistantAnswer:
     sites = {feature.properties.site_id for feature in catalog.sites.features}
-    if request.site_id not in sites:
+    city = None
+    if request.city_id:
+        if (request.site_id or request.comparison or request.telemetry or request.solar_option_id
+                or request.pvgis_option_id or request.selected_scenario_id or request.simulation_pending):
+            raise InputError("city_id", "Open a registered farm site to ask about its planning or sensor data.")
+        try:
+            window = request.city_period
+            city = (get_city_analysis(request.city_id, tunisia_data_dir, start=window.start, end=window.end)
+                    if window else get_city_analysis(request.city_id, tunisia_data_dir))
+        except KeyError:
+            raise InputError("city_id", "Unknown city.") from None
+        except ArchiveUnavailableError:
+            raise ServiceError("Tunisia archive") from None
+        except ClimatePeriodError:
+            raise InputError("city_period", "Choose dates within the city's climate archive.") from None
+    elif request.city_period:
+        raise InputError("city_period", "Select a Tunisian city before choosing a date range.")
+    elif request.site_id not in sites:
         raise InputError("site_id", "Unknown site.")
     if len(request.question.strip()) < 3:
         raise InputError("question", "Enter a question with at least three characters.")
@@ -306,7 +337,7 @@ def run_assistant(request: AssistantRequest, catalog: Catalog, corpus: Corpus, p
         if scenario is None or scenario.site_id != request.site_id:
             raise InputError(("comparison", "scenario_id"), "The comparison must belong to the current site.")
         effective_scenario(catalog, comparison)
-    turn = Turn(request, catalog, corpus, providers, monotonic() + TURN_TIMEOUT, solver_budget)
+    turn = Turn(request, catalog, corpus, providers, monotonic() + TURN_TIMEOUT, solver_budget, city=city)
     if memory is None or request.session_id is None:
         return answer_turn(turn, [])
     with memory.session(request.session_id) as key:
@@ -333,6 +364,8 @@ def answer_turn(turn: Turn, prior_answers: list[dict]) -> AssistantAnswer:
         "recent_questions": request.recent_questions,
         "question": request.question.strip(),
     }
+    if turn.city:
+        context["city"] = {"name": turn.city.city.name, "id": turn.city.city.id}
     with tracing_context(enabled=False):
         try:
             result = GRAPH.invoke({

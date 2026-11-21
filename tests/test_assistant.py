@@ -67,6 +67,45 @@ def test_langgraph_uses_real_m6_for_farmer_a(context):
     assert {item.provenance for item in answer.facts} == {Provenance.SIMULATED}
 
 
+def test_city_assistant_uses_the_same_public_profile_and_isolates_city_facts():
+    prompts = []
+
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            prompts.append(json.loads(body["input"][0]["content"]))
+            assert {tool["name"] for tool in body["tools"]} == {"get_city_data", "search_evidence"}
+            return response(call("get_city_data", {}), call("explain_decision", {"scenario_id": "mini"}, "out-of-scope"))
+        assert "unavailable for the active location" in body["input"][-1]["output"]
+        return complete()
+
+    def factory(data_dir, catalog, budget):
+        return AssistantRuntime(catalog, load_corpus(data_dir, catalog.evidence),
+                                SimpleNamespace(respond=respond, close=lambda: None), budget)
+
+    with TestClient(create_app(assistant_factory=factory)) as client:
+        session_id = str(uuid4())
+        catalogue = client.get("/api/tunisia").json()
+        first, second = catalogue["cities"][:2]
+        for city, period in ((first, None), (first, {"start": "2025-07-01", "end": "2025-07-07"}), (second, None)):
+            profile = client.get(f"/api/tunisia/cities/{city['id']}", params=period or {}).json()
+            request = {"city_id": city["id"], "city_period": period, "question": "What does the climate archive say?",
+                       "session_id": session_id}
+            reply = client.post("/api/assistant/chat", json=request)
+            assert reply.status_code == 200
+            answer = reply.json()
+            assert answer["tools_used"] == ["get_city_data"]
+            climate = profile["climate"]
+            assert any(fact["provenance"] == "estimated" and fact["source_url"] == climate["source"]["url"]
+                       and f"{climate['temperature_mean_c']:g} °C" in fact["text"] for fact in answer["facts"])
+            assert all(fact["text"].startswith(city["name"]) for fact in answer["facts"])
+            assert any("validated farm demand" in gap for gap in answer["missing_information"])
+        assert all(not prompt["prior_answers"] for prompt in prompts)
+        assert client.post("/api/assistant/chat", json={**request, "site_id": "jendouba-pilote"}).status_code == 422
+        assert client.post("/api/assistant/chat", json={
+            **request, "city_period": {"start": "1970-01-01", "end": "1970-01-04"},
+        }).status_code == 422
+
+
 def test_what_if_uses_original_and_reduced_quota_and_never_edits_state(context):
     catalog, corpus = context
     outputs = []

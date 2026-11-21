@@ -504,6 +504,7 @@ class DecisionFact(PlanningModel):
     id: str
     text: str
     provenance: Provenance
+    source_url: HttpUrl | None = None
 
 
 class ReplaySelection(PlanningModel):
@@ -518,10 +519,17 @@ class AssistantTelemetry(ReplaySelection):
     selected_slot: SlotIndex | None = None
 
 
+class AssistantCityPeriod(PlanningModel):
+    start: Date
+    end: Date
+
+
 class AssistantRequest(PlanningModel):
     provider: Literal["openai", "nvidia"] = "openai"
     question: Annotated[str, StringConstraints(min_length=3, max_length=1600, strip_whitespace=True)]
-    site_id: Annotated[str, Field(min_length=1, max_length=120)]
+    site_id: Annotated[str, Field(min_length=1, max_length=120)] | None = None
+    city_id: Annotated[str, Field(pattern=r"^\d{1,12}$")] | None = None
+    city_period: AssistantCityPeriod | None = None
     solar_option_id: Annotated[str, Field(min_length=1, max_length=120)] | None = None
     pvgis_option_id: Literal["ombriere", "toiture"] | None = None
     comparison: CompareRequest | None = None

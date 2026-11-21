@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 
 const base = new URL(process.env.MIZHUO_TEST_URL ?? 'http://127.0.0.1:5173/');
+base.hash = 'map';
 const browser = await chromium.launch({
   ...(process.env.MIZHUO_CHROME_PATH ? { executablePath: process.env.MIZHUO_CHROME_PATH } : { channel: 'chrome' }),
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
