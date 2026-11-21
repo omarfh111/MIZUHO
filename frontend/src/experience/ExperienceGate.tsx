@@ -56,6 +56,8 @@ const MIN_OPENING_MS = 2400;
 const MIN_REPLAY_OPENING_MS = 1200;
 /** How long the finale holds before entering on its own, when nobody took control. */
 const FINALE_HOLD_S = 2.6;
+/** After this long without input, the film carries on by itself. */
+const IDLE_RESUME_MS = 2500;
 /** Scrolling this far past the last chapter enters the dashboard. */
 const OVERSCROLL_ENTER = 0.32;
 
@@ -107,14 +109,14 @@ export function ExperienceGate({
   const [run, setRun] = useState(0);
   const [childrenMounted, setChildrenMounted] = useState(() => mountChildrenEarly || phase === 'done');
   const [chapter, setChapter] = useState(0);
-  const [autoplay, setAutoplay] = useState(true);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState<LoadingStage>('engine');
   const [labelLayer, setLabelLayer] = useState<HTMLDivElement | null>(null);
   const [scene, setScene] = useState<{ Canvas: CanvasModule['default']; world: World } | null>(null);
 
   const director = useRef<Director>(createDirector());
-  const film = useRef({ target: 0, spring: { value: 0, velocity: 0 }, autoplay: true, hold: 0 });
+  // `lastInput` is -Infinity until the visitor first scrolls, so the film plays from the start.
+  const film = useRef({ target: 0, spring: { value: 0, velocity: 0 }, lastInput: -Infinity, hold: 0 });
   const overlay = useRef<HTMLDivElement>(null);
   const hud = useRef<{ coordinates?: HTMLElement | null; rail?: HTMLElement | null }>({});
   const sceneReady = useRef<() => void>(() => undefined);
@@ -218,7 +220,7 @@ export function ExperienceGate({
       last = now;
       const f = film.current;
       if (delay > 0) delay -= dt;
-      else if (f.autoplay) {
+      else if (now - f.lastInput > IDLE_RESUME_MS) {
         f.target = Math.min(SCENE_END, f.target + dt / SECONDS_PER_CHAPTER);
         if (f.target >= SCENE_END && f.spring.value > SCENE_END - 0.02) {
           f.hold += dt;
@@ -248,13 +250,11 @@ export function ExperienceGate({
     return () => cancelAnimationFrame(frame);
   }, [phase, exit, caps.reducedMotion]);
 
-  /** Any manual input takes the wheel from autoplay. */
+  /** Manual input takes over; the film resumes on its own once the visitor stops. */
   const takeControl = useCallback(() => {
-    if (film.current.autoplay) {
-      film.current.autoplay = false;
-      film.current.hold = 0;
-      setAutoplay(false);
-    }
+    film.current.lastInput = performance.now();
+    film.current.hold = 0;
+    film.current.target = Math.min(film.current.target, SCENE_END + OVERSCROLL_ENTER + 0.05);
   }, []);
 
   const nudge = useCallback((delta: number) => {
@@ -270,13 +270,6 @@ export function ExperienceGate({
     film.current.target = Math.max(0, Math.min(SCENE_END, index));
   }, [takeControl]);
 
-  const toggleAutoplay = useCallback(() => {
-    const f = film.current;
-    f.autoplay = !f.autoplay;
-    f.hold = 0;
-    f.target = Math.min(f.target, SCENE_END);
-    setAutoplay(f.autoplay);
-  }, []);
 
   /* ------------------------------------------ keyboard, wheel & scroll lock */
   useEffect(() => {
@@ -323,10 +316,9 @@ export function ExperienceGate({
     if (phase !== 'done') return;
     gsap.killTweensOf(director.current);
     director.current = createDirector();
-    film.current = { target: 0, spring: { value: 0, velocity: 0 }, autoplay: true, hold: 0 };
+    film.current = { target: 0, spring: { value: 0, velocity: 0 }, lastInput: -Infinity, hold: 0 };
     exiting.current = false;
     setChapter(0);
-    setAutoplay(true);
     setProgress(0);
     setStage('engine');
     setMode(caps.webgl ? '3d' : 'fallback');
@@ -401,16 +393,7 @@ export function ExperienceGate({
           {phase !== 'loading' ? (
             <>
               <Captions chapter={chapter} onEnter={() => exit()} />
-              <Hud
-                chapter={chapter}
-                autoplay={autoplay}
-                touch={caps.touch}
-                onJump={jump}
-                onToggleAutoplay={toggleAutoplay}
-                railRef={(el) => { hud.current.rail = el; }}
-                coordinatesRef={(el) => { hud.current.coordinates = el; }}
-                showCoordinates={mode === '3d'}
-              />
+              <Hud chapter={chapter} onJump={jump} railRef={(el) => { hud.current.rail = el; }} />
             </>
           ) : null}
 
@@ -421,14 +404,6 @@ export function ExperienceGate({
             particles={caps.tier === 'high' ? 16000 : 7000}
           />
 
-          <button
-            type="button"
-            className={`mx-skip ${chapter >= SCENE_END ? 'mx-skip--primary' : ''}`}
-            onClick={() => exit(phase === 'loading')}
-          >
-            <span>{chapter >= SCENE_END ? 'Enter' : 'Skip intro'}</span>
-            <kbd>Esc</kbd>
-          </button>
         </div>
       ) : null}
 
