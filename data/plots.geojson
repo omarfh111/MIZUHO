@@ -1,0 +1,334 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       8.9699923,
+       36.6233621
+      ],
+      [
+       8.9699621,
+       36.622123
+      ],
+      [
+       8.9738584,
+       36.6221299
+      ],
+      [
+       8.973953,
+       36.6233448
+      ],
+      [
+       8.9699923,
+       36.6233621
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "plot_id": "P-01",
+    "site_id": "TN-32-BALTABOUAWENE-ASSILA",
+    "farmer_id": null,
+    "surface_m2": 47851,
+    "land_use": "farmland",
+    "crop": null,
+    "eta_mm_day": 1.25,
+    "precip_mm_day": 0.0,
+    "ref_et_mm_day": 8.7,
+    "irrigation_need_mm_day": 1.25,
+    "demand_m3_raw": 59.814,
+    "demand_m3": 60,
+    "minimum_m3": null,
+    "deadline_slot": null,
+    "allowed_slots": null,
+    "past_deferrals": null,
+    "period": "2026-07-11/2026-07-20",
+    "source_id": "osm-jendouba-farmland",
+    "need_source_id": "wapor3-l2-aeti-2026-07-d2",
+    "osm_way_id": 1408418916,
+    "osm_version": 1,
+    "osm_last_edit": "2025-06-21T18:32:25Z",
+    "status": {
+     "geometry": "observed",
+     "surface_m2": "computed",
+     "demand_m3": "estimated",
+     "farmer_id": "local_data_required",
+     "crop": "local_data_required",
+     "minimum_m3": "local_data_required",
+     "deadline_slot": "local_data_required",
+     "allowed_slots": "local_data_required",
+     "past_deferrals": "local_data_required"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       8.9786449,
+       36.6224193
+      ],
+      [
+       8.9796439,
+       36.6273866
+      ],
+      [
+       8.9821978,
+       36.6237455
+      ],
+      [
+       8.9789303,
+       36.6222866
+      ],
+      [
+       8.9786449,
+       36.6224193
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "plot_id": "P-02",
+    "site_id": "TN-32-BALTABOUAWENE-ASSILA",
+    "farmer_id": null,
+    "surface_m2": 85233,
+    "land_use": "farmland",
+    "crop": null,
+    "eta_mm_day": 1.21,
+    "precip_mm_day": 0.0,
+    "ref_et_mm_day": 8.58,
+    "irrigation_need_mm_day": 1.21,
+    "demand_m3_raw": 103.132,
+    "demand_m3": 103,
+    "minimum_m3": null,
+    "deadline_slot": null,
+    "allowed_slots": null,
+    "past_deferrals": null,
+    "period": "2026-07-11/2026-07-20",
+    "source_id": "osm-jendouba-farmland",
+    "need_source_id": "wapor3-l2-aeti-2026-07-d2",
+    "osm_way_id": 1408418927,
+    "osm_version": 1,
+    "osm_last_edit": "2025-06-21T18:32:25Z",
+    "status": {
+     "geometry": "observed",
+     "surface_m2": "computed",
+     "demand_m3": "estimated",
+     "farmer_id": "local_data_required",
+     "crop": "local_data_required",
+     "minimum_m3": "local_data_required",
+     "deadline_slot": "local_data_required",
+     "allowed_slots": "local_data_required",
+     "past_deferrals": "local_data_required"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       8.9841544,
+       36.6144552
+      ],
+      [
+       8.9841451,
+       36.6118385
+      ],
+      [
+       8.9880138,
+       36.6118792
+      ],
+      [
+       8.9880184,
+       36.6144626
+      ],
+      [
+       8.9841544,
+       36.6144552
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "plot_id": "P-03",
+    "site_id": "TN-32-BALTABOUAWENE-ASSILA",
+    "farmer_id": null,
+    "surface_m2": 99796,
+    "land_use": "farmland",
+    "crop": null,
+    "eta_mm_day": 3.26,
+    "precip_mm_day": 0.0,
+    "ref_et_mm_day": 8.7,
+    "irrigation_need_mm_day": 3.26,
+    "demand_m3_raw": 325.335,
+    "demand_m3": 325,
+    "minimum_m3": null,
+    "deadline_slot": null,
+    "allowed_slots": null,
+    "past_deferrals": null,
+    "period": "2026-07-11/2026-07-20",
+    "source_id": "osm-jendouba-farmland",
+    "need_source_id": "wapor3-l2-aeti-2026-07-d2",
+    "osm_way_id": 1408418941,
+    "osm_version": 1,
+    "osm_last_edit": "2025-06-21T18:32:25Z",
+    "status": {
+     "geometry": "observed",
+     "surface_m2": "computed",
+     "demand_m3": "estimated",
+     "farmer_id": "local_data_required",
+     "crop": "local_data_required",
+     "minimum_m3": "local_data_required",
+     "deadline_slot": "local_data_required",
+     "allowed_slots": "local_data_required",
+     "past_deferrals": "local_data_required"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       8.9840898,
+       36.6112241
+      ],
+      [
+       8.9840529,
+       36.6088405
+      ],
+      [
+       8.9880045,
+       36.6087479
+      ],
+      [
+       8.9880368,
+       36.6112648
+      ],
+      [
+       8.9842743,
+       36.6112537
+      ],
+      [
+       8.9840898,
+       36.6112241
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "plot_id": "P-04",
+    "site_id": "TN-32-BALTABOUAWENE-ASSILA",
+    "farmer_id": null,
+    "surface_m2": 96621,
+    "land_use": "farmland",
+    "crop": null,
+    "eta_mm_day": 2.61,
+    "precip_mm_day": 0.0,
+    "ref_et_mm_day": 8.7,
+    "irrigation_need_mm_day": 2.61,
+    "demand_m3_raw": 252.181,
+    "demand_m3": 252,
+    "minimum_m3": null,
+    "deadline_slot": null,
+    "allowed_slots": null,
+    "past_deferrals": null,
+    "period": "2026-07-11/2026-07-20",
+    "source_id": "osm-jendouba-farmland",
+    "need_source_id": "wapor3-l2-aeti-2026-07-d2",
+    "osm_way_id": 1408418942,
+    "osm_version": 1,
+    "osm_last_edit": "2025-06-21T18:32:25Z",
+    "status": {
+     "geometry": "observed",
+     "surface_m2": "computed",
+     "demand_m3": "estimated",
+     "farmer_id": "local_data_required",
+     "crop": "local_data_required",
+     "minimum_m3": "local_data_required",
+     "deadline_slot": "local_data_required",
+     "allowed_slots": "local_data_required",
+     "past_deferrals": "local_data_required"
+    }
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       8.9883181,
+       36.6131265
+      ],
+      [
+       8.9882812,
+       36.6119829
+      ],
+      [
+       8.9921314,
+       36.6119273
+      ],
+      [
+       8.9922374,
+       36.6131895
+      ],
+      [
+       8.9883181,
+       36.6131265
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "plot_id": "P-05",
+    "site_id": "TN-32-BALTABOUAWENE-ASSILA",
+    "farmer_id": null,
+    "surface_m2": 46389,
+    "land_use": "farmland",
+    "crop": null,
+    "eta_mm_day": 3.09,
+    "precip_mm_day": 0.0,
+    "ref_et_mm_day": 8.7,
+    "irrigation_need_mm_day": 3.09,
+    "demand_m3_raw": 143.342,
+    "demand_m3": 143,
+    "minimum_m3": null,
+    "deadline_slot": null,
+    "allowed_slots": null,
+    "past_deferrals": null,
+    "period": "2026-07-11/2026-07-20",
+    "source_id": "osm-jendouba-farmland",
+    "need_source_id": "wapor3-l2-aeti-2026-07-d2",
+    "osm_way_id": 1408418944,
+    "osm_version": 1,
+    "osm_last_edit": "2025-06-21T18:32:25Z",
+    "status": {
+     "geometry": "observed",
+     "surface_m2": "computed",
+     "demand_m3": "estimated",
+     "farmer_id": "local_data_required",
+     "crop": "local_data_required",
+     "minimum_m3": "local_data_required",
+     "deadline_slot": "local_data_required",
+     "allowed_slots": "local_data_required",
+     "past_deferrals": "local_data_required"
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,36 @@
+{
+ "site": {
+  "site_id": "mini",
+  "label": "Cas miniature A/B du cahier des charges (3 créneaux)",
+  "source_id": "cdc-v5-p8",
+  "status": "specification test case"
+ },
+ "plots": [
+  {
+   "plot_id": "A",
+   "site_id": "mini",
+   "farmer_id": "A",
+   "crop": null,
+   "surface_m2": null,
+   "demand_m3": 10,
+   "minimum_m3": 10,
+   "deadline_slot": 2,
+   "allowed_slots": [1, 2],
+   "past_deferrals": 0,
+   "source_id": "cdc-v5-p8"
+  },
+  {
+   "plot_id": "B",
+   "site_id": "mini",
+   "farmer_id": "B",
+   "crop": null,
+   "surface_m2": null,
+   "demand_m3": 10,
+   "minimum_m3": 10,
+   "deadline_slot": 2,
+   "allowed_slots": [1, 2],
+   "past_deferrals": 0,
+   "source_id": "cdc-v5-p8"
+  }
+ ]
+}

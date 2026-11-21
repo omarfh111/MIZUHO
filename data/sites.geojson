@@ -1,0 +1,78 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       8.9880045,
+       36.6087479
+      ],
+      [
+       8.9840529,
+       36.6088405
+      ],
+      [
+       8.9699621,
+       36.622123
+      ],
+      [
+       8.9699923,
+       36.6233621
+      ],
+      [
+       8.9796439,
+       36.6273866
+      ],
+      [
+       8.9922374,
+       36.6131895
+      ],
+      [
+       8.9921314,
+       36.6119273
+      ],
+      [
+       8.9880045,
+       36.6087479
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "site_id": "TN-32-BALTABOUAWENE-ASSILA",
+    "label": "Parcelles OSM, Assila, Délégation Balta Bouawene, Gouvernorat Jendouba",
+    "governorate": "Gouvernorat Jendouba",
+    "governorate_iso": "TN-32",
+    "delegation": "Délégation Balta Bouawene",
+    "imada": "Assila",
+    "osm_admin_area_ids": {
+     "2": 3600192757,
+     "4": 3601435834,
+     "5": 3604742613,
+     "6": 3607144494
+    },
+    "centroid_lon_lat": [
+     8.981462,
+     36.617843
+    ],
+    "selection_rule": "top 5 OSM landuse polygons by WaPOR AETI 2026-07-D2, centroid within 1500 m of (36.617, 8.981) (lat, lon), area <= 300000 m2",
+    "plot_ids": [
+     "P-01",
+     "P-02",
+     "P-03",
+     "P-04",
+     "P-05"
+    ],
+    "quota_m3": null,
+    "quota_status": "local_data_required",
+    "geometry_rule": "convex hull of the selected OSM parcels",
+    "source_id": "osm-jendouba-admin",
+    "status": "observed"
+   }
+  }
+ ]
+}

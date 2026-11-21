@@ -1,1 +1,8 @@
 Cahier des charges MIZU NEXUS Tunisie v5.md
+Cahier des charges MIZU NEXUS Tunisie v5.docx
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/
+.env

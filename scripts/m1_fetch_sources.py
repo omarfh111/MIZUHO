@@ -1,0 +1,114 @@
+"""M1 - download every raw source used by the agriculture data (no synthetic values).
+
+Run from the repo root:
+    .\\.venv\\Scripts\\python.exe scripts\\m1_fetch_sources.py
+
+Writes into data/raw/ and records URL, query, retrieval time and SHA-256 of each
+file in data/raw/m1_downloads.json, so anyone can re-download and compare.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+import requests
+
+ROOT = Path(__file__).resolve().parents[1]
+RAW = ROOT / "data" / "raw"
+UA = {"User-Agent": "mizu-nexus-hackathon/0.1"}
+OVERPASS = "https://overpass-api.de/api/interpreter"
+
+# OSM area id of "Gouvernorat Jendouba" (relation 1435834, ISO3166-2 TN-32).
+JENDOUBA_AREA = 3601435834
+# Point inside the selected parcel cluster (see scripts/m1_build_data.py).
+CLUSTER_POINT = (36.617, 8.981)
+# WaPOR v3 dekad matching the STEG outage notice of 19 July 2026 (cahier, ref [1]).
+WAPOR_DEKAD = "2026-07-D2"
+WAPOR_MAPSETS = ["L2-AETI-D", "L1-PCP-D", "L1-RET-D"]
+WAPOR_BOUNDS = (8.960, 36.600, 9.002, 36.634)  # lon_min, lat_min, lon_max, lat_max
+
+log: list[dict] = []
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _record(path: Path, source: str, url: str, query: str | None = None) -> None:
+    log.append({
+        "file": path.relative_to(ROOT).as_posix(),
+        "source": source,
+        "url": url,
+        "query": query,
+        "retrieved_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "sha256": _sha256(path),
+    })
+
+
+def overpass(query: str, out: Path, tries: int = 6) -> None:
+    for i in range(tries):
+        r = requests.post(OVERPASS, data={"data": query}, headers=UA, timeout=180)
+        if r.ok and r.text.lstrip().startswith("{"):
+            data = r.json()
+            if data.get("elements"):
+                out.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+                _record(out, "OpenStreetMap via Overpass API (ODbL)", OVERPASS, query)
+                return
+        time.sleep(10 * (i + 1))
+    raise RuntimeError(f"Overpass failed for {out.name}")
+
+
+def fetch_osm() -> None:
+    d = RAW / "osm"
+    d.mkdir(parents=True, exist_ok=True)
+    overpass(
+        f'[out:json][timeout:120];area({JENDOUBA_AREA})->.j;'
+        'way["landuse"~"farmland|orchard"](area.j);out meta geom;',
+        d / "jendouba_farmland.json",
+    )
+    lat, lon = CLUSTER_POINT
+    overpass(
+        f'[out:json][timeout:60];is_in({lat},{lon})->.a;'
+        'area.a["boundary"="administrative"];out tags;',
+        d / "is_in_cluster.json",
+    )
+
+
+def fetch_wapor() -> None:
+    import rasterio
+    from rasterio.windows import Window, from_bounds
+
+    d = RAW / "wapor"
+    d.mkdir(parents=True, exist_ok=True)
+    for ms in WAPOR_MAPSETS:
+        code = f"WAPOR-3.{ms}.{WAPOR_DEKAD}"
+        url = ("https://storage.googleapis.com/fao-gismgr-wapor-3-data/DATA/WAPOR-3/"
+               f"MAPSET/{ms}/{code}.tif")
+        with rasterio.open("/vsicurl/" + url) as src:
+            f = from_bounds(*WAPOR_BOUNDS, transform=src.transform)
+            c0, r0 = math.floor(f.col_off), math.floor(f.row_off)
+            w = Window(c0, r0, math.ceil(f.col_off + f.width) - c0,
+                       math.ceil(f.row_off + f.height) - r0)
+            a = src.read(1, window=w, boundless=True, fill_value=src.nodata)
+            prof = {k: v for k, v in src.profile.items() if k not in ("blockxsize", "blockysize")}
+            prof.update(driver="GTiff", width=a.shape[1], height=a.shape[0],
+                        transform=src.window_transform(w), compress="deflate",
+                        tiled=False, BIGTIFF="NO")
+            out = d / f"{code}.tif"
+            with rasterio.open(out, "w", **prof) as dst:
+                dst.write(a, 1)
+                dst.scales = src.scales
+        _record(out, "FAO WaPOR v3 (CC BY 4.0), window read of the published COG",
+                url, f"bounds={WAPOR_BOUNDS}")
+
+
+if __name__ == "__main__":
+    fetch_osm()
+    fetch_wapor()
+    (RAW / "m1_downloads.json").write_text(json.dumps(log, indent=1), encoding="utf-8")
+    for e in log:
+        print(e["file"], e["sha256"][:12])

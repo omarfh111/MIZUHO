@@ -1,0 +1,6 @@
+plot_id,site_id,land_use,crop,surface_m2,period,eta_mm_day,precip_mm_day,ref_et_mm_day,irrigation_need_mm_day,demand_m3_raw,demand_m3,minimum_m3,deadline_slot,source_id,need_source_id
+P-01,TN-32-BALTABOUAWENE-ASSILA,farmland,,47851,2026-07-11/2026-07-20,1.25,0.0,8.7,1.25,59.814,60,,,osm-jendouba-farmland,wapor3-l2-aeti-2026-07-d2
+P-02,TN-32-BALTABOUAWENE-ASSILA,farmland,,85233,2026-07-11/2026-07-20,1.21,0.0,8.58,1.21,103.132,103,,,osm-jendouba-farmland,wapor3-l2-aeti-2026-07-d2
+P-03,TN-32-BALTABOUAWENE-ASSILA,farmland,,99796,2026-07-11/2026-07-20,3.26,0.0,8.7,3.26,325.335,325,,,osm-jendouba-farmland,wapor3-l2-aeti-2026-07-d2
+P-04,TN-32-BALTABOUAWENE-ASSILA,farmland,,96621,2026-07-11/2026-07-20,2.61,0.0,8.7,2.61,252.181,252,,,osm-jendouba-farmland,wapor3-l2-aeti-2026-07-d2
+P-05,TN-32-BALTABOUAWENE-ASSILA,farmland,,46389,2026-07-11/2026-07-20,3.09,0.0,8.7,3.09,143.342,143,,,osm-jendouba-farmland,wapor3-l2-aeti-2026-07-d2

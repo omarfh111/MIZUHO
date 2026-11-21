@@ -1,0 +1,42 @@
+[
+ {
+  "file": "data/raw/osm/jendouba_farmland.json",
+  "source": "OpenStreetMap via Overpass API (ODbL)",
+  "url": "https://overpass-api.de/api/interpreter",
+  "query": "[out:json][timeout:120];area(3601435834)->.j;way[\"landuse\"~\"farmland|orchard\"](area.j);out meta geom;",
+  "retrieved_at": "2026-11-21T15:35:23+00:00",
+  "sha256": "bd34d8d8b8d30877450a00a2ebea0e09793ff110411174a5e9c0ed7aefb63c2b"
+ },
+ {
+  "file": "data/raw/osm/is_in_cluster.json",
+  "source": "OpenStreetMap via Overpass API (ODbL)",
+  "url": "https://overpass-api.de/api/interpreter",
+  "query": "[out:json][timeout:60];is_in(36.617,8.981)->.a;area.a[\"boundary\"=\"administrative\"];out tags;",
+  "retrieved_at": "2026-11-21T15:35:53+00:00",
+  "sha256": "6c1adbdeddfb554cc38a3cca98180cd1713da72d4ec278a7886d88be629d898b"
+ },
+ {
+  "file": "data/raw/wapor/WAPOR-3.L2-AETI-D.2026-07-D2.tif",
+  "source": "FAO WaPOR v3 (CC BY 4.0), window read of the published COG",
+  "url": "https://storage.googleapis.com/fao-gismgr-wapor-3-data/DATA/WAPOR-3/MAPSET/L2-AETI-D/WAPOR-3.L2-AETI-D.2026-07-D2.tif",
+  "query": "bounds=(8.96, 36.6, 9.002, 36.634)",
+  "retrieved_at": "2026-11-21T15:35:55+00:00",
+  "sha256": "7503b66bd1c6f3a288665e1d32199aced793c3127d4d5672aa46fbab55e232f8"
+ },
+ {
+  "file": "data/raw/wapor/WAPOR-3.L1-PCP-D.2026-07-D2.tif",
+  "source": "FAO WaPOR v3 (CC BY 4.0), window read of the published COG",
+  "url": "https://storage.googleapis.com/fao-gismgr-wapor-3-data/DATA/WAPOR-3/MAPSET/L1-PCP-D/WAPOR-3.L1-PCP-D.2026-07-D2.tif",
+  "query": "bounds=(8.96, 36.6, 9.002, 36.634)",
+  "retrieved_at": "2026-11-21T15:35:56+00:00",
+  "sha256": "b3ab843ec7b8c42af8cdea1692aa2ff481b209efc7743d005dafd02fda4c0943"
+ },
+ {
+  "file": "data/raw/wapor/WAPOR-3.L1-RET-D.2026-07-D2.tif",
+  "source": "FAO WaPOR v3 (CC BY 4.0), window read of the published COG",
+  "url": "https://storage.googleapis.com/fao-gismgr-wapor-3-data/DATA/WAPOR-3/MAPSET/L1-RET-D/WAPOR-3.L1-RET-D.2026-07-D2.tif",
+  "query": "bounds=(8.96, 36.6, 9.002, 36.634)",
+  "retrieved_at": "2026-11-21T15:35:56+00:00",
+  "sha256": "780fc3e69671941fd54729670dfa56befdbc6f986e9b2adfdb0db4ba963bf8a1"
+ }
+]
