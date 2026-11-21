@@ -1,96 +1,286 @@
-# Mizhuo · M6 API and M7 interface
+<div align="center">
 
-Irrigation mapping and scheduling for the Jendouba pilot site.
+<picture>
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/readme-hero-still.svg">
+  <img src="docs/readme-hero.svg" alt="MIZUHO. An isometric map of Tunisia showing the Jendouba pilot, the Medjerda river, reservoirs, and renewable energy for irrigation." width="100%">
+</picture>
 
-## Getting started
+<h1>MIZUHO</h1>
 
-Use Python 3.12 and Node.js 22.12 or later. From the repository root, start the API.
+<p><em>Renewable-powered water intelligence for Tunisian agriculture.<br>Map the Jendouba pilot, compare irrigation schedules during a power outage, and ask an evidence assistant why.</em></p>
+
+[![M6 API and planning](https://img.shields.io/badge/M6-API_%26_CP--SAT_planning-62e3f0?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
+[![M7 3D dashboard](https://img.shields.io/badge/M7-3D_dashboard-c9ef86?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
+[![M8 Evidence assistant](https://img.shields.io/badge/M8-Evidence_assistant-f7ce76?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
+[![Jendouba pilot](https://img.shields.io/badge/%F0%9F%93%8D_Pilot-Jendouba%2C_Tunisia-eef6ef?style=for-the-badge&labelColor=0b1f1c)](#reproduce-the-pilot)
+
+[![CI on feat/m7-carte-simulation](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml/badge.svg?branch=feat%2Fm7-carte-simulation)](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml?query=branch%3Afeat%2Fm7-carte-simulation)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat&logo=fastapi&logoColor=white)
+![OR-Tools](https://img.shields.io/badge/OR--Tools-CP--SAT-4285F4?style=flat&logo=google&logoColor=white)
+![LangGraph](https://img.shields.io/badge/LangGraph-1.0-1C3C3C?style=flat&logo=langchain&logoColor=white)
+![Qdrant](https://img.shields.io/badge/Qdrant-dense_index-DC244C?style=flat)
+![React](https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react&logoColor=black)
+![Three.js](https://img.shields.io/badge/Three.js-r187-000000?style=flat&logo=threedotjs&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-7-646CFF?style=flat&logo=vite&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat&logo=typescript&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-22.12%2B-5FA04E?style=flat&logo=nodedotjs&logoColor=white)
+
+[How it works](#how-it-works) · [Run MIZUHO](#run-mizuho) · [Reproduce the pilot](#reproduce-the-pilot) · [API reference](#api-reference) · [Checks](#checks)
+
+</div>
+
+---
+
+| Module | What you can reproduce |
+| --- | --- |
+| **M6 · API and irrigation planning** | Load the site and scenarios, compare solar options, and run the M4 simulator and M5 CP-SAT optimizer through FastAPI. |
+| **M7 · 3D dashboard** | Inspect plots, solar potential and water anomalies. Compare schedules, approve a simulated plan, and replay the [cinematic introduction](frontend/src/experience/README.md). |
+| **M8 · Evidence assistant** | Search the reviewed corpus with Qdrant dense retrieval and BM25, trace citations to their sources, and ask follow-up questions about the current simulation. |
+
+## How it works
+
+One browser app talks to one FastAPI service. M6 plans irrigation, M8 explains it with cited evidence, and M7 shows both on a 3D map of the pilot.
+
+```mermaid
+flowchart TD
+  accTitle: MIZUHO application architecture
+  accDescr: The dashboard sends requests to FastAPI for M6 irrigation planning and M8 evidence-backed answers.
+  subgraph M7["M7 · Browser"]
+    intro["Cinematic intro"] --> dash["3D dashboard<br/>site map · simulation · Ask Mizhuo"]
+  end
+
+  subgraph M6["M6 · FastAPI"]
+    api["/api routes"] --> compare["Compare schedules"]
+    compare --> baseline["Fixed baseline"]
+    compare --> cpsat["M5 · CP-SAT optimizer"]
+    cpsat --> sim["M4 · Simulator replay"]
+    api --> solar["Solar options"]
+    data[("Site layers · scenarios<br/>solar profiles · fixtures")]
+  end
+
+  subgraph M8["M8 · Evidence assistant"]
+    agent["LangGraph agent"] --> tools["Tools"]
+    tools --> search["Hybrid search<br/>dense + local BM25"]
+  end
+
+  dash -->|"/api"| api
+  api -->|"/api/assistant/chat"| agent
+  tools -->|"verified plan facts"| compare
+  compare -.-> data
+  solar -.-> data
+  agent <--> llm["OpenAI<br/>gpt-6-luna"]
+  search <--> qdrant[("Qdrant Cloud")]
+```
+
+<sub>Vite proxies <code>/api</code> to FastAPI on port 8000 in development. In production, serve both from one origin. Site layers, scenarios and solar profiles are simulated.</sub>
+
+### Planning through an outage (M6)
+
+The fixed schedule and the optimized plan are computed from the same scenario, then both are replayed through the simulator so the dashboard compares like with like.
+
+```mermaid
+sequenceDiagram
+  accTitle: Comparing irrigation schedules during an outage
+  accDescr: FastAPI evaluates the fixed schedule first, then verifies an optimized plan when the solver finds one.
+  autonumber
+  actor You
+  participant D as Dashboard
+  participant A as FastAPI
+  participant B as Fixed baseline
+  participant O as CP-SAT optimizer
+  participant S as Simulator
+
+  You->>D: Calculate schedules
+  D->>A: POST /api/compare
+  A->>B: Build the fixed schedule
+  B-->>A: Fixed schedule
+  A->>S: Replay the fixed schedule
+  S-->>A: Baseline delivery per plot
+  A->>O: Optimize, fairness first, time-limited
+  alt Feasible plan found
+    O-->>A: Proposed schedule
+    A->>S: Replay the proposed schedule
+    S-->>A: Proposed delivery per plot
+  else No verified plan
+    O-->>A: NO_SOLUTION
+  end
+  A-->>D: Baseline and proposed results
+  D-->>You: Minimum coverage 0% → 50%
+  You->>D: Approve the simulated plan
+```
+
+<sub>In the A/B demo the fixed schedule delivers 10 m³ to A and 0 m³ to B during the outage. The proposed schedule delivers 5 m³ to each. When the solver returns no solution, the fixed schedule stays available.</sub>
+
+### Answering with evidence (M8)
+
+The assistant is a two-node LangGraph loop. It thinks, calls tools until it has what it needs, then answers with citations it can trace back to a source.
+
+```mermaid
+flowchart TD
+  accTitle: M8 evidence assistant tool loop
+  accDescr: LangGraph decides whether to call evidence or planning tools and returns grounded answers with verified citations.
+  q(["Your question"]) --> think["Think<br/>gpt-6-luna"]
+  think -->|"needs facts"| tools{{"Tools"}}
+  tools --> t1["search_evidence<br/>cited official excerpts"]
+  tools --> t2["get_site_data<br/>layers and solar options"]
+  tools --> t3["get_simulation_results<br/>run M6 plans"]
+  tools --> t4["explain_decision<br/>allocation and binding limits"]
+  t1 --> think
+  t2 --> think
+  t3 --> think
+  t4 --> think
+  think -->|"enough to answer"| a(["Grounded answer<br/>with citations"])
+  a -.-> mem[("Verified facts and citations<br/>up to 6 answers · 1 h idle expiry")]
+  mem -.-> think
+```
+
+### From sources to citations
+
+Every citation resolves to a verified excerpt of a registered source. Stable IDs and content hashes let re-ingestion reuse unchanged embeddings.
+
+```mermaid
+flowchart TD
+  accTitle: Evidence ingestion and hybrid retrieval
+  accDescr: Verified excerpts and source metadata supply the Qdrant dense index and local BM25. Search fuses both rankings and checks provenance before citing passages.
+  reg["data/sources.json<br/>source registry"] --> corpus["Verified local corpus"]
+  ex["docs/evidence/<br/>verified excerpts"] --> corpus
+  man["data/m8_corpus.json<br/>corpus manifest"] --> corpus
+  corpus --> ingest["python -m backend.evidence"]
+  ingest -->|"text-embedding-3-small<br/>1,536 dimensions"| qd[("Qdrant collection<br/>7 indexed passages")]
+  qd --> dense["Dense search"]
+  corpus --> bm25["Local BM25"]
+  query["Evidence question"] --> dense
+  query --> bm25
+  dense --> fuse["Check passage provenance<br/>and fuse ranks"]
+  bm25 --> fuse
+  fuse --> cite["Citations in answers"]
+```
+
+<sub>The <a href="docs/m8-retrieval-benchmark.md">retrieval benchmark</a> compares dense and hybrid search on 36 English, French and Arabic questions.</sub>
+
+## Run MIZUHO
+
+Use Git, Python **3.12**, Node.js **22.12 or later**, an OpenAI project key with access to `gpt-6-luna` and `text-embedding-3-small`, and a Qdrant Cloud cluster with an API key that can read and write the evidence collection.
+
+### 1. Clone and install
+
+Run these commands from PowerShell. On macOS or Linux, use `.venv/bin/python` wherever the commands show `.\.venv\Scripts\python.exe`.
 
 ```powershell
+git clone --branch feat/m7-carte-simulation https://github.com/omarfh111/MIZUHO.git
+cd MIZUHO
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
-.\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+npm --prefix frontend ci
+Copy-Item .env.example .env
 ```
 
-In a second terminal, start the frontend.
+### 2. Configure credentials and index evidence
 
-```powershell
-cd frontend
-npm ci
-npm run dev
+Open the root `.env` and fill in these three fields. The root file is loaded by the backend and ignored by Git.
+
+| Field | Required value |
+| --- | --- |
+| `OPENAI_API_KEY` | The OpenAI project key. |
+| `QDRANT_URL` | The HTTPS REST endpoint of your Qdrant Cloud cluster, for example `https://<cluster>.cloud.qdrant.io:6333`. Use the cluster URL without a dashboard or collection path. |
+| `QDRANT_API_KEY` | The Qdrant API key for the evidence collection. |
+
+Keep the template's model settings, including the **1,536** embedding dimensions. Open the cluster's Web UI, enter your Qdrant key when prompted, and select **Console**. Run the request below if the collection does not exist. It uses one unnamed dense vector and cosine distance. If you choose a different name, update `QDRANT_COLLECTION` to match. [Qdrant Web UI guide](https://qdrant.tech/documentation/web-ui/)
+
+```http
+PUT /collections/mizhuo_m8_evidence_v1
+{
+  "vectors": { "size": 1536, "distance": "Cosine" }
+}
 ```
 
-Open the [connected interface](http://localhost:5173/) or the [offline demo](http://localhost:5173/?mode=demo). The bundled site, plots, solar profiles and scenarios are simulated. Connected mode sends calculations to the Python engine and labels the sample data as simulated. If WebGL is unavailable, use the area selector to inspect site layers.
-
-## Demo walkthrough
-
-1. Select a plot and open its data source. Turn on **Water anomalies** and select the distribution meter to see the simulated 13 m³ discrepancy.
-2. Open **Compare solar options**, review the two 10 kWp profiles and use one in the simulation. Entering a tariff is optional. Calculations that need additional inputs display a dash.
-3. Select **A/B demo** and calculate schedules. The fixed schedule supplies 10 m³ to A. The proposed plan supplies 5 m³ to each plot during the outage, bringing minimum coverage from 0% to 50%.
-4. Approve the proposed plan and change the water stock. The previous result remains visible and requires recalculation before approval. In **Successive outages**, select H12 to inspect the grid restart.
-5. Run **Day-ahead weather reserve**. The proposed plan pumps 2 m³ before 11:00 and increases on-time delivery from 6 to 8 m³. With a quota of 5 m³, the remaining shortfall is 2 m³. **Day-ahead reserve · Stable profile** requires 0 m³ of early pumping.
-
-## API
-
-[OpenAPI documentation](http://127.0.0.1:8000/docs) is available while the API runs.
-
-| Method | Route | Result |
-| --- | --- | --- |
-| GET | `/api/health` | `{"status":"ok"}` after catalog validation |
-| GET | `/api/scenarios` | Six scenarios and their initial states |
-| GET | `/api/sites` | WGS84 GeoJSON sites |
-| GET | `/api/layers/{site_id}/{layer_id}` | Plot, solar, wind or anomaly layer |
-| POST | `/api/solar/compare` | Option assumptions, profiles, grid savings and calculable financial metrics |
-| POST | `/api/compare` | Replayed fixed schedule, verified CP-SAT plan and optional weather comparison |
-| GET | `/api/evidence/{source_id}` | Source metadata or 404 |
-
-The [versioned A/B example](data/fixtures/compare.json) includes the request and a recorded response. The response reports deliveries including observed history. Withdrawals and energy cover the remaining simulation horizon.
-
-The solver optimizes fairness, weighted shortfall, useful service, grid peak, grid energy and withdrawals in order. It then replays every returned plan through the simulator. An interrupted solve can return a verified `FEASIBLE` plan, and `NO_SOLUTION` leaves the fixed schedule available. Request errors return HTTP 422 with the field path in `detail[].loc`.
-
-At startup the frontend requests `GET /api/sites` and `GET /api/scenarios`. Vite proxies `/api` to `http://127.0.0.1:8000` in development. Set `MIZU_API_TARGET` in `frontend/.env.local` to change the target. In production, serve `frontend/dist` and route `/api` to M6 on the same origin.
-
-Copy the root `.env.example` to `.env` to override the allowed CORS origins or the solver time budget. The optional `restart_grid_cap_w` limits grid power in the first hour of each restart. In nominal mode, selecting a solar option supplies its hourly profile. Weather mode uses the scenario's registered `weather_pair_id` for both profiles and reports total and additional early pumping separately.
-
-If M6 is unavailable at startup, the frontend opens the local demo with a **Simulated data** badge. Set `VITE_DATA_MODE=live` to require a backend connection. The offline demo uses its existing heuristic. Connected mode uses the M4 simulator and M5 CP-SAT solver from [the irrigation-planning commit](https://github.com/omarfh111/MIZUHO/commit/c4d59e6).
-
-The bundled Jendouba site opts into M7's simulated relief in both modes. Other sites render their API geometry on the interactive 3D grid. The [data manifest](data/manifest.json) records provenance and missing inputs. The solar comparison uses synthetic hourly generation and a simulated service profile. Annual generation, annual cost savings and payback depend on field data such as PVGIS profiles, actual load and costs. The planning engine supports one plot per grower, as in the pilot.
-
-## M8 evidence assistant
-
-Use **Ask Mizhuo** from the connected interface. The assistant can search verified excerpts, inspect the current site and solar options, run a quota what-if, and explain allocations using M6. It reads the current valid comparison when available and never changes or approves a plan. Calculated values are rendered from M6 facts. Click an evidence card for its excerpt, scope, and source link.
-
-Follow-up questions use the latest six grounded answers in the open app session. The LangGraph store keeps public citation references, verified simulated facts, and the scenario last discussed. Raw messages, generated prose, credentials, and measured values stay out of server memory. Changing simulation inputs invalidates remembered figures while keeping public citations available. Earlier figures in the transcript are labeled historical. The transcript survives closing the panel, and a page reload starts a new session. Server memory expires after an hour of inactivity and clears when the API process restarts.
-
-The server reads OpenAI and Qdrant credentials from the ignored root `.env`. The assistant uses `gpt-6-luna` and `text-embedding-3-small` with 1,536 dimensions. Set `QDRANT_COLLECTION` to select a collection. The default is `mizhuo_m8_evidence_v1` and it requires an unnamed cosine vector. M6 and the offline M7 demo remain available without assistant credentials.
-
-To build or check the index from the repository root, run:
+From the repository root, ingest the reviewed excerpts and check that the index reports `"status": "available"` with **7 of 7** passages indexed.
 
 ```powershell
 .\.venv\Scripts\python.exe -m backend.evidence
 .\.venv\Scripts\python.exe -m backend.evidence --check
 ```
 
-The [corpus manifest](data/m8_corpus.json) links the [source registry](data/sources.json) to short verified quotations in [the evidence directory](docs/evidence). Ingestion reads the reviewed local files and makes no requests to publishers. Stable IDs and content hashes avoid re-embedding unchanged excerpts. Retrieval restricts results to current corpus IDs and resolves citation text and links from the local registry.
+### 3. Start the backend and frontend
 
-| Method | Route | Result |
-| --- | --- | --- |
-| POST | `/api/assistant/chat` | Grounded explanation, verified facts, citations, and missing information |
-| GET | `/api/assistant/health` | Configuration and active index readiness |
-| GET | `/api/assistant/index` | Indexed counts and registered evidence gaps |
-| POST | `/api/evidence/search` | Passage retrieval from the verified index |
-| GET | `/api/evidence/{source_id}/passages` | Local verified excerpts for a source |
-
-The index has regional publications and sample site context. It does not contain field records for the pilot borehole or measured PV yield. The API returns the available evidence and identifies those gaps.
-
-## Local checks
+In one terminal at the repository root, start FastAPI.
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest
-cd frontend
-npm test
-.\node_modules\.bin\tsc.cmd --noEmit
-npm run build
+.\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 ```
 
-With Chrome, the frontend, and the configured backend running, run `npm run test:browser` from `frontend/` for the cinematic and assistant walkthroughs. The assistant walkthrough sends three questions to the configured OpenAI model. Set `MIZHUO_TEST_URL` if the frontend is served somewhere other than `http://127.0.0.1:5173/`. Use `?intro=0` to go directly to the dashboard or Replay intro to watch the film again.
+Create `frontend/.env.local` with this setting so Vite requires the backend connection. Keep the provider keys in the root `.env`.
+
+```dotenv
+VITE_DATA_MODE=live
+```
+
+In a second terminal at the repository root, start Vite.
+
+```powershell
+npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173 --strictPort
+```
+
+Open the dashboard and confirm it shows **API · simulated site**. The API health route should report `ok`, and the assistant health route should report `available` with seven indexed passages. To verify OpenAI access as well, ask Mizhuo what ANME says about photovoltaic potential in northwest Tunisia and open the cited excerpt. [Dashboard](http://127.0.0.1:5173/) · [API health](http://127.0.0.1:8000/api/health) · [Assistant health](http://127.0.0.1:8000/api/assistant/health)
+
+Vite proxies `/api` to port 8000. For production, serve `frontend/dist` and route `/api` to FastAPI on the same origin.
+
+## Reproduce the pilot
+
+1. On the **Site map**, enable **Water anomalies** and select the distribution meter to see the simulated **13 m³** discrepancy. Open **Compare solar options** to inspect the two 10 kWp profiles and their assumptions.
+2. In **Simulation**, select **A/B demo** and **Calculate schedules**. During the outage, the fixed schedule delivers **10 m³** to A and **0 m³** to B. The proposed schedule delivers **5 m³** to each plot, raising minimum coverage from **0%** to **50%**. Approve the proposed simulated plan.
+3. With the A/B result current, open **Ask Mizhuo** and ask *Why did grower A receive only 5 m³ in the A/B demo?* The assistant can use M6's current comparison. Ask *What does ANME say about photovoltaic potential in northwest Tunisia?*, open the citation, then ask *Which official source did you just cite?* to check the session follow-up.
+4. Change the water stock to see the result marked stale until recalculated. Select **Day-ahead weather reserve** to see the proposed plan pump **2 m³** before **11:00**, raising on-time delivery from **6 m³** to **8 m³**. With a quota of **5 m³**, the remaining shortfall is **2 m³**. **Day-ahead reserve · Stable profile** requires **0 m³** of early pumping.
+
+### Replay the M6 API fixture
+
+From the repository root with FastAPI running, send the request from the [versioned A/B fixture](data/fixtures/compare.json).
+
+```powershell
+$fixture = Get-Content data/fixtures/compare.json -Raw | ConvertFrom-Json
+$plan = Invoke-RestMethod http://127.0.0.1:8000/api/compare -Method Post -ContentType application/json -Body ($fixture.request | ConvertTo-Json -Depth 10)
+$plan.optimized.plot_results | Select-Object plot_id, delivered_on_time_m3, coverage_bp
+```
+
+Expected results are **5 m³** delivered on time and **5,000** coverage basis points for each plot. The backend optimizes fairness before other objectives and replays the returned plan through the simulator. A time-limited solve can return a verified `FEASIBLE` plan. When it returns `NO_SOLUTION`, the fixed schedule remains available.
+
+### Reproduce the M8 retrieval benchmark
+
+```powershell
+.\.venv\Scripts\python.exe -m backend.retrieval_benchmark
+```
+
+The [benchmark](docs/m8-retrieval-benchmark.md) compares dense and hybrid retrieval for **36 English, French and Arabic questions** against the same seven passages. It uses live OpenAI embeddings and Qdrant queries. The [corpus manifest](data/m8_corpus.json) links the [source registry](data/sources.json) to [verified excerpts](docs/evidence/). Stable IDs and content hashes let repeated ingestion reuse unchanged embeddings.
+
+The assistant keeps up to six grounded answers per app session. It retains public citations and verified simulated results, clears stale facts when inputs change, and resets memory after one hour of inactivity or an API restart. Reloading the page starts a new session. The [data manifest](data/manifest.json) records provenance. Jendouba's site layers, irrigation scenarios, and solar profiles are simulated. The evidence includes regional publications. Borehole measurements, site-specific PVGIS output, and annual cost inputs remain unavailable.
+
+## API reference
+
+The running backend serves [OpenAPI documentation](http://127.0.0.1:8000/docs).
+
+| Purpose | Routes |
+| --- | --- |
+| Health and geography | `GET /api/health`, `GET /api/scenarios`, `GET /api/sites`, `GET /api/layers/{site_id}/{layer_id}` |
+| Irrigation and solar | `POST /api/compare`, `POST /api/solar/compare` |
+| Sources and retrieval | `GET /api/evidence/{source_id}`, `GET /api/evidence/{source_id}/passages`, `POST /api/evidence/search` |
+| Evidence assistant | `POST /api/assistant/chat`, `GET /api/assistant/health`, `GET /api/assistant/index` |
+
+## Checks
+
+Run these from the repository root.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -ra
+Push-Location frontend
+npm test
+npm exec -- tsc --noEmit
+npm run build
+Pop-Location
+```
+
+With Chrome installed and both servers running, use `npm --prefix frontend run test:browser` to exercise the cinematic handoff, M6 schedule approval, and the M8 citation follow-up. The test sends three chat questions to the live assistant. Set `MIZHUO_TEST_URL` when testing a frontend served at a different URL.
+
+GitHub Actions runs the backend and frontend checks alongside CodeQL and Gitleaks. The dependency review job compares OSV advisories when a pull request changes dependency manifests. [CI workflow](.github/workflows/ci.yml) · [Security workflow](.github/workflows/security.yml)
+
+Regenerate the animated and static banners from the repository root with `python docs/tools/readme_hero.py`. [Banner source](docs/tools/readme_hero.py)
