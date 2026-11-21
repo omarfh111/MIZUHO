@@ -19,7 +19,7 @@
    ],
    "crs": "EPSG:4326 (lon, lat)",
    "status": "observed",
-   "limits": "Selected polygons were last edited in 2012; no crop tag; owners unknown."
+   "limits": "Selected polygons last edited 2025-06-21; no crop tag; owners unknown."
   },
   {
    "source_id": "osm-jendouba-admin",
@@ -101,6 +101,55 @@
     "data/agriculture/mini_plots.json"
    ],
    "status": "specification test case"
+  },
+  {
+   "source_id": "nasa-power-daily",
+   "title": "NASA POWER daily T2M, T2M_MAX, PRECTOTCORR at the cluster point",
+   "organisation": "NASA Langley Research Center (POWER project)",
+   "license": "public, no restriction (NASA open data)",
+   "url": "https://power.larc.nasa.gov/api/temporal/daily/point",
+   "query": "parameters=T2M,T2M_MAX,PRECTOTCORR&community=AG&latitude=36.617&longitude=8.981&start=20180101&end=20261031&format=JSON",
+   "retrieved_at": "2026-11-21T16:02:56+00:00",
+   "sha256": "c0439f5debc605ed716449dd67f0a75413d5de1014ca9e3e97c95026a7fed481",
+   "raw_file": "data/raw/power/power_daily_2018-2026.json",
+   "resolution": "0.5 x 0.625 degrees (MERRA-2)",
+   "unit": "°C, mm/day",
+   "status": "reanalysis",
+   "outputs": [
+    "data/agriculture/temperature_effect.json"
+   ]
+  },
+  {
+   "source_id": "wapor3-l2-aeti-series",
+   "title": "FAO WaPOR v3 L2-AETI-D, all dekads 2018-01-D1..2026-10-D3",
+   "organisation": "FAO",
+   "license": "CC BY 4.0",
+   "url": "https://storage.googleapis.com/fao-gismgr-wapor-3-data/DATA/WAPOR-3/MAPSET/L2-AETI-D/WAPOR-3.L2-AETI-D.{dekad}.tif",
+   "window": "bounds=(8.96, 36.6, 9.002, 36.634); dekads 2018-01-D1..2026-10-D3 (318)",
+   "retrieved_at": "2026-11-21T16:14:01+00:00",
+   "sha256": "764acb9db2b7d54dda3d50de179c4d0313d9cd2674d25665631accbcbdd70648",
+   "raw_file": "data/raw/wapor_series/WAPOR-3.L2-AETI-D.2018-01-D1_2026-10-D3.tif",
+   "unit": "mm/day",
+   "status": "observed (satellite estimate)",
+   "outputs": [
+    "data/agriculture/temperature_effect.json"
+   ]
+  },
+  {
+   "source_id": "wapor3-l1-ret-series",
+   "title": "FAO WaPOR v3 L1-RET-D, all dekads 2018-01-D1..2026-10-D3",
+   "organisation": "FAO",
+   "license": "CC BY 4.0",
+   "url": "https://storage.googleapis.com/fao-gismgr-wapor-3-data/DATA/WAPOR-3/MAPSET/L1-RET-D/WAPOR-3.L1-RET-D.{dekad}.tif",
+   "window": "bounds=(8.96, 36.6, 9.002, 36.634); dekads 2018-01-D1..2026-10-D3 (318)",
+   "retrieved_at": "2026-11-21T16:17:14+00:00",
+   "sha256": "dc7613952bfaafb9e53d4ac198beac2ce209086545c7c30b69fab2580a3a0c1f",
+   "raw_file": "data/raw/wapor_series/WAPOR-3.L1-RET-D.2018-01-D1_2026-10-D3.tif",
+   "unit": "mm/day",
+   "status": "observed (satellite estimate)",
+   "outputs": [
+    "data/agriculture/temperature_effect.json"
+   ]
   }
  ]
 }

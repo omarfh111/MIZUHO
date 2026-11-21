@@ -38,5 +38,29 @@
   "query": "bounds=(8.96, 36.6, 9.002, 36.634)",
   "retrieved_at": "2026-11-21T15:35:56+00:00",
   "sha256": "780fc3e69671941fd54729670dfa56befdbc6f986e9b2adfdb0db4ba963bf8a1"
+ },
+ {
+  "file": "data/raw/power/power_daily_2018-2026.json",
+  "source": "NASA POWER daily point data (MERRA-2), public domain",
+  "url": "https://power.larc.nasa.gov/api/temporal/daily/point",
+  "query": "parameters=T2M,T2M_MAX,PRECTOTCORR&community=AG&latitude=36.617&longitude=8.981&start=20180101&end=20261031&format=JSON",
+  "retrieved_at": "2026-11-21T16:02:56+00:00",
+  "sha256": "c0439f5debc605ed716449dd67f0a75413d5de1014ca9e3e97c95026a7fed481"
+ },
+ {
+  "file": "data/raw/wapor_series/WAPOR-3.L2-AETI-D.2018-01-D1_2026-10-D3.tif",
+  "source": "FAO WaPOR v3 L2-AETI-D (CC BY 4.0), one band per dekad, window reads",
+  "url": "https://storage.googleapis.com/fao-gismgr-wapor-3-data/DATA/WAPOR-3/MAPSET/L2-AETI-D/WAPOR-3.L2-AETI-D.{dekad}.tif",
+  "query": "bounds=(8.96, 36.6, 9.002, 36.634); dekads 2018-01-D1..2026-10-D3 (318)",
+  "retrieved_at": "2026-11-21T16:14:01+00:00",
+  "sha256": "764acb9db2b7d54dda3d50de179c4d0313d9cd2674d25665631accbcbdd70648"
+ },
+ {
+  "file": "data/raw/wapor_series/WAPOR-3.L1-RET-D.2018-01-D1_2026-10-D3.tif",
+  "source": "FAO WaPOR v3 L1-RET-D (CC BY 4.0), one band per dekad, window reads",
+  "url": "https://storage.googleapis.com/fao-gismgr-wapor-3-data/DATA/WAPOR-3/MAPSET/L1-RET-D/WAPOR-3.L1-RET-D.{dekad}.tif",
+  "query": "bounds=(8.96, 36.6, 9.002, 36.634); dekads 2018-01-D1..2026-10-D3 (318)",
+  "retrieved_at": "2026-11-21T16:17:14+00:00",
+  "sha256": "dc7613952bfaafb9e53d4ac198beac2ce209086545c7c30b69fab2580a3a0c1f"
  }
 ]

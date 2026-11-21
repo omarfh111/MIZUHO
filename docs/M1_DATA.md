@@ -55,6 +55,26 @@ Site `TN-32-BALTABOUAWENE-ASSILA`: imada Assila, Délégation Balta Bouawene, Go
 | P-04 | 96 621 | 2.61 | 0 | 8.70 | 252 |
 | P-05 | 46 389 | 3.09 | 0 | 8.70 | 143 |
 
+## Does temperature change the water used?
+
+`data/agriculture/temperature_effect.json`, built by `scripts/m1_build_data.py` with `backend/temperature_effect.py`. Raw series: `python scripts/m1_fetch_sources.py series`.
+
+- **Water used:** WaPOR v3 L2 AETI for each parcel, every dekad from 2018-01-D1 to 2026-10-D3 (318 dekads, area-weighted).
+- **Temperature and rain:** NASA POWER daily `T2M_MAX` and `PRECTOTCORR` at 36.617 N, 8.981 E (MERRA-2 reanalysis), averaged per dekad. Open-Meteo was tried first but refused requests (daily limit).
+- **Tests (α = 0.05):** linear regression of AETI on Tmax over the whole year; the same at equal rainfall (multiple regression with rain); and over June–September only. Climatic demand: WaPOR reference ET against Tmax.
+
+| plot | whole year, equal rain | dry season (Jun–Sep) |
+|---|---|---|
+| P-01 | no effect (p = 0.77) | no effect (p = 0.96) |
+| P-02 | ↑ +0.016 mm/day per °C, +1.4 m³/day (p = 0.022) | no effect (p = 0.70) |
+| P-03 | ↑ +0.027 mm/day per °C, +2.7 m³/day (p = 0.0002) | no effect (p = 0.73) |
+| P-04 | ↑ +0.021 mm/day per °C, +2.1 m³/day (p = 0.002) | no effect (p = 0.84) |
+| P-05 | ↑ +0.026 mm/day per °C, +1.2 m³/day (p = 0.0004) | no effect (p = 0.96) |
+
+Reference ET rises by +0.24 mm/day per °C (r = 0.93), about 9 times the largest rise in water actually used. Reading: heat raises the demand strongly, but in summer the parcels do not get more water when it is hotter, so water supply, not temperature, limits their use.
+
+Limits: an association, not a proof of cause; consecutive dekads are autocorrelated, so p-values are optimistic; the temperature grid is about 50 km wide; the OSM parcels were drawn in 2025 and land use may have differed in earlier years.
+
 ## Fields left `null` (no public source)
 
 | Field | Why | Who can provide it |

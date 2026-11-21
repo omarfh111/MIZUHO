@@ -134,6 +134,28 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .ic { flex: none; font-weight: 800; }
 .ic.ok { color: var(--ok); } .ic.bad { color: var(--bad); }
 
+/* temperature */
+.answer { display: flex; gap: 14px; align-items: flex-start; padding: 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); margin-top: 12px; }
+.answer .big { font-size: 24px; }
+.answer p { margin: 6px 0 0; font-size: 14px; }
+.vd { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.vd.increase { background: var(--bad-bg); color: var(--bad); }
+.vd.decrease { background: var(--accent-soft); color: var(--accent); }
+.vd.no_significant_effect, .vd.insufficient_data { background: var(--idle-bg); color: var(--idle); }
+.sub { display: block; font-size: 11px; color: var(--muted); margin-top: 3px; font-variant-numeric: tabular-nums; line-height: 1.4; }
+tr.sel td { background: color-mix(in srgb, var(--plot) 9%, transparent); }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: color-mix(in srgb, var(--plot) 5%, transparent); }
+.chart { margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); padding: 10px 12px; }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart .axis { stroke: var(--line); }
+.chart text { fill: var(--muted); font-size: 11px; }
+.chart .pt { fill: var(--idle); opacity: .45; }
+.chart .pt.dry { fill: var(--plot); opacity: .85; }
+.chart .fit { stroke: var(--plot); stroke-width: 2.5; }
+.chart .fit.all { stroke: var(--idle); stroke-dasharray: 5 4; stroke-width: 2; }
+.limits { margin: 12px 0 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
+
 @media (max-width: 960px) {
   .wrap { grid-template-columns: minmax(0, 1fr); }
   nav { position: static; display: flex; overflow-x: auto; gap: 4px; padding-bottom: 4px; scrollbar-width: none; }
@@ -161,7 +183,7 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
     </div>
     <div class="progress">
       <div class="bar" aria-hidden="true"><i class="g" id="pg"></i><i class="y" id="py"></i><i class="r" id="pr"></i></div>
-      <span class="ptext" id="ptext">0 / 7 étapes</span>
+      <span class="ptext" id="ptext">0 / 8 étapes</span>
       <button id="runall" onclick="runAll()">▶ Tout lancer</button>
     </div>
   </div>
@@ -175,7 +197,8 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
     <a href="#s4"><span class="dot" id="d4"></span>4 · mm → m³</a>
     <a href="#s5"><span class="dot" id="d5"></span>5 · Couverture</a>
     <a href="#s6"><span class="dot" id="d6"></span>6 · Rejets</a>
-    <a href="#s7"><span class="dot" id="d7"></span>7 · pytest</a>
+    <a href="#s7"><span class="dot" id="d7"></span>7 · Température</a>
+    <a href="#s8"><span class="dot" id="d8"></span>8 · pytest</a>
     <p class="note"><b>Données observées</b>, pas une prévision : FAO WaPOR v3, du 11 au 20 juillet 2026. La prévision à 24 h relève de M3.</p>
   </nav>
 
@@ -260,10 +283,18 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
     <section class="card" id="s7">
       <div class="card-h"><div class="n">7</div>
-        <div class="t"><h2>Suite pytest</h2><p>Lance <code>tests/test_agriculture.py</code> sur le serveur.</p></div>
+        <div class="t"><h2>La température change-t-elle l'eau utilisée ?</h2><p>Évapotranspiration réelle WaPOR de chaque parcelle comparée à la température maximale NASA POWER, par période de 10 jours, de 2018 à 2026.</p></div>
         <span class="chip c-idle" id="st7">Non lancé</span></div>
-      <div class="actions"><button onclick="step7()">Lancer les tests</button></div>
+      <div class="actions"><button onclick="step7()">Analyser</button></div>
       <div id="o7"></div>
+    </section>
+
+    <section class="card" id="s8">
+      <div class="card-h"><div class="n">8</div>
+        <div class="t"><h2>Suite pytest</h2><p>Lance <code>tests/test_agriculture.py</code> et <code>tests/test_temperature_effect.py</code> sur le serveur.</p></div>
+        <span class="chip c-idle" id="st8">Non lancé</span></div>
+      <div class="actions"><button onclick="step8()">Lancer les tests</button></div>
+      <div id="o8"></div>
     </section>
   </main>
 </div>
@@ -283,9 +314,10 @@ function status(n, kind, text) {
 }
 function progress() {
   const v = Object.values(state), c = k => v.filter(x => x === k).length;
-  $("pg").style.width = c("ok") / 7 * 100 + "%"; $("py").style.width = c("warn") / 7 * 100 + "%"; $("pr").style.width = c("bad") / 7 * 100 + "%";
+  const N = 8;
+  $("pg").style.width = c("ok") / N * 100 + "%"; $("py").style.width = c("warn") / N * 100 + "%"; $("pr").style.width = c("bad") / N * 100 + "%";
   const done = c("ok") + c("warn") + c("bad");
-  $("ptext").textContent = `${done} / 7 étapes` + (c("bad") ? ` · ${c("bad")} en échec` : done === 7 ? " · terminé" : "");
+  $("ptext").textContent = `${done} / ${N} étapes` + (c("bad") ? ` · ${c("bad")} en échec` : done === N ? " · terminé" : "");
 }
 async function get(u) { const r = await fetch(u); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); return j; }
 async function post(u, b) { const r = await fetch(u, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(b)}); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); return j; }
@@ -354,6 +386,7 @@ function selectPlot(id, pan) {
     <dt>Besoin</dt><dd><b>${fmt(p.demand_m3)} m³/j</b></dd><dt>Culture</dt><dd>${p.crop ?? MISSING}</dd><dt>Minimum</dt><dd>${p.minimum_m3 ?? MISSING}</dd></dl>`;
   $("mm").value = p.irrigation_need_mm_day; $("m2").value = p.surface_m2;
   fromPlot = p; step4();
+  if (TEMP) { tsel = id; renderTemp(); }
 }
 function toggleWapor() { if (!map || !waporLayer) return; $("wap").checked ? waporLayer.addTo(map) : map.removeLayer(waporLayer); }
 
@@ -446,14 +479,91 @@ async function custom() {
   } catch (e) { $("o6").innerHTML = `<div class="result err">${esc(e.message)}</div>`; }
 }
 
-/* 7 */
-async function step7() { await guard(7, "o7", async () => {
+/* 8 */
+async function step8() { await guard(8, "o8", async () => {
   const j = await get("/api/tests");
   const pass = j.tests.filter(t => t.ok).length;
-  $("o7").innerHTML = `<div class="tests">${j.tests.map(t => `<div class="test" title="${esc(t.name)}"><span class="ic ${t.ok ? "ok" : "bad"}">${t.ok ? "✓" : "✗"}</span><span>${esc(t.name.replace(/^test_/, ""))}</span></div>`).join("")}</div>` +
+  $("o8").innerHTML = `<div class="tests">${j.tests.map(t => `<div class="test" title="${esc(t.name)}"><span class="ic ${t.ok ? "ok" : "bad"}">${t.ok ? "✓" : "✗"}</span><span>${esc(t.name.replace(/^test_/, ""))}</span></div>`).join("")}</div>` +
     (j.returncode ? `<div class="result err" style="white-space:pre-wrap">${esc(j.output)}</div>` : "");
-  status(7, j.returncode === 0 ? "ok" : "bad", `${pass}/${j.tests.length} passés`);
+  status(8, j.returncode === 0 ? "ok" : "bad", `${pass}/${j.tests.length} passés`);
 }); }
+
+/* 7 */
+let TEMP = null, tsel = "P-01";
+const VD = {increase: "↑ hausse", decrease: "↓ baisse", no_significant_effect: "pas d'effet", insufficient_data: "données insuffisantes"};
+const nf = (v, d = 2) => v === null || v === undefined ? "—" : (v > 0 ? "+" : "") + fmt(v, d);
+function vd(e) {
+  const m3 = e.slope_m3_day_per_c === null || e.slope_m3_day_per_c === undefined ? "" : ` · ${nf(e.slope_m3_day_per_c, 1)} m³/j`;
+  const r = e.r === undefined || e.r === null ? "" : ` · r = ${fmt(e.r, 2)}`;
+  return `<span class="vd ${e.verdict}">${VD[e.verdict]}</span><span class="sub">${nf(e.slope, 3)} mm/j par °C${m3}<br>p = ${e.p === null ? "—" : e.p}${r} · ${e.n} périodes</span>`;
+}
+async function step7() { await guard(7, "o7", async () => {
+  TEMP = await get("/api/temperature");
+  if (selected) tsel = selected;
+  renderTemp();
+  const n = k => TEMP.plots.filter(p => ["increase", "decrease"].includes(p.effect[k].verdict)).length;
+  status(7, "ok", `Effet : ${n("all_year_equal_rain")}/5 sur l'année · ${n("dry_season")}/5 en été`);
+}); }
+function renderTemp() {
+  const T = TEMP, cd = T.climatic_demand;
+  const sig = e => ["increase", "decrease"].includes(e.verdict);
+  const pick = (k, v) => T.plots.filter(p => p.effect[k].verdict === v);
+  const line = k => {
+    const inc = pick(k, "increase"), dec = pick(k, "decrease"), none = T.plots.filter(p => !sig(p.effect[k]));
+    const list = ps => ps.map(p => `<b>${p.plot_id}</b> (${nf(p.effect[k].slope_m3_day_per_c, 1)} m³/j par °C)`).join(", ");
+    return (inc.length ? `<span class="vd increase">↑ hausse</span> ${list(inc)}. ` : "") + (dec.length ? `<span class="vd decrease">↓ baisse</span> ${list(dec)}. ` : "") +
+      (none.length ? `<span class="vd no_significant_effect">pas d'effet</span> ${none.map(p => p.plot_id).join(", ")}.` : "");
+  };
+  const anyYear = T.plots.some(p => sig(p.effect.all_year_equal_rain)), anyDry = T.plots.some(p => sig(p.effect.dry_season));
+  const yes = anyYear || anyDry;
+  const maxYear = Math.max(...T.plots.map(p => Math.abs(p.effect.all_year_equal_rain.slope || 0)));
+  let html = `<div class="answer"><div class="big">${yes ? "Oui" : "Non"}</div><div>
+    <b>${yes ? (anyDry ? "La température a un effet mesurable sur l'eau utilisée, y compris en saison sèche." : "Oui sur l'année, mais faible ; non en saison sèche.") : "Aucun effet significatif de la température sur l'eau utilisée."}</b>
+    <p><b>Sur l'année, à pluie égale :</b> ${line("all_year_equal_rain")}</p>
+    <p><b>En saison sèche (juin–sept.) :</b> ${line("dry_season")}</p>
+    <p>La demande climatique, elle, monte fortement avec la chaleur : ET de référence ${nf(cd.slope, 3)} mm/j par °C (r = ${fmt(cd.r, 2)}, p = ${cd.p}), soit environ ${fmt(cd.slope / (maxYear || 1), 0)} fois plus que la hausse de l'eau réellement utilisée.
+    Quand il fait chaud, les parcelles ne reçoivent donc pas l'eau supplémentaire que la chaleur demande : c'est l'eau disponible qui limite, pas la température.</p></div></div>`;
+  html += table([
+    ["plot_id", "Parcelle", r => `<b>${r.plot_id}</b>`],
+    ["dry", "Saison sèche (juin–sept.)", r => vd(r.effect.dry_season)],
+    ["rain", "Toute l'année, à pluie égale", r => vd(r.effect.all_year_equal_rain)],
+    ["all", "Toute l'année", r => vd(r.effect.all_year)],
+  ], T.plots).replace(/<tr><td><b>(P-\d+)<\/b>/g, (m, id) => `<tr class="click${id === tsel ? " sel" : ""}" onclick="tsel='${id}';renderTemp()" title="Afficher le graphique de ${id}"><td><b>${id}</b>`);
+  html += chart(T.plots.find(p => p.plot_id === tsel) || T.plots[0]);
+  html += `<ul class="limits">${T.limits.map(l => `<li>${esc(l)}</li>`).join("")}</ul>`;
+  $("o7").innerHTML = html;
+}
+function fitLine(pts) {
+  const n = pts.length; if (n < 3) return null;
+  const mx = pts.reduce((a, p) => a + p[0], 0) / n, my = pts.reduce((a, p) => a + p[1], 0) / n;
+  const den = pts.reduce((a, p) => a + (p[0] - mx) ** 2, 0); if (!den) return null;
+  const b = pts.reduce((a, p) => a + (p[0] - mx) * (p[1] - my), 0) / den;
+  return [b, my - b * mx];
+}
+function chart(p) {
+  const pts = p.series.filter(s => s.tmax_c !== null && s.aeti_mm_day !== null);
+  const W = 720, H = 300, L = 46, R = 14, Tp = 14, B = 40;
+  const xs = pts.map(s => s.tmax_c), ys = pts.map(s => s.aeti_mm_day);
+  const x0 = Math.floor(Math.min(...xs) / 5) * 5, x1 = Math.ceil(Math.max(...xs) / 5) * 5, y1 = Math.ceil(Math.max(...ys, 1));
+  const X = v => L + (v - x0) / (x1 - x0) * (W - L - R), Y = v => H - B - v / y1 * (H - Tp - B);
+  let g = "";
+  for (let v = x0; v <= x1; v += 5) g += `<line class="axis" x1="${X(v)}" x2="${X(v)}" y1="${Tp}" y2="${H - B}"/><text x="${X(v)}" y="${H - B + 16}" text-anchor="middle">${v}</text>`;
+  const step = Math.max(1, Math.round(y1 / 5));
+  for (let v = 0; v <= y1; v += step) g += `<line class="axis" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end">${v}</text>`;
+  const isDry = s => [6, 7, 8, 9].includes(s.month);
+  const dots = pts.map(s => `<circle class="pt${isDry(s) ? " dry" : ""}" cx="${X(s.tmax_c).toFixed(1)}" cy="${Y(s.aeti_mm_day).toFixed(1)}" r="${isDry(s) ? 3.6 : 3}"><title>${s.dekad} · Tmax ${s.tmax_c} °C · AETI ${s.aeti_mm_day} mm/j · pluie ${s.precip_mm_day} mm/j</title></circle>`).join("");
+  const line = (sub, cls) => {
+    const f = fitLine(sub.map(s => [s.tmax_c, s.aeti_mm_day])); if (!f) return "";
+    const a = Math.min(...sub.map(s => s.tmax_c)), b = Math.max(...sub.map(s => s.tmax_c));
+    return `<line class="fit ${cls}" x1="${X(a)}" y1="${Y(f[1] + f[0] * a)}" x2="${X(b)}" y2="${Y(f[1] + f[0] * b)}"/>`;
+  };
+  const mid = (Tp + H - B) / 2;
+  return `<div class="chart"><div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;margin-bottom:6px"><b>${p.plot_id} : eau utilisée selon la température</b>
+    <span style="color:var(--muted)"><span style="color:var(--plot)">●</span> juin–sept. · <span style="color:var(--idle)">●</span> autres mois · trait plein : tendance saison sèche · tirets : tendance toute l'année</span></div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Évapotranspiration réelle de ${p.plot_id} selon la température maximale">${g}${dots}${line(pts, "all")}${line(pts.filter(isDry), "")}
+    <text x="${(L + W - R) / 2}" y="${H - 6}" text-anchor="middle">Température maximale moyenne sur 10 jours (°C)</text>
+    <text x="12" y="${mid}" text-anchor="middle" transform="rotate(-90 12 ${mid})">AETI (mm/j)</text></svg></div>`;
+}
 
 async function runAll() {
   const b = $("runall"); b.disabled = true; b.textContent = "En cours…";
@@ -462,7 +572,7 @@ async function runAll() {
     for (const k in caseRes) delete caseRes[k];
     status(6, "run", "En cours…"); for (let i = 0; i < CASES.length; i++) await runCase(i);
     $("mm").value = 4; $("m2").value = 500; await step4();
-    await step7();
+    await step7(); await step8();
   } finally { b.disabled = false; b.textContent = "▶ Tout lancer"; }
 }
 renderCases(); initSites(); step2();

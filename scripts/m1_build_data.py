@@ -240,7 +240,7 @@ def main() -> None:
                 "sha256": dl("osm/jendouba_farmland.json")["sha256"],
                 "raw_file": "data/raw/osm/jendouba_farmland.json", "outputs": ["data/plots.geojson"],
                 "crs": "EPSG:4326 (lon, lat)", "status": "observed",
-                "limits": "Selected polygons were last edited in 2012; no crop tag; owners unknown.",
+                "limits": f"Selected polygons last edited {min(r['osm_last_edit'] for r in rows)[:10]}; no crop tag; owners unknown.",
             },
             {
                 "source_id": "osm-jendouba-admin",
@@ -281,10 +281,129 @@ def main() -> None:
             },
         ],
     }
+    if (RAW / "power").exists() and (RAW / "wapor_series").exists():
+        manifest["datasets"] += build_temperature_effect(features, downloads, dump)
     dump(DATA / "manifest.json", manifest)
     for r in rows:
         print(r["plot_id"], r["land_use"], r["surface_m2"], "m2", "ETa", r["eta_mm_day"],
               "P", r["precip_mm_day"], "ET0", r["ref_et_mm_day"], "->", r["demand_m3_raw"], "m3/day")
+
+
+def _dekad_days(code: str) -> tuple[int, int, int, int]:
+    """'2026-07-D2' -> (2026, 7, 11, 20)."""
+    import calendar
+    y, m, d = int(code[:4]), int(code[5:7]), int(code[-1])
+    start = {1: 1, 2: 11, 3: 21}[d]
+    end = {1: 10, 2: 20, 3: calendar.monthrange(y, m)[1]}[d]
+    return y, m, start, end
+
+
+def _band_means(path: Path, polys: list[Polygon]) -> tuple[list[str], list[list[float | None]]]:
+    """Area-weighted mean of every band for each polygon. Returns (dekad codes, values[poly][band])."""
+    with rasterio.open(path) as src:
+        codes = list(src.descriptions)
+        data = src.read().astype(float)
+        data[data == src.nodata] = np.nan
+        data *= src.scales[0]
+        t = src.transform
+        out = []
+        for poly in polys:
+            weights = []
+            for r in range(src.height):
+                for c in range(src.width):
+                    x0, y0 = t * (c, r + 1)
+                    x1, y1 = t * (c + 1, r)
+                    inter = poly.intersection(box(x0, y0, x1, y1))
+                    if not inter.is_empty:
+                        weights.append((r, c, geodesic_area_m2(inter)))
+            vals = []
+            for b in range(data.shape[0]):
+                pts = [(data[b, r, c], w) for r, c, w in weights if not np.isnan(data[b, r, c])]
+                den = sum(w for _, w in pts)
+                vals.append(None if den == 0 else sum(v * w for v, w in pts) / den)
+            out.append(vals)
+    return codes, out
+
+
+def build_temperature_effect(features: list[dict], downloads: dict, dump) -> list[dict]:
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from backend.temperature_effect import ALPHA, DRY_MONTHS, analyse, simple_effect
+
+    power = json.loads((RAW / "power" / "power_daily_2018-2026.json").read_text(encoding="utf-8"))
+    par = power["properties"]["parameter"]
+    fill = power["header"]["fill_value"]
+
+    def dekad_mean(name: str, code: str) -> float | None:
+        y, m, a, b = _dekad_days(code)
+        v = [par[name].get(f"{y}{m:02d}{d:02d}") for d in range(a, b + 1)]
+        v = [x for x in v if x is not None and x != fill]
+        return None if len(v) < (b - a + 1) * 0.8 else round(sum(v) / len(v), 2)
+
+    aeti_path = next((RAW / "wapor_series").glob("WAPOR-3.L2-AETI-D.*.tif"))
+    ret_path = next((RAW / "wapor_series").glob("WAPOR-3.L1-RET-D.*.tif"))
+    polys = [Polygon(f["geometry"]["coordinates"][0]) for f in features]
+    codes, aeti = _band_means(aeti_path, polys)
+    ret_codes, ret = _band_means(ret_path, [unary_union(polys).convex_hull])
+    ret_by = dict(zip(ret_codes, ret[0]))
+
+    climate = {c: {"dekad": c, "month": int(c[5:7]), "tmax_c": dekad_mean("T2M_MAX", c),
+                   "tmean_c": dekad_mean("T2M", c), "precip_mm_day": dekad_mean("PRECTOTCORR", c)}
+               for c in codes}
+    ret_series = [(climate[c]["tmax_c"], None if ret_by.get(c) is None else ret_by[c]) for c in codes]
+    nan = lambda v: np.nan if v is None else v
+    plots_out = []
+    for f, vals in zip(features, aeti):
+        p = f["properties"]
+        series = [{**climate[c], "aeti_mm_day": None if v is None else round(v, 2)} for c, v in zip(codes, vals)]
+        num = [{k: (nan(v) if k not in ("dekad", "month") else v) for k, v in s.items()} for s in series]
+        plots_out.append({"plot_id": p["plot_id"], "surface_m2": p["surface_m2"],
+                          "effect": analyse(num, p["surface_m2"]), "series": series})
+
+    result = {
+        "question": "Does air temperature change the water actually used (WaPOR AETI) by each parcel?",
+        "period": f"{codes[0]}..{codes[-1]}", "n_dekads": len(codes),
+        "temperature": "dekad mean of daily maximum air temperature at 2 m (NASA POWER, MERRA-2)",
+        "water_use": "WaPOR v3 L2 AETI, area-weighted over the parcel, mm/day",
+        "dry_season_months": list(DRY_MONTHS), "alpha": ALPHA,
+        "methods": {
+            "all_year": "linear regression AETI ~ Tmax over all dekads",
+            "all_year_equal_rain": "multiple regression AETI ~ Tmax + rainfall; effect of Tmax at equal rainfall",
+            "dry_season": "linear regression AETI ~ Tmax on June-September dekads only",
+        },
+        "climatic_demand": {"label": "WaPOR reference ET (RET) vs Tmax, site",
+                            **simple_effect([nan(t) for t, _ in ret_series], [nan(r) for _, r in ret_series])},
+        "limits": [
+            "Association on observations, not proof of cause: season, crop stage and irrigation supply change together with temperature.",
+            "Dekads follow each other (autocorrelation), so p-values are optimistic.",
+            "NASA POWER temperature is a reanalysis on a coarse grid (about 50 km), not a station at the parcel.",
+            "OSM parcels were drawn in 2025; land use in earlier years may differ.",
+        ],
+        "source_ids": ["wapor3-l2-aeti-series", "wapor3-l1-ret-series", "nasa-power-daily"],
+        "plots": plots_out,
+    }
+    dump(DATA / "agriculture" / "temperature_effect.json", result)
+    for po in plots_out:
+        e = po["effect"]
+        print("temp", po["plot_id"], {k: (v["slope"], v["p"], v["verdict"]) for k, v in e.items()})
+    print("RET vs Tmax", result["climatic_demand"])
+
+    def dl(path: Path) -> dict:
+        return downloads[path.relative_to(ROOT).as_posix()]
+
+    pw = RAW / "power" / "power_daily_2018-2026.json"
+    return [
+        {"source_id": "nasa-power-daily", "title": "NASA POWER daily T2M, T2M_MAX, PRECTOTCORR at the cluster point",
+         "organisation": "NASA Langley Research Center (POWER project)", "license": "public, no restriction (NASA open data)",
+         "url": dl(pw)["url"], "query": dl(pw)["query"], "retrieved_at": dl(pw)["retrieved_at"], "sha256": dl(pw)["sha256"],
+         "raw_file": pw.relative_to(ROOT).as_posix(), "resolution": "0.5 x 0.625 degrees (MERRA-2)", "unit": "°C, mm/day",
+         "status": "reanalysis", "outputs": ["data/agriculture/temperature_effect.json"]},
+        *[{"source_id": sid, "title": f"FAO WaPOR v3 {ms}, all dekads {codes[0]}..{codes[-1]}", "organisation": "FAO",
+           "license": "CC BY 4.0", "url": dl(p)["url"], "window": dl(p)["query"], "retrieved_at": dl(p)["retrieved_at"],
+           "sha256": dl(p)["sha256"], "raw_file": p.relative_to(ROOT).as_posix(), "unit": "mm/day",
+           "status": "observed (satellite estimate)", "outputs": ["data/agriculture/temperature_effect.json"]}
+          for sid, ms, p in [("wapor3-l2-aeti-series", "L2-AETI-D", aeti_path), ("wapor3-l1-ret-series", "L1-RET-D", ret_path)]],
+    ]
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ Run from the repo root, then open http://127.0.0.1:8765 :
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from dataclasses import replace
@@ -16,9 +17,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from backend import agriculture as agri  # noqa: E402
+from backend import temperature_effect as tfx  # noqa: E402
 
 UI = ROOT / "tools" / "m1_test_ui" / "index.html"
-PORT = 8765
+PORT = int(os.environ.get("PORT", "8765"))
 
 
 def _manifest() -> dict:
@@ -73,7 +75,7 @@ def step_validate(body: dict) -> dict:
 
 
 def step_tests() -> dict:
-    r = subprocess.run([sys.executable, "-m", "pytest", "tests/test_agriculture.py", "-v", "--no-header", "-p", "no:cacheprovider"],
+    r = subprocess.run([sys.executable, "-m", "pytest", "tests/test_agriculture.py", "tests/test_temperature_effect.py", "-v", "--no-header", "-p", "no:cacheprovider"],
                        cwd=ROOT, capture_output=True, text=True, timeout=120)
     lines = [ln for ln in r.stdout.splitlines() if "::" in ln and ("PASSED" in ln or "FAILED" in ln or "ERROR" in ln)]
     tests = [{"name": ln.split("::")[1].split(" ")[0], "ok": "PASSED" in ln} for ln in lines]
@@ -116,6 +118,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._run(step_sources)
         if path.startswith("/api/plots/"):
             return self._run(step_plots, path.rsplit("/", 1)[1])
+        if path == "/api/temperature":
+            return self._run(tfx.load_temperature_effect)
         if path == "/api/tests":
             return self._run(step_tests)
         self._json({"error": "not found"}, 404)

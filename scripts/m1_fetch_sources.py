@@ -106,9 +106,101 @@ def fetch_wapor() -> None:
                 url, f"bounds={WAPOR_BOUNDS}")
 
 
+# --- time series for the temperature effect ------------------------------------
+SERIES_START, SERIES_END = "2018-01-D1", "2026-10-D3"
+WAPOR_CATALOG = "https://data.apps.fao.org/gismgr/api/v2/catalog/workspaces/WAPOR-3/mapsets"
+POWER_URL = "https://power.larc.nasa.gov/api/temporal/daily/point"
+
+
+def wapor_dekads(mapset: str) -> list[str]:
+    codes = []
+    for off in range(0, 2000, 100):
+        r = requests.get(f"{WAPOR_CATALOG}/{mapset}/rasters", params={"offset": off, "limit": 100},
+                         headers=UA, timeout=90)
+        r.raise_for_status()
+        items = r.json()["response"]["items"]
+        codes += [i["code"].split(".")[-1] for i in items]
+        if len(items) < 100:
+            break
+    return sorted(c for c in set(codes) if SERIES_START <= c <= SERIES_END)
+
+
+def fetch_wapor_series() -> None:
+    """Window reads of every dekad, stacked as one multi-band GeoTIFF per mapset."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    import numpy as np
+    import rasterio
+    from rasterio.windows import Window, from_bounds
+
+    d = RAW / "wapor_series"
+    d.mkdir(parents=True, exist_ok=True)
+    for ms in ["L2-AETI-D", "L1-RET-D"]:
+        dekads = wapor_dekads(ms)
+        base = f"https://storage.googleapis.com/fao-gismgr-wapor-3-data/DATA/WAPOR-3/MAPSET/{ms}/WAPOR-3.{ms}."
+        with rasterio.open(f"/vsicurl/{base}{dekads[-1]}.tif") as src:
+            f = from_bounds(*WAPOR_BOUNDS, transform=src.transform)
+            c0, r0 = math.floor(f.col_off), math.floor(f.row_off)
+            w = Window(c0, r0, math.ceil(f.col_off + f.width) - c0, math.ceil(f.row_off + f.height) - r0)
+            prof = {k: v for k, v in src.profile.items() if k not in ("blockxsize", "blockysize")}
+            prof.update(driver="GTiff", width=int(w.width), height=int(w.height), count=len(dekads),
+                        transform=src.window_transform(w), compress="deflate", tiled=False, BIGTIFF="NO")
+            scale = src.scales[0]
+
+        def read(code: str):
+            for i in range(4):
+                try:
+                    with rasterio.open(f"/vsicurl/{base}{code}.tif") as s:
+                        return s.read(1, window=w, boundless=True, fill_value=s.nodata)
+                except Exception:
+                    time.sleep(3 * (i + 1))
+            raise RuntimeError(f"WaPOR read failed: {ms} {code}")
+
+        with ThreadPoolExecutor(8) as ex:
+            arrays = list(ex.map(read, dekads))
+        out = d / f"WAPOR-3.{ms}.{SERIES_START}_{SERIES_END}.tif"
+        with rasterio.open(out, "w", **prof) as dst:
+            dst.write(np.stack(arrays))
+            dst.scales = [scale] * len(dekads)
+            for i, code in enumerate(dekads, start=1):
+                dst.set_band_description(i, code)
+        _record(out, f"FAO WaPOR v3 {ms} (CC BY 4.0), one band per dekad, window reads",
+                base + "{dekad}.tif", f"bounds={WAPOR_BOUNDS}; dekads {dekads[0]}..{dekads[-1]} ({len(dekads)})")
+        print(ms, len(dekads), "dekads")
+
+
+def fetch_power_temperature() -> None:
+    d = RAW / "power"
+    d.mkdir(parents=True, exist_ok=True)
+    lat, lon = CLUSTER_POINT
+    params = {"parameters": "T2M,T2M_MAX,PRECTOTCORR", "community": "AG", "latitude": lat,
+              "longitude": lon, "start": "20180101", "end": "20261031", "format": "JSON"}
+    r = requests.get(POWER_URL, params=params, headers=UA, timeout=180)
+    r.raise_for_status()
+    out = d / "power_daily_2018-2026.json"
+    out.write_text(json.dumps(r.json(), indent=1), encoding="utf-8")
+    _record(out, "NASA POWER daily point data (MERRA-2), public domain", POWER_URL,
+            "&".join(f"{k}={v}" for k, v in params.items()))
+
+
+def _save_log() -> None:
+    path = RAW / "m1_downloads.json"
+    old = json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+    new_files = {e["file"] for e in log}
+    merged = [e for e in old if e["file"] not in new_files] + log
+    path.write_text(json.dumps(merged, indent=1), encoding="utf-8")
+
+
 if __name__ == "__main__":
-    fetch_osm()
-    fetch_wapor()
-    (RAW / "m1_downloads.json").write_text(json.dumps(log, indent=1), encoding="utf-8")
+    import sys
+
+    what = sys.argv[1] if len(sys.argv) > 1 else "all"
+    if what in ("all", "base"):
+        fetch_osm()
+        fetch_wapor()
+    if what in ("all", "series"):
+        fetch_power_temperature()
+        fetch_wapor_series()
+    _save_log()
     for e in log:
         print(e["file"], e["sha256"][:12])
