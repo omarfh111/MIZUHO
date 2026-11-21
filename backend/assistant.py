@@ -101,7 +101,8 @@ class GraphState(TypedDict):
 
 def think(state: GraphState) -> dict:
     turn = state["turn"]
-    data = turn.providers.respond({
+    respond = turn.providers.respond_nvidia if turn.request.provider == "nvidia" else turn.providers.respond
+    data = respond({
         "instructions": INSTRUCTIONS,
         "input": state["messages"],
         "tools": FUNCTIONS,

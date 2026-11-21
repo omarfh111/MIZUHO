@@ -56,7 +56,8 @@ def current_index(service: AssistantRuntime) -> IndexStatus:
 def health(request: Request) -> AssistantHealth:
     service = runtime(request)
     info = current_index(service)
-    return AssistantHealth(status=info.status, configured=service.providers is not None, index=info)
+    return AssistantHealth(status=info.status, configured=service.providers is not None, index=info,
+                           nvidia_model=getattr(service.providers, "nvidia_model", None))
 
 
 @router.get("/api/assistant/index")
