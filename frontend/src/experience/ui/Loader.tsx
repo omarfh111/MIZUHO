@@ -33,7 +33,8 @@ export function Loader({ progress, stage, leaving, particles }: Props) {
     let f: OpeningField | null = null;
     try {
       f = createOpeningField(el, particles);
-    } catch {
+    } catch (error) {
+      console.warn('[MIZUHO experience] Particle opening unavailable, using the vector wordmark.', error);
       f = null;
     }
     if (!f) {

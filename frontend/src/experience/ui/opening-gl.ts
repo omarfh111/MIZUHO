@@ -100,18 +100,18 @@ function compile(gl: WebGL2RenderingContext, type: number, src: string) {
   const shader = gl.createShader(type)!;
   gl.shaderSource(shader, src);
   gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader) ?? 'shader');
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader) || (gl.isContextLost() ? 'context lost' : 'shader compile failed'));
   return shader;
 }
 
 export function createOpeningField(canvas: HTMLCanvasElement, count: number): OpeningField | null {
   const gl = canvas.getContext('webgl2', { alpha: true, antialias: false, premultipliedAlpha: true, powerPreference: 'high-performance' });
-  if (!gl) return null;
+  if (!gl || gl.isContextLost()) return null;
   const program = gl.createProgram()!;
   gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERT));
   gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, FRAG));
   gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return null;
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program) ?? 'link failed');
 
   const seeds = new Float32Array(count * 2);
   const homes = new Float32Array(count * 2);
@@ -235,6 +235,11 @@ export function createOpeningField(canvas: HTMLCanvasElement, count: number): Op
     setHomes,
     frame,
     resize,
-    dispose: () => gl.getExtension('WEBGL_lose_context')?.loseContext(),
+    // Free GPU objects but keep the context alive: a remount (StrictMode, replay)
+    // asks the same canvas for its context again and must not receive a lost one.
+    dispose: () => {
+      gl.deleteVertexArray(vao);
+      gl.deleteProgram(program);
+    },
   };
 }
