@@ -458,7 +458,7 @@ export default function TunisiaExplorer({ selectedCityId, onCityResolved, onCity
     <header className="tn-heading">
       <div className="tn-kicker"><MapPin size={15} aria-hidden="true" /> National observatory</div>
       <h1><em>Explore</em> Tunisia</h1>
-      <p>Select a city to explore its terrain, find nearby field sites or test household electricity during an outage.</p>
+      <p>Select a city to explore local water and energy conditions. Open a nearby irrigation site to see which parcels can receive water on time.</p>
     </header>
     {!catalog && <div className="tn-unavailable" role="status">Loading Tunisia’s boundaries and cities…</div>}
     {catalog?.error && <div className="tn-unavailable" role="alert">

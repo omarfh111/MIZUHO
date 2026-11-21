@@ -7,14 +7,14 @@
 
 <h1>MIZUHO</h1>
 
-<p><em>An irrigation manager expects a power cut at 11:00. How much water should the group store, and which plots can still receive water on time?</em></p>
+<p><em>Which parcels can receive their promised water on time today, and who needs an earlier turn when supplies fall short?</em></p>
 
 [![M6 API and planning](https://img.shields.io/badge/M6-API_%26_CP--SAT_planning-62e3f0?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
 [![M7 3D dashboard](https://img.shields.io/badge/M7-3D_dashboard-c9ef86?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
 [![M8 Evidence assistant](https://img.shields.io/badge/M8-Evidence_assistant-f7ce76?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
 [![Jendouba pilot](https://img.shields.io/badge/%F0%9F%93%8D_Pilot-Jendouba%2C_Tunisia-eef6ef?style=for-the-badge&labelColor=0b1f1c)](#reproduce-the-pilot)
 
-[![CI on the agricultural zones demo branch](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml/badge.svg?branch=codex%2Fagricultural-zones)](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml?query=branch%3Acodex%2Fagricultural-zones)
+[![CI on main](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml?query=branch%3Amain)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
 ![OR-Tools](https://img.shields.io/badge/OR--Tools-CP--SAT-4285F4?style=flat&logo=google&logoColor=white)
@@ -31,6 +31,14 @@
 </div>
 
 ---
+
+## The decision facing a water group
+
+Growers depend on the timing of their turn as well as the volume they receive. A group manager can have electricity throughout the day and still lack enough stored water or withdrawal allowance to meet every parcel's minimum. MIZUHO lets the manager try a rotation, see whose delivery would be late or short, and weigh the water and energy needed for an alternative.
+
+Jendouba’s regional agricultural authority lists irrigated areas supplied by dams, hill reservoirs, watercourses, springs and wells. In 2026, a Tunisian irrigation programme supported by the World Bank identified service reliability and the capacity of local water-user groups and regional agricultural authorities as priorities. These sources describe the context. Daily delivery volumes in this prototype come from a simulation or an operator’s own records. [Jendouba CRDA inventory, 2018](https://catalog.data.gov.tn/dataset/les-perimetres-irrigues-jendouba/resource/07e85f98-d799-48c9-8c2d-9c42a0845081) · [World Bank programme, April 2026](https://www.banquemondiale.org/fr/news/press-release/2026/04/01/tunisia-major-push-to-strengthen-water-security-and-resilience)
+
+The manager schedules deliveries and growers receive them. A regional authority can review simulated infrastructure options. The household calculator addresses a separate decision about electricity for essential loads during a power cut.
 
 | Module | What you can reproduce |
 | --- | --- |
@@ -190,9 +198,10 @@ Use Git, Python **3.12** and Node.js **22.12 or later**. Once dependencies are i
 ### 1. Clone and install
 
 Run these commands from PowerShell. On macOS or Linux, use `.venv/bin/python` wherever the commands show `.\.venv\Scripts\python.exe`.
+The clone opens the released `main` branch. To reproduce an unmerged review, switch to its published commit before installing.
 
 ```powershell
-git clone --branch codex/agricultural-zones --single-branch https://github.com/omarfh111/MIZUHO.git
+git clone https://github.com/omarfh111/MIZUHO.git
 cd MIZUHO
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
@@ -253,6 +262,14 @@ Open **Land & agriculture → Site map** and select the Jendouba pilot to see **
 Vite proxies `/api` to port 8000. For production, serve `frontend/dist` and route `/api` to FastAPI on the same origin.
 
 ## Reproduce the pilot
+
+### Run a water turn with a working grid
+
+Open **Irrigation planning** at Jendouba and choose **Normal day**. Select **Use stored water only** and **Calculate schedules**. With the default 12 m³ opening stock and zero additional withdrawals, both rules deliver 12 m³ on time and consume zero grid pumping energy. The fixed turn leaves three plots without water. The optimized plan raises the least-served parcel from **0% to 20%** of its minimum. Change the opening stock or quota and recalculate to test a different day.
+
+Read the daily commitments for the selected plan. Open **Compare your own rotation** and try pumping 8 m³ and delivering 20 m³ to parcel A at 09:00 on that same day. The zero quota rules out pumping. The simulator shows how much of the requested delivery the stock and gravity flow can support. Omitted hours stay idle in the operator’s rotation.
+
+To review a completed day, open **Check a recorded delivery day**, download the blank CSV and enter anonymous parcel commitments and metered volumes. The browser reports which recorded deadlines were met and how many parcels had a reading. Missing observations stay unknown. The file stays in browser memory and is cleared when you leave the planning view or change sites. [Field validation protocol](docs/v5-capability-audit.md#how-a-water-group-could-validate-the-pilot)
 
 For a judge walkthrough of the eight operating and sensor demonstrations, see the [integration matrix, architecture and replay guide](docs/integration-v5.md).
 Start in **Land & agriculture → Tunisia**, select a city and inspect its climate period and elevation source. Select **Jendouba** to open the nearby simulated pilot, or choose a registered site in **Site map**. **Water & energy** shows the Bouhertma instrument archive and PVGIS comparison for Jendouba, the WaPOR survey for Assila, or regional climate for a study zone. [Judge validation report](docs/judge-validation.md)
@@ -320,6 +337,7 @@ The running backend serves [OpenAPI documentation](http://127.0.0.1:8000/docs).
 | Verified replay and virtual instrumentation | `POST /api/telemetry/replay`, `POST /api/telemetry/project`, `POST /api/telemetry/forecast` |
 | Irrigation and solar | `POST /api/compare`, `POST /api/solar/compare` |
 | Outage stress test | `POST /api/sites/{site_id}/resilience/grid` runs the coverage matrix. `POST /api/sites/{site_id}/resilience/case` returns the selected outage, candidate schedules, incident readings, heat replays and backup comparison. Both accept the same site planning inputs. |
+| Operator rotation | `POST /api/sites/{site_id}/operator-rotation` accepts a nominal start-of-day site plan and up to 24 distinct hourly requests (`hour`, `pump_m3`, `plot_id`, `delivery_m3`). It returns the requested and physically feasible volumes, the replayed operator rotation and a solver plan under the same constraints. Unspecified hours are idle. |
 | Household electricity | `POST /api/resilience/households` projects hourly demand, energy supplied, unmet load and remaining usable AC energy. The result includes the first shortfall, the energy required for the whole outage and peak island-capable output required. |
 | Sources and retrieval | `GET /api/evidence/{source_id}`, `GET /api/evidence/{source_id}/passages`, `POST /api/evidence/search` |
 | Evidence assistant | `POST /api/assistant/chat`, `GET /api/assistant/health`, `GET /api/assistant/index` |
