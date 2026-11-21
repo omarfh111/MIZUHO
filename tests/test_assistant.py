@@ -1,12 +1,14 @@
 import json
 from time import monotonic
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.assistant import MAX_ROUNDS, finalize, run_assistant
 from backend.assistant_api import AssistantRuntime
+from backend.assistant_memory import NAMESPACE
 from backend.assistant_tools import Turn
 from backend.catalog import DATA_DIR, load_catalog
 from backend.evidence import load_corpus
@@ -164,6 +166,146 @@ def test_agent_budget_bounds_tools(context):
     answer = run_assistant(request, catalog, corpus, SimpleNamespace(respond=respond), 5)
     assert calls == MAX_ROUNDS
     assert any("budget" in gap for gap in answer.missing_information)
+
+
+@pytest.fixture
+def memory_chat(context):
+    _, corpus = context
+    citation, = corpus.for_source("solar")
+    prompts = []
+    quota_args = {"scenario_id": "mini", "quota_m3": None}
+
+    def respond(body, *, timeout):
+        messages = body["input"]
+        prompt = json.loads(messages[0]["content"])
+        question = prompt["question"]
+        if len(messages) == 1:
+            prompts.append(prompt)
+            if "seed" in question:
+                return response(call("explain_decision", quota_args),
+                                call("search_evidence", {"query": "ANME photovoltaic"}, "call_2"))
+            if question == "Run the same scenario again.":
+                return response(call("get_simulation_results", {**quota_args, "scenario_id": None}))
+            if question == "Provider failure.":
+                raise ServiceError("OpenAI Responses")
+            if prompt["prior_answers"]:
+                prior = prompt["prior_answers"][-1]
+                return complete([{
+                    "text": "Here is the earlier verified context.",
+                    "fact_ids": [item["id"] for item in prior["facts"]],
+                    "citation_ids": [item["id"] for item in prior["citations"]],
+                }])
+            return complete()
+        output = json.loads(messages[-1]["output"])
+        if "error" in output:
+            return complete()
+        if "seed" in question:
+            facts = json.loads(messages[-2]["output"])["facts"]
+            plot = next(item for item in facts if item["text"].startswith("Plot A "))
+            inputs = next(item for item in facts if "starting stock" in item["text"])
+            return complete([{"text": "The plan and the official excerpt were reviewed.",
+                              "fact_ids": [plot["id"], inputs["id"]], "citation_ids": [citation.id]}])
+        return paragraphs_from_tool(body)
+
+    def factory(data_dir, catalog, budget):
+        def qdrant(method, path, body, **kwargs):
+            item = {"id": citation.id, "payload": corpus.chunks[citation.id].payload}
+            return {"points": [item]} if path == "/points/query" else [item]
+
+        provider = SimpleNamespace(respond=respond, close=lambda: None, qdrant=qdrant,
+                                   embeddings=lambda *args, **kwargs: [[0.0] * DIMENSIONS])
+        return AssistantRuntime(catalog, corpus, provider, budget)
+
+    with TestClient(create_app(assistant_factory=factory)) as client:
+        def chat(question, session_id=None, **kwargs):
+            return client.post("/api/assistant/chat", json={
+                "site_id": "jendouba-pilote", "question": question,
+                "session_id": str(session_id) if session_id else None, **kwargs,
+            })
+
+        yield client, chat, prompts
+
+
+def test_session_reuses_verified_citations_facts_and_scenario_without_replaying_private_text(memory_chat):
+    client, chat, prompts = memory_chat
+    session = uuid4()
+    marker = "private fixture token that should never be stored"
+    first = chat(f"Please seed the conversation. {marker}", session)
+    assert first.status_code == 200
+    assert first.json()["citations"][0]["organization"] == "ANME"
+    assert "Plot A (EXP-01): 5 m³" in first.json()["facts"][0]["text"]
+    item = client.app.state.assistant.memory.store.get(NAMESPACE, str(session))
+    assert marker not in json.dumps(item.value)
+    assert first.json()["paragraphs"][0]["text"] not in json.dumps(item.value)
+    assert "starting stock" not in json.dumps(item.value)
+    second = chat("Which figure and source did you just give me?", session)
+    assert second.status_code == 200
+    assert second.json()["citations"] == first.json()["citations"]
+    assert len(second.json()["facts"]) == 1
+    for key in ("text", "provenance"):
+        assert second.json()["facts"][0][key] == first.json()["facts"][0][key]
+    assert second.json()["paragraphs"][0]["fact_ids"] == [second.json()["facts"][0]["id"]]
+    assert second.json()["tools_used"] == []
+    assert prompts[-1]["previous_scenario"] == "mini"
+    assert marker not in json.dumps(prompts[-1])
+    recalculate = chat("Run the same scenario again.", session)
+    assert recalculate.status_code == 200
+    assert recalculate.json()["tools_used"] == ["get_simulation_results"]
+    assert any("Plot A (EXP-01): 5 m³" in fact["text"] for fact in recalculate.json()["facts"])
+
+
+def test_session_memory_is_isolated_and_legacy_requests_are_stateless(memory_chat):
+    client, chat, prompts = memory_chat
+    session = uuid4()
+    assert chat("Please seed the conversation.", session).status_code == 200
+    for isolated in (uuid4(), None):
+        answer = chat("What did I just ask you?", isolated)
+        assert answer.status_code == 200
+        assert answer.json()["facts"] == answer.json()["citations"] == []
+        assert prompts[-1]["prior_answers"] == []
+        assert prompts[-1]["previous_scenario"] is None
+    with client.app.state.assistant.memory.session(session):
+        assert chat("A concurrent question.", session).status_code == 409
+    assert chat("An invalid session.", "not-a-session").status_code == 422
+
+
+def test_stale_simulation_clears_facts_even_if_the_next_request_fails(memory_chat):
+    _, chat, prompts = memory_chat
+    session = uuid4()
+    initial = dict(selected_scenario_id="mini", simulation_revision=0)
+    edited = dict(selected_scenario_id="mini", simulation_revision=1, simulation_pending=True)
+    assert chat("Please seed the conversation.", session, **initial).status_code == 200
+    followup = chat("Run the same scenario again.", session, **edited)
+    assert followup.status_code == 200
+    assert followup.json()["facts"] == []
+    assert "inputs changed" in " ".join(followup.json()["missing_information"])
+    assert prompts[-1]["prior_answers"][0]["facts"] == []
+    assert prompts[-1]["previous_scenario"] is None
+    assert chat("Please seed the conversation.", session, **initial).status_code == 200
+    assert chat("Provider failure.", session, **edited).status_code == 503
+    answer = chat("Which figure and source did you just give me?", session, **initial).json()
+    assert answer["facts"] == []
+    assert answer["citations"][0]["organization"] == "ANME"
+
+
+def test_changing_comparison_inputs_invalidates_memory_without_a_revision(memory_chat, context):
+    _, chat, prompts = memory_chat
+    catalog, _ = context
+    scenario = catalog.scenarios["mini"]
+    session = uuid4()
+    comparison = {
+        "scenario_id": scenario.id, "state": scenario.state.model_dump(mode="json"),
+        "outage_slots": [slot.slot for slot in scenario.slots if not slot.grid_available],
+        "solar_option_id": None,
+    }
+    assert chat("Please seed the conversation.", session, comparison=comparison).status_code == 200
+    updated = {**comparison, "state": {**comparison["state"], "tank_stock_m3": 9}}
+    answer = chat("Which figure and source did you just give me?", session, comparison=updated)
+    assert answer.status_code == 200
+    assert answer.json()["facts"] == []
+    assert answer.json()["citations"][0]["organization"] == "ANME"
+    assert prompts[-1]["active_scenario"] == "mini"
+    assert prompts[-1]["previous_scenario"] is None
 
 
 def test_chat_api_validates_inputs_and_handles_provider_failure():

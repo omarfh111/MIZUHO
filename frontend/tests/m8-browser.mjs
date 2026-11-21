@@ -40,6 +40,8 @@ try {
   assert.equal(allocation.status(), 200);
   assert.ok((await allocation.json()).tools_used.includes('explain_decision'));
   assert.equal(allocation.request().postDataJSON().comparison.scenario_id, 'mini');
+  const session = allocation.request().postDataJSON().session_id;
+  assert.match(session, /^[a-f\d-]{36}$/);
   await visible(panel.getByText(/Plot A \(EXP-01\): 5 m³ by its deadline/).first());
 
   await panel.getByRole('textbox', { name: 'Your question' }).fill(
@@ -47,12 +49,24 @@ try {
   );
   const solarPending = waitForChat(page);
   await panel.getByRole('button', { name: 'Send question' }).click();
-  assert.equal((await solarPending).status(), 200);
+  const solar = await solarPending;
+  assert.equal(solar.status(), 200);
+  assert.equal(solar.request().postDataJSON().session_id, session);
   const citation = panel.locator('details').filter({ hasText: /ANME · Solar PV potential in Tunisia/ }).first();
   await citation.locator('summary').click({ timeout: 50000 });
   const link = citation.getByRole('link', { name: 'Read the source' });
   assert.equal(await link.getAttribute('href'), 'https://anme.tn/en/content/solar-photovoltaic');
   await visible(citation.getByText('1,450 kWh per kilowatt-peak', { exact: false }));
+
+  await panel.getByRole('textbox', { name: 'Your question' }).fill(
+    'Which official source did you just cite? Please cite that same passage again.',
+  );
+  const followUpPending = waitForChat(page);
+  await panel.getByRole('button', { name: 'Send question' }).click();
+  const followUp = await followUpPending;
+  assert.equal(followUp.status(), 200);
+  assert.equal(followUp.request().postDataJSON().session_id, session);
+  assert.ok((await followUp.json()).citations.some((source) => source.source_id === 'solar'));
 
   await page.keyboard.press('Escape');
   await visible(page.getByText(/Simulated plan approved/));
@@ -60,6 +74,8 @@ try {
   await visible(page.getByText(/Result out of date/));
   await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
   await visible(page.getByRole('dialog').getByText('Site and evidence'));
+  await visible(panel.getByText('Historical result · earlier inputs').first());
+  await visible(panel.getByText(/ANME · Solar PV potential in Tunisia/).first());
 
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
   mobile.on('pageerror', (error) => errors.push(error.message));
@@ -70,7 +86,7 @@ try {
   await mobile.getByRole('button', { name: 'Ask Mizhuo' }).click();
   await visible(mobile.getByText('The assistant needs a connected evidence service.', { exact: false }));
   assert.deepEqual(errors, []);
-  console.log('Chrome passed live allocation, ANME citation, approval preservation, stale context, and mobile offline fallback.');
+  console.log('Chrome passed live allocation, ANME citation, session continuity, stale history, approval, and mobile offline fallback.');
 } finally {
   await browser.close();
 }

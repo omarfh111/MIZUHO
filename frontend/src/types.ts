@@ -232,6 +232,17 @@ export interface AssistantRequest {
   solar_option_id?: string;
   comparison?: CompareRequest;
   recent_questions?: string[];
+  session_id?: string;
+  selected_scenario_id?: string;
+  simulation_revision?: number;
+  simulation_pending?: boolean;
+}
+
+export interface AssistantSimulationContext {
+  scenarioId: string;
+  revision: number;
+  pending: boolean;
+  comparison?: CompareRequest;
 }
 
 export interface AssistantAnswer {

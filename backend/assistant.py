@@ -8,6 +8,7 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 from langsmith import tracing_context
 
+from .assistant_memory import AssistantMemory, recall
 from .assistant_tools import TOOLS, Turn, run_tool
 from .catalog import Catalog
 from .compare import InputError
@@ -21,6 +22,10 @@ MAX_CALLS = 6
 TURN_TIMEOUT = 42
 
 INSTRUCTIONS = """You are Mizhuo's evidence and irrigation assistant. Use only tool results to answer.
+Prior answers contain verified citations and simulated facts from earlier turns in this session.
+Use their registered IDs to answer follow-ups about those same results or sources. Use the tools for new
+calculations and comparisons. Keep prior hypothetical or preset results distinct from the current comparison.
+When simulation inputs have changed, ask the user to recalculate before discussing current results.
 Select tools yourself. Use explain_decision for allocation reasons, get_simulation_results for actual or
 reduced-quota results, get_site_data for solar and provenance, and search_evidence when external evidence is
 requested or relied on. For photovoltaic potential search for ANME in Tunisia and cite the relevant verified passage.
@@ -205,7 +210,7 @@ def finalize(turn: Turn, answer: dict) -> AssistantAnswer:
 
 
 def run_assistant(request: AssistantRequest, catalog: Catalog, corpus: Corpus, providers: Providers,
-                  solver_budget: float) -> AssistantAnswer:
+                  solver_budget: float, memory: AssistantMemory | None = None) -> AssistantAnswer:
     sites = {feature.properties.site_id for feature in catalog.sites.features}
     if request.site_id not in sites:
         raise InputError("site_id", "Unknown site.")
@@ -216,16 +221,37 @@ def run_assistant(request: AssistantRequest, catalog: Catalog, corpus: Corpus, p
         if site is None or request.solar_option_id not in {option.id for option in site.options}:
             raise InputError("solar_option_id", "Unknown solar option for this site.")
     comparison = request.comparison
+    if request.selected_scenario_id is not None:
+        selected = catalog.scenarios.get(request.selected_scenario_id)
+        if selected is None or selected.site_id != request.site_id:
+            raise InputError("selected_scenario_id", "The selected scenario must belong to the current site.")
     if comparison is not None:
+        if request.simulation_pending or request.selected_scenario_id not in (None, comparison.scenario_id):
+            raise InputError("comparison", "Recalculate the comparison for the current scenario and inputs.")
         scenario = catalog.scenarios.get(comparison.scenario_id)
         if scenario is None or scenario.site_id != request.site_id:
             raise InputError(("comparison", "scenario_id"), "The comparison must belong to the current site.")
         validate_state(scenario, comparison.state)
     turn = Turn(request, catalog, corpus, providers, monotonic() + TURN_TIMEOUT, solver_budget)
+    if memory is None or request.session_id is None:
+        return answer_turn(turn, [])
+    with memory.session(request.session_id) as key:
+        previous = memory.load(key, request)
+        answer = answer_turn(turn, recall(turn, previous))
+        memory.remember(key, previous, turn, answer)
+        return answer
+
+
+def answer_turn(turn: Turn, prior_answers: list[dict]) -> AssistantAnswer:
+    request = turn.request
     context = {
         "site": request.site_id, "selected_solar": request.solar_option_id,
-        "active_scenario": comparison.scenario_id if comparison else None,
-        "scenarios": [{"id": scenario.id, "label": scenario.label} for scenario in catalog.scenarios.values()
+        "active_scenario": request.comparison.scenario_id if request.comparison else None,
+        "selected_scenario": request.selected_scenario_id,
+        "previous_scenario": turn.remembered_scenario_id,
+        "simulation_pending": request.simulation_pending,
+        "prior_answers": prior_answers,
+        "scenarios": [{"id": scenario.id, "label": scenario.label} for scenario in turn.catalog.scenarios.values()
                       if scenario.site_id == request.site_id],
         "recent_questions": request.recent_questions,
         "question": request.question.strip(),

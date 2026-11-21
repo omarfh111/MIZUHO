@@ -39,6 +39,9 @@ class Turn:
     gaps: set[str] = field(default_factory=set)
     tools_used: list[str] = field(default_factory=list)
     requested_facts: set[str] = field(default_factory=set)
+    memory_facts: set[str] = field(default_factory=set)
+    remembered_scenario_id: str | None = None
+    discussed_scenario_id: str | None = None
 
     def remaining(self, maximum: float = 12) -> float:
         remaining = self.deadline - monotonic()
@@ -46,13 +49,14 @@ class Turn:
             raise ServiceError("Assistant time budget")
         return min(remaining, maximum)
 
-    def fact(self, text: str, provenance: Provenance) -> DecisionFact:
-        for current in self.facts.values():
-            if current.text == text and current.provenance == provenance:
-                return current
-        fact_id = f"f{len(self.facts) + 1}"
-        fact = DecisionFact(id=fact_id, text=text, provenance=provenance)
-        self.facts[fact_id] = fact
+    def fact(self, text: str, provenance: Provenance, *, remember: bool = False) -> DecisionFact:
+        fact = next((item for item in self.facts.values()
+                     if item.text == text and item.provenance == provenance), None)
+        if fact is None:
+            fact_id = f"f{len(self.facts) + 1}"
+            fact = self.facts[fact_id] = DecisionFact(id=fact_id, text=text, provenance=provenance)
+        if remember and provenance == Provenance.SIMULATED:
+            self.memory_facts.add(fact.id)
         return fact
 
     def calculate(self, request: CompareRequest) -> Comparison:
@@ -96,7 +100,7 @@ def get_site_data(turn: Turn, args: SiteArgs) -> dict:
                 f"{option.label}{selection}: {option.capacity_kwp:g} kWp; {result.production_kwh:g} kWh generated and "
                 f"{result.grid_avoided_kwh:g} kWh of grid energy avoided on the modeled day. "
                 f"Azimuth {option.azimuth_deg}°, tilt {option.tilt_deg}°.",
-                option.provenance,
+                option.provenance, remember=True,
             ))
     missing = []
     if site.status == Provenance.SIMULATED:
@@ -110,7 +114,11 @@ def scenario_request(turn: Turn, args: ScenarioArgs) -> CompareRequest:
     context = turn.request.comparison
     if context and (args.scenario_id is None or args.scenario_id == context.scenario_id):
         return context
-    scenario = turn.catalog.scenarios.get(args.scenario_id or "")
+    if turn.request.simulation_pending and args.scenario_id in (None, turn.request.selected_scenario_id):
+        turn.gaps.add("Simulation inputs changed. Recalculate the schedules before asking about current results.")
+        raise InputError("scenario_id", "The current simulation needs to be recalculated.")
+    scenario_id = args.scenario_id or turn.remembered_scenario_id or turn.request.selected_scenario_id
+    scenario = turn.catalog.scenarios.get(scenario_id or "")
     if scenario is None or scenario.site_id != turn.request.site_id:
         raise InputError("scenario_id", "Choose a scenario at the current site or run a simulation first.")
     return CompareRequest(
@@ -131,7 +139,7 @@ def summarize_plan(turn: Turn, label: str, plan: ApiPlan, provenance: Provenance
         f"{label}: {metrics.delivered_on_time_m3} m³ delivered on time; "
         f"{metrics.withdrawn_m3} m³ withdrawn; minimum coverage {coverage}; "
         f"{metrics.grid_wh / 1000:g} kWh of grid energy and {metrics.peak_grid_w / 1000:g} kW peak grid power.",
-        provenance,
+        provenance, remember=True,
     )]
 
 
@@ -145,6 +153,7 @@ def planning_facts(turn: Turn, args: ScenarioArgs, *, explain: bool) -> dict:
         request = original.model_copy(update={"state": state.model_copy(update={"quota_remaining_m3": args.quota_m3})})
     scenario = turn.catalog.scenarios[request.scenario_id]
     result = turn.calculate(request)
+    turn.discussed_scenario_id = scenario.id
     provenance = scenario.provenance
     weather = result.weather_comparison
     fixed = weather.reference_on_adverse if weather else result.baseline
@@ -165,7 +174,7 @@ def planning_facts(turn: Turn, args: ScenarioArgs, *, explain: bool) -> dict:
     for plot in proposed.plot_results or ():
         allocation = turn.fact(
             f"Plot {plot.plot_id} ({plot.farmer_id}): {plot.delivered_on_time_m3} m³ by its deadline, "
-            f"{plot.minimum_m3} m³ minimum and {plot.demand_m3} m³ total demand.", provenance,
+            f"{plot.minimum_m3} m³ minimum and {plot.demand_m3} m³ total demand.", provenance, remember=True,
         )
         facts.append(allocation)
         if requested_plots.intersection({plot.plot_id.upper(), plot.farmer_id.upper()}):
@@ -173,21 +182,21 @@ def planning_facts(turn: Turn, args: ScenarioArgs, *, explain: bool) -> dict:
     if weather:
         facts.append(turn.fact(f"Weather reserve: {weather.early_pump_m3} m³ pumped before hour {weather.before_slot}; "
                                f"{weather.remaining_deficit_m3} m³ minimum delivery shortfall under adverse conditions.",
-                               weather.provenance))
+                               weather.provenance, remember=True))
     if explain:
         rule = ("Weather planning protects minimum coverage under both profiles before minimizing early pumping."
                 if weather else
                 "The solver maximizes the worst priority coverage before weighted shortfall and delivered water, "
                 "then minimizes grid peak, grid energy, and water withdrawals.")
-        facts.append(turn.fact(rule, provenance))
+        facts.append(turn.fact(rule, provenance, remember=True))
         if request.outage_slots:
             facts.append(turn.fact("Grid-tied pumping is unavailable during outages. Gravity-fed delivery can continue "
-                                   "while water remains in the reservoir.", provenance))
+                                   "while water remains in the reservoir.", provenance, remember=True))
         if proposed.metrics and proposed.metrics.quota_remaining_m3 == 0:
-            facts.append(turn.fact("The proposed plan exhausts the available withdrawal quota.", provenance))
+            facts.append(turn.fact("The proposed plan exhausts the available withdrawal quota.", provenance, remember=True))
         for warning in proposed.warnings:
             if warning.type not in {"efficiency", "insufficient"}:
-                facts.append(turn.fact(warning.message, provenance))
+                facts.append(turn.fact(warning.message, provenance, remember=True))
     return {
         "verification": proposed.status,
         "facts": [fact.model_dump(mode="json") for fact in facts],

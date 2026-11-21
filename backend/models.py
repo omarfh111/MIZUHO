@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import Annotated, Literal, Self
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, HttpUrl, StringConstraints, model_validator
+from pydantic import UUID4, AwareDatetime, BaseModel, ConfigDict, Field, HttpUrl, StringConstraints, model_validator
 
 
 Amount = Annotated[int, Field(strict=True, ge=0, le=1_000_000_000)]
@@ -483,6 +483,10 @@ class AssistantRequest(PlanningModel):
     solar_option_id: Annotated[str, Field(min_length=1, max_length=120)] | None = None
     comparison: CompareRequest | None = None
     recent_questions: Annotated[tuple[Annotated[str, StringConstraints(max_length=1600)], ...], Field(max_length=3)] = ()
+    session_id: UUID4 | None = None
+    selected_scenario_id: Annotated[str, Field(min_length=1, max_length=120)] | None = None
+    simulation_revision: Amount | None = None
+    simulation_pending: bool = False
 
 
 class GroundedParagraph(PlanningModel):

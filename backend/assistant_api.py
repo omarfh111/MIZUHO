@@ -5,6 +5,7 @@ from threading import BoundedSemaphore
 from fastapi import APIRouter, HTTPException, Request
 
 from .assistant import run_assistant
+from .assistant_memory import AssistantMemory, SessionBusy
 from .catalog import Catalog
 from .evidence import Corpus, index_status, load_corpus, search
 from .models import AssistantAnswer, AssistantHealth, AssistantRequest, Citation, EvidenceSearchRequest, IndexStatus
@@ -18,6 +19,7 @@ class AssistantRuntime:
     providers: Providers | None
     solver_budget: float
     capacity: BoundedSemaphore = field(default_factory=lambda: BoundedSemaphore(2))
+    memory: AssistantMemory = field(default_factory=AssistantMemory)
 
     def close(self):
         if self.providers is not None:
@@ -95,7 +97,9 @@ def chat(request: Request, body: AssistantRequest) -> AssistantAnswer:
     service = runtime(request)
     providers = connected(service)
     try:
-        return run_assistant(body, service.catalog, service.corpus, providers, service.solver_budget)
+        return run_assistant(body, service.catalog, service.corpus, providers, service.solver_budget, service.memory)
+    except SessionBusy:
+        raise HTTPException(409, "This session already has a question in progress.") from None
     except ServiceError as error:
         raise HTTPException(503, str(error)) from None
     finally:

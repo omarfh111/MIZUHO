@@ -60,6 +60,8 @@ The bundled Jendouba site opts into M7's simulated relief in both modes. Other s
 
 Use **Ask Mizhuo** from the connected interface. The assistant can search verified excerpts, inspect the current site and solar options, run a quota what-if, and explain allocations using M6. It reads the current valid comparison when available and never changes or approves a plan. Calculated values are rendered from M6 facts. Click an evidence card for its excerpt, scope, and source link.
 
+Follow-up questions use the latest six grounded answers in the open app session. The LangGraph store keeps public citation references, verified simulated facts, and the scenario last discussed. Raw messages, generated prose, credentials, and measured values stay out of server memory. Changing simulation inputs invalidates remembered figures while keeping public citations available. Earlier figures in the transcript are labeled historical. The transcript survives closing the panel, and a page reload starts a new session. Server memory expires after an hour of inactivity and clears when the API process restarts.
+
 The server reads OpenAI and Qdrant credentials from the ignored root `.env`. The assistant uses `gpt-6-luna` and `text-embedding-3-small` with 1,536 dimensions. Set `QDRANT_COLLECTION` to select a collection. The default is `mizhuo_m8_evidence_v1` and it requires an unnamed cosine vector. M6 and the offline M7 demo remain available without assistant credentials.
 
 To build or check the index from the repository root, run:
@@ -91,4 +93,4 @@ npm test
 npm run build
 ```
 
-With Chrome, the frontend, and the configured backend running, run `npm run test:browser` from `frontend/` for the live assistant walkthrough. It sends two questions to the configured OpenAI model. Set `MIZHUO_TEST_URL` if the frontend is served somewhere other than `http://127.0.0.1:5173/`.
+With Chrome, the frontend, and the configured backend running, run `npm run test:browser` from `frontend/` for the live assistant walkthrough. It sends three questions to the configured OpenAI model, including a follow-up about the previous citation. Set `MIZHUO_TEST_URL` if the frontend is served somewhere other than `http://127.0.0.1:5173/`.

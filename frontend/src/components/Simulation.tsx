@@ -4,7 +4,7 @@ import {
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError, compare, type DataMode, type FieldErrors } from '../api.ts';
 import { hour, percent, value } from '../format.ts';
-import type { CompareRequest, Comparison, Plan, Scenario, SolarOption } from '../types.ts';
+import type { AssistantSimulationContext, CompareRequest, Comparison, Plan, Scenario, SolarOption } from '../types.ts';
 import Planning from './Planning.tsx';
 
 interface Inputs {
@@ -111,7 +111,7 @@ function readValidation(request: CompareRequest, actions: Plan['actions']) {
 }
 
 interface Props {
-  onAssistantContext?: (comparison: CompareRequest | undefined) => void;
+  onAssistantContext?: (simulation: AssistantSimulationContext | undefined) => void;
   scenarios: Scenario[];
   mode: DataMode;
   solar: SolarOption | null;
@@ -158,10 +158,13 @@ export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvi
   const displayed = calculated?.comparison.weather_comparison?.buffer_on_adverse ?? calculated?.comparison.optimized;
   const missingWeather = calculated?.request.planning_mode === 'weather_buffer' && !calculated.comparison.weather_comparison;
   const assistantContext = current && displayed?.metrics && !missingWeather ? calculated.request : undefined;
+  const assistantPending = !assistantContext && (revision > 0 || loading || Boolean(error));
   useEffect(() => {
-    onAssistantContext?.(assistantContext);
+    onAssistantContext?.({
+      scenarioId: scenario.id, revision, pending: assistantPending, comparison: assistantContext,
+    });
     return () => onAssistantContext?.(undefined);
-  }, [assistantContext, onAssistantContext]);
+  }, [assistantContext, assistantPending, onAssistantContext, revision, scenario.id]);
   const canValidate = current && !missingWeather && displayed?.status !== 'NO_SOLUTION' && Boolean(displayed?.actions && displayed.metrics);
   const reset = () => { invalidate(); setInputs(initialInputs(scenario)); };
   const toggle = (slot: number) => update({ outages: inputs.outages.includes(slot)
