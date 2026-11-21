@@ -4,8 +4,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.assistant_api import AssistantRuntime
+from backend.bm25 import BM25, fuse_ranks, tokenize
 from backend.catalog import DATA_DIR, load_catalog
-from backend.evidence import CORPUS, ingest, index_status, load_corpus, search
+from backend.evidence import CORPUS, ingest, index_status, load_corpus, search, search_dense
 from backend.main import create_app
 from backend.providers import DIMENSIONS, EMBEDDING_MODEL, ServiceError
 
@@ -19,6 +20,9 @@ class IndexDouble:
     def __init__(self):
         self.points = {}
         self.embedded = []
+        self.dense_ids = None
+        self.readback_ids = []
+        self.dense_requests = []
 
     def verify_collection(self):
         pass
@@ -29,6 +33,7 @@ class IndexDouble:
 
     def qdrant(self, method, path, body, **kwargs):
         if (method, path) == ("POST", "/points"):
+            self.readback_ids.append(body["ids"])
             return [self.points[key] for key in body["ids"] if key in self.points]
         if (method, path) == ("PUT", "/points?wait=true"):
             for item in body["points"]:
@@ -37,8 +42,10 @@ class IndexDouble:
             return {"status": "completed"}
         assert (method, path) == ("POST", "/points/query")
         assert len(body["query"]) == DIMENSIONS
-        assert set(body["filter"]["must"][0]["has_id"]).issubset(self.points)
-        return {"points": list(self.points.values())}
+        assert body["filter"]["must"][0]["has_id"]
+        self.dense_requests.append(body)
+        candidates = self.points if self.dense_ids is None else self.dense_ids
+        return {"points": [self.points[key] for key in candidates][:body["limit"]]}
 
 
 def test_curated_sources_have_authentic_content_and_provenance(corpus):
@@ -81,10 +88,59 @@ def test_retrieval_resolves_only_current_local_citations(corpus):
     stale = list(corpus.chunks)[1]
     db.points[stale]["payload"]["digest"] = "stale"
     db.points["foreign"] = {"id": "foreign", "payload": {"corpus": CORPUS, "embedding_model": EMBEDDING_MODEL}}
-    rows = search(corpus, db, "solar photovoltaic northwest")
+    rows = search(corpus, db, "solar photovoltaic northwest", limit=7)
     assert len(rows) == 6
     assert rows[0] == corpus.chunks[key].citation
     assert all(row.id not in (stale, "foreign") for row in rows)
+
+
+def test_bm25_matches_accented_french_and_arabic_decimals():
+    assert tokenize("KÉBILI 1,450 667,9") == ["kebili", "1450", "667.9"]
+    assert tokenize("الطَّاقة ٦٦٧٫٩ ١٬٤٥٠ ۲۰۲۳") == ["طاقة", "667.9", "1450", "2023"]
+    index = BM25({"aquifers": "Nappes profondes de Kébili", "solar": "الطاقة 667.9"})
+    assert index.rank("kebili", 4) == ["aquifers"]
+    assert index.rank("طاقَة ٦٦٧٫٩", 4) == ["solar"]
+    assert index.rank("quartz", 4) == []
+
+
+def test_fusion_boosts_agreement_and_preserves_unique_candidates():
+    assert fuse_ranks(["a", "b", "b"], ["b", "c"]) == ["b", "a", "c"]
+    assert fuse_ranks(["a", "b"], []) == ["a", "b"]
+    assert fuse_ranks([], ["b", "a"]) == ["b", "a"]
+
+
+@pytest.mark.parametrize("solar_state", ["current", "stale", "missing"])
+def test_lexical_only_hits_require_matching_qdrant_provenance(corpus, solar_state):
+    db = IndexDouble()
+    ingest(corpus, db)
+    solar, = corpus.for_source("solar")
+    dense_ids = [key for key in db.points if key != solar.id][:4]
+    db.dense_ids = dense_ids
+    if solar_state == "stale":
+        db.points[solar.id]["payload"]["digest"] = "stale"
+    if solar_state == "missing":
+        del db.points[solar.id]
+    db.readback_ids.clear()
+    db.embedded.clear()
+    query = "الكهروضوئية كيلوواط ذروة"
+    dense = search_dense(corpus, db, query)
+    assert [item.id for item in dense] == dense_ids
+    assert db.dense_requests[-1]["limit"] == 4
+    assert db.dense_requests[-1]["score_threshold"] == 0.19
+    rows = search(corpus, db, query)
+    assert rows == ([*dense[:3], solar] if solar_state == "current" else dense)
+    assert db.readback_ids == [[solar.id]]
+    assert db.embedded == [query, query]
+
+
+def test_hybrid_returns_only_the_requested_context_size(corpus):
+    db = IndexDouble()
+    ingest(corpus, db)
+    db.readback_ids.clear()
+    rows = search(corpus, db, "quartz")
+    assert len(rows) == 4
+    assert db.dense_requests[-1]["limit"] == 7
+    assert db.readback_ids == []
 
 
 def test_offline_maintains_m6_and_local_passage_routes():

@@ -4,20 +4,25 @@ import argparse
 import hashlib
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
+from time import monotonic
 from uuid import NAMESPACE_URL, uuid5
 
 from dotenv import load_dotenv
 from pydantic import TypeAdapter
 
+from .bm25 import BM25, fuse_ranks
 from .catalog import DATA_DIR, load_catalog
 from .models import Citation, Evidence, IndexStatus, PlanningModel
 from .providers import EMBEDDING_MODEL, Providers, ServiceError, Services
 
 CORPUS = "mizhuo-m8-v1"
 BATCH_SIZE = 16
+CANDIDATE_LIMIT = 12
+RESULT_LIMIT = 4
+POINT_PROVENANCE = ["digest", "embedding_model", "corpus"]
 
 
 class SourceEntry(PlanningModel):
@@ -26,6 +31,7 @@ class SourceEntry(PlanningModel):
     section: str
     published_date: date | None = None
     unavailable_reason: str | None = None
+    search_terms: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -52,6 +58,7 @@ class Chunk:
 class Corpus:
     chunks: dict[str, Chunk]
     unavailable: dict[str, str]
+    lexical: BM25 = field(default_factory=lambda: BM25({}), repr=False)
 
     @property
     def document_count(self):
@@ -65,7 +72,7 @@ def load_corpus(data_dir: Path, sources: dict[str, Evidence]) -> Corpus:
     manifest = data_dir / "m8_corpus.json"
     directory = data_dir.parent / "docs" / "evidence"
     entries = TypeAdapter(list[SourceEntry]).validate_json(manifest.read_bytes())
-    chunks, unavailable = {}, {}
+    chunks, unavailable, searchable = {}, {}, {}
     seen = set()
     for entry in entries:
         source = sources.get(entry.source_id)
@@ -91,7 +98,8 @@ def load_corpus(data_dir: Path, sources: dict[str, Evidence]) -> Corpus:
             )
             digest = hashlib.sha256(citation.model_dump_json().encode("utf-8")).hexdigest()
             chunks[key] = Chunk(citation, digest)
-    return Corpus(chunks, unavailable)
+            searchable[key] = " ".join((chunks[key].embedding_text, *entry.search_terms))
+    return Corpus(chunks, unavailable, BM25(searchable))
 
 
 def index_status(corpus: Corpus, providers: Providers | None) -> IndexStatus:
@@ -110,15 +118,17 @@ def indexed_ids(corpus: Corpus, providers: Providers) -> set[str]:
     matched = set()
     keys = list(corpus.chunks)
     for start in range(0, len(keys), 64):
-        existing = providers.qdrant("POST", "/points", {
-            "ids": keys[start:start + 64], "with_payload": ["digest", "embedding_model", "corpus"], "with_vector": False,
-        })
-        if not isinstance(existing, list):
-            raise ServiceError("Qdrant point readback")
-        for item in existing:
-            if current_point(corpus, item):
-                matched.add(str(item["id"]))
+        matched.update(verify_point_ids(corpus, providers, keys[start:start + 64], timeout=8))
     return matched
+
+
+def verify_point_ids(corpus: Corpus, providers: Providers, keys: list[str], *, timeout: float) -> set[str]:
+    existing = providers.qdrant("POST", "/points", {
+        "ids": keys, "with_payload": POINT_PROVENANCE, "with_vector": False,
+    }, timeout=timeout)
+    if not isinstance(existing, list):
+        raise ServiceError("Qdrant point readback")
+    return {chunk.citation.id for item in existing if (chunk := current_point(corpus, item))}
 
 
 def current_point(corpus: Corpus, point: dict) -> Chunk | None:
@@ -148,20 +158,51 @@ def ingest(corpus: Corpus, providers: Providers) -> tuple[int, int]:
     return len(changed), len(known)
 
 
-def search(corpus: Corpus, providers: Providers, query: str, *, timeout: float = 8, limit: int = 4) -> list[Citation]:
-    if not corpus.chunks:
-        return []
-    vector, = providers.embeddings([query], timeout=timeout / 2)
+def dense_points(corpus: Corpus, providers: Providers, vector: list[float], *, timeout: float, limit: int) -> list[Citation]:
     result = providers.qdrant("POST", "/points/query", {
         "query": vector, "limit": min(limit, len(corpus.chunks)), "with_vector": False,
-        "with_payload": ["digest", "embedding_model", "corpus"],
+        "with_payload": POINT_PROVENANCE,
         "filter": {"must": [{"has_id": list(corpus.chunks)}]},
         "score_threshold": 0.19,
-    }, timeout=timeout / 2)
+    }, timeout=timeout)
     points = result.get("points") if isinstance(result, dict) else None
     if not isinstance(points, list):
         raise ServiceError("Qdrant evidence query")
     return [chunk.citation for item in points if (chunk := current_point(corpus, item))]
+
+
+def search_dense(corpus: Corpus, providers: Providers, query: str, *, timeout: float = 8,
+                 limit: int = RESULT_LIMIT) -> list[Citation]:
+    """The original dense-only retrieval path, retained as an evaluation baseline."""
+    if not corpus.chunks:
+        return []
+    vector, = providers.embeddings([query], timeout=timeout / 2)
+    return dense_points(corpus, providers, vector, timeout=timeout / 2, limit=limit)
+
+
+def rank_evidence(corpus: Corpus, providers: Providers, query: str, *, timeout: float = 8,
+                  limit: int = RESULT_LIMIT) -> list[Citation]:
+    """Rank the verified union before cutting it to the assistant's context size."""
+    if not corpus.chunks:
+        return []
+    deadline = monotonic() + timeout
+    vector, = providers.embeddings([query], timeout=timeout / 2)
+    lexical = corpus.lexical.rank(query, CANDIDATE_LIMIT)
+    dense = dense_points(corpus, providers, vector, timeout=timeout / 2, limit=max(limit, CANDIDATE_LIMIT))
+    dense_ids = {citation.id for citation in dense}
+    lexical_only = [key for key in lexical if key not in dense_ids]
+    if lexical_only:
+        available = deadline - monotonic()
+        if available <= 0:
+            raise ServiceError("Qdrant evidence verification")
+        current = verify_point_ids(corpus, providers, lexical_only, timeout=available)
+        lexical = [key for key in lexical if key in dense_ids or key in current]
+    return [corpus.chunks[key].citation for key in fuse_ranks((item.id for item in dense), lexical)]
+
+
+def search(corpus: Corpus, providers: Providers, query: str, *, timeout: float = 8,
+           limit: int = RESULT_LIMIT) -> list[Citation]:
+    return rank_evidence(corpus, providers, query, timeout=timeout, limit=limit)[:limit]
 
 
 def main():
