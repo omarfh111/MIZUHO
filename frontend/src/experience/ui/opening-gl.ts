@@ -29,6 +29,7 @@ out float vAlpha;
 out float vHot;
 out float vHue;
 
+float sq(float x) { return x * x; }
 vec2 rot(vec2 p, float a) { float c = cos(a), s = sin(a); return vec2(c * p.x - s * p.y, s * p.x + c * p.y); }
 
 void main() {
@@ -65,7 +66,7 @@ void main() {
   gl_PointSize = uScale * (0.6 + aRand.x * 1.6) * mix(1.6, 1.0, settled) * (1.0 - e * 0.6);
   vAlpha = mix(0.22 + 0.3 * aRand.x, 0.9, settled) * (1.0 - smoothstep(0.85, 1.0, rel));
   // A caustic light sweep crosses the letters once they have formed.
-  float sweep = exp(-pow((home.x - (fract(t * 0.28) * 3.2 - 1.6)) * 5.0, 2.0)) * settled;
+  float sweep = exp(-sq((home.x - (fract(t * 0.28) * 3.2 - 1.6)) * 5.0)) * settled;
   vHot = sweep + e * 0.8;
   vHue = aRand.w;
 }`;
@@ -83,8 +84,11 @@ void main() {
   vec3 deep = vec3(0.04, 0.42, 0.5);
   vec3 cyan = vec3(0.38, 0.89, 0.94);
   vec3 leaf = vec3(0.79, 0.94, 0.53);
+  vec3 sun = vec3(0.97, 0.81, 0.46);
+  // The identity triad: water, land and sun.
   vec3 col = mix(deep, cyan, 0.4 + 0.6 * vHue);
-  col = mix(col, leaf, smoothstep(0.86, 1.0, vHue) * 0.6);
+  col = mix(col, leaf, smoothstep(0.84, 0.92, vHue) * 0.65);
+  col = mix(col, sun, smoothstep(0.93, 0.98, vHue) * 0.85);
   col += vec3(0.9, 1.0, 1.0) * vHot;
   color = vec4(col * a, a);
 }`;

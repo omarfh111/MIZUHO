@@ -4,14 +4,19 @@ const common = /* glsl */ `
   uniform vec3 uFogColor;
   uniform float uFogDensity;
   vec3 srgb(vec3 c) { return pow(c, vec3(2.2)); }
+  // pow() with a negative base is undefined in GLSL (NaN on ANGLE): square explicitly.
+  float sq(float x) { return x * x; }
   float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
   float vnoise(vec2 p) {
     vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3. - 2. * f);
     return mix(mix(hash12(i), hash12(i + vec2(1, 0)), u.x), mix(hash12(i + vec2(0, 1)), hash12(i + vec2(1, 1)), u.x), u.y);
   }
   float fbm(vec2 p) { float s = 0.; float a = .5; for (int i = 0; i < 4; i++) { s += a * vnoise(p); p = p * 2.03 + 17.1; a *= .5; } return s; }
-  float gridLine(vec2 coord) { vec2 g = abs(fract(coord - .5) - .5) / fwidth(coord); return 1. - min(min(g.x, g.y), 1.); }
-  vec3 applyFog(vec3 col, float dist) { float f = 1. - exp(-pow(dist * uFogDensity, 2.)); return mix(col, uFogColor, clamp(f, 0., 1.)); }
+  // Anti-aliased grid lines. The divisor is clamped: a constant axis has fwidth() = 0,
+  // and 0/0 = NaN, which bloom then smears across the whole frame.
+  float gridLine(vec2 coord) { vec2 g = abs(fract(coord - .5) - .5) / max(fwidth(coord), vec2(1e-4)); return 1. - min(min(g.x, g.y), 1.); }
+  float contourLine(float v) { return 1. - min(abs(fract(v - .5) - .5) / max(fwidth(v), 1e-4), 1.); }
+  vec3 applyFog(vec3 col, float dist) { float f = 1. - exp(-sq(dist * uFogDensity)); return mix(col, uFogColor, clamp(f, 0., 1.)); }
 `;
 
 const standardVertex = /* glsl */ `
@@ -128,7 +133,7 @@ export const mapFragment = /* glsl */ `
     base = mix(base, dune * (.88 + .12 * sin(phase)), erg * .8);
 
     base = mix(base, rock, clamp(smoothstep(1.4, 2.8, vWorld.y) * .55 + smoothstep(.25, .6, 1. - n.y) * .3, 0., 1.));
-    float chott = pow((lon - 8.35) / .58, 2.) + pow((lat - 33.76) / .15, 2.);
+    float chott = sq((lon - 8.35) / .58) + sq((lat - 33.76) / .15);
     float salt = 1. - smoothstep(.75, 1.1, chott);
     float cracks = smoothstep(.04, 0., abs(vnoise(ll * 260.) - .5)) * close;
     base = mix(base, chottCol * (1. - cracks * .25), salt * (.8 + .2 * vnoise(ll * 40.)));
@@ -143,7 +148,7 @@ export const mapFragment = /* glsl */ `
     float wet = uRain * smoothstep(35.2, 36.4, lat);
     landCol *= 1. - wet * .3;
     landCol += srgb(vec3(.5, .62, .66)) * pow(max(dot(reflect(-uSunDir, n), viewDir), 0.), 18.) * wet * .5;
-    float contour = gridLine(vec2(vWorld.y * 7., 0.));
+    float contour = contourLine(vWorld.y * 7.);
     landCol += uAccent * contour * .04 * smoothstep(.05, .3, vWorld.y) * (1. - smoothstep(30., 140., vViewDist));
 
     /* ---- sea ---- */
@@ -173,7 +178,7 @@ export const mapFragment = /* glsl */ `
     float dist = length(vWorld.xz - uRevealOrigin.xz);
     float radius = uReveal * 230.;
     float revealed = smoothstep(radius, radius - 18., dist);
-    float ring = exp(-pow((dist - radius) / 1.8, 2.)) * step(.001, uReveal) * (1. - uReveal);
+    float ring = exp(-sq((dist - radius) / 1.8)) * step(.001, uReveal) * (1. - uReveal);
     float holo = smoothstep(radius, radius - 5., dist) * (1. - smoothstep(radius - 5., radius - 24., dist));
     float wire = gridLine(vWorld.xz * .5) * .8 + coast;
     vec3 dark = uFogColor * .35;
@@ -236,16 +241,16 @@ export const valleyFragment = /* glsl */ `
     float diffuse = max(dot(n, uSunDir), 0.);
     float shadow = cloudShadow(vWorld.xz, uTime) * uCloudShadow;
     vec3 col = base * (srgb(vec3(.24, .33, .38)) * (.5 + .5 * n.y) + uSunColor * diffuse * 1.45 * (1. - shadow * .5));
-    col += uAccent * gridLine(vec2(vWorld.y * 28., 0.)) * .025;
+    col += uAccent * contourLine(vWorld.y * 28.) * .01;
     col += srgb(vec3(.4, .85, .9)) * wet * pow(max(dot(reflect(-uSunDir, n), normalize(cameraPosition - vWorld)), 0.), 24.) * .8;
-    col += uAccent * exp(-pow((wd - .6) / .02, 2.)) * uWetAmount * .7;
+    col += uAccent * exp(-sq((wd - .6) / .02)) * uWetAmount * .7;
     // Digital twin: the finale overlays a measured grid and contour lines.
-    col += uAccent * (gridLine(vWorld.xz * 3.) * .45 + gridLine(vec2(vWorld.y * 40., 0.)) * .35) * uTwin;
+    col += uAccent * (gridLine(vWorld.xz * 3.) * .45 + contourLine(vWorld.y * 40.) * .35) * uTwin;
 
     float d = length(vWorld.xz - uOrigin.xz);
     float radius = uReveal * uRadius * 2.4;
     float revealed = smoothstep(radius, radius - .7, d);
-    float ring = exp(-pow((d - radius) / .07, 2.)) * step(.001, uReveal) * (1. - uReveal * uReveal);
+    float ring = exp(-sq((d - radius) / .07)) * step(.001, uReveal) * (1. - uReveal * uReveal);
     vec3 holo = uFogColor * .4 + uAccent * (gridLine(vWorld.xz * 6.) * .55 + .04);
     col = mix(holo, col, revealed) + uAccent * ring * 2.6;
 
@@ -343,7 +348,7 @@ export const canalFragment = /* glsl */ `
     float visible = smoothstep(vFlow, vFlow + .035, uFlow);
     if (visible < .002) discard;
     float pulse = pow(fract(vDistance * 2.2 - uTime * .85), 8.);
-    float front = exp(-pow((uFlow - vFlow - .02) / .025, 2.)) * step(uFlow, .999);
+    float front = exp(-sq((uFlow - vFlow - .02) / .025)) * step(uFlow, .999);
     vec3 col = uColor * (.55 + pulse * 2.4 + front * 4.);
     gl_FragColor = vec4(applyFog(col, vViewDist), visible);
     #include <tonemapping_fragment>
@@ -448,7 +453,7 @@ export const panelFragment = /* glsl */ `
     vec3 h = normalize(uSunDir + viewDir);
     col += uSunColor * pow(max(dot(n, h), 0.), 70.) * 1.4 * top;
     float lane = mod(vWorld.x * .8 + vWorld.z * .4 + 400., 8.);
-    float sweep = exp(-pow((lane - mod(uTime * .9, 8.)) / .05, 2.));
+    float sweep = exp(-sq((lane - mod(uTime * .9, 8.)) / .05));
     col += srgb(vec3(.65, .9, 1.)) * sweep * 1.6 * top;
     col *= mix(.35, 1., top);
     gl_FragColor = vec4(applyFog(col, vViewDist), 1.);

@@ -2,7 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { Director } from '../core/director.ts';
-import { MEDJERDA, toWorld } from '../core/geo.ts';
+import { ENERGY_SITES, MEDJERDA, toWorld } from '../core/geo.ts';
 import { DROP_LANDS, makeDropPath } from './choreography.ts';
 import { random } from './noise.ts';
 import { PALETTE, shared } from './uniforms.ts';
@@ -62,12 +62,13 @@ const dropFragment = /* glsl */ `
 `;
 
 const glowFragment = /* glsl */ `
+  float sq(float x) { return x * x; }
   uniform vec3 uColor;
   uniform float uOpacity;
   varying vec2 vUv;
   void main() {
     vec2 p = vUv - .5;
-    float streak = exp(-pow(p.x * 9., 2.)) * smoothstep(.5, -.2, p.y) * smoothstep(-.5, -.3, p.y);
+    float streak = exp(-sq(p.x * 9.)) * smoothstep(.5, -.2, p.y) * smoothstep(-.5, -.3, p.y);
     gl_FragColor = vec4(uColor * 1.8, streak * uOpacity);
   }
 `;
@@ -78,13 +79,14 @@ const uvVertex = /* glsl */ `
 `;
 
 const ringFragment = /* glsl */ `
+  float sq(float x) { return x * x; }
   uniform vec3 uColor;
   uniform float uOpacity;
   uniform float uPhase;
   varying vec2 vUv;
   void main() {
     float r = length(vUv - .5) * 2.;
-    float ring = exp(-pow((r - uPhase) / .035, 2.)) + exp(-pow((r - uPhase * .62) / .025, 2.)) * .5;
+    float ring = exp(-sq((r - uPhase) / .035)) + exp(-sq((r - uPhase * .62) / .025)) * .5;
     float a = ring * (1. - uPhase) * uOpacity * step(r, 1.);
     if (a < .003) discard;
     gl_FragColor = vec4(uColor * 2., a);
@@ -313,6 +315,67 @@ export function DamPulses({ world, director }: { world: World; director: Directo
         <group key={dam.id} position={[dam.position.x, dam.position.y + 0.05, dam.position.z]}>
           <mesh geometry={pillar.geometry} material={pillar.material} renderOrder={6} />
           <mesh geometry={ring} material={rings[i]} rotation={[-Math.PI / 2, 0, 0]} scale={5} renderOrder={6} />
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/* ------------------------------------------------------- renewable plants */
+
+/** Operating wind and solar plants, marked with tall pillars and slow pulses. */
+export function RenewableSites({ world, director }: { world: World; director: Director }) {
+  const sites = useMemo(() => ENERGY_SITES.map((site) => {
+    const { x, z } = toWorld(site.at);
+    return { ...site, position: new THREE.Vector3(x, world.heightAt(x, z) + 0.05, z) };
+  }), [world]);
+  const { pillar, ring, mats } = useMemo(() => {
+    const pillarGeometry = new THREE.CylinderGeometry(0.12, 0.6, 22, 24, 1, true);
+    pillarGeometry.translate(0, 11, 0);
+    const make = (color: THREE.Color) => ({
+      pillar: new THREE.ShaderMaterial({
+        vertexShader: uvVertex, fragmentShader: pillarFragment, transparent: true, depthWrite: false,
+        blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+        uniforms: { uColor: { value: color }, uOpacity: { value: 0 }, uTime: shared.uTime },
+      }),
+      ring: new THREE.ShaderMaterial({
+        vertexShader: uvVertex, fragmentShader: ringFragment, transparent: true, depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        uniforms: { uColor: { value: color }, uOpacity: { value: 0 }, uPhase: { value: 0 } },
+      }),
+    });
+    return {
+      pillar: pillarGeometry,
+      ring: new THREE.PlaneGeometry(1, 1),
+      mats: sites.map((site) => make(site.kind === 'solar' ? PALETTE.sun : new THREE.Color('#e9fbd0'))),
+    };
+  }, [sites]);
+  useEffect(() => () => {
+    pillar.dispose();
+    ring.dispose();
+    mats.forEach((m) => {
+      m.pillar.dispose();
+      m.ring.dispose();
+    });
+  }, [pillar, ring, mats]);
+  const group = useRef<THREE.Group>(null);
+  useFrame((state) => {
+    const amount = director.renewables;
+    if (group.current) group.current.visible = amount > 0.001;
+    if (amount <= 0.001) return;
+    const t = state.clock.elapsedTime;
+    mats.forEach((m, i) => {
+      m.pillar.uniforms.uOpacity.value = amount;
+      m.ring.uniforms.uOpacity.value = amount;
+      m.ring.uniforms.uPhase.value = (t * 0.35 + i * 0.33) % 1;
+    });
+  });
+  return (
+    <group ref={group}>
+      {sites.map((site, i) => (
+        <group key={site.id} position={site.position}>
+          <mesh geometry={pillar} material={mats[i].pillar} renderOrder={6} />
+          <mesh geometry={ring} material={mats[i].ring} rotation={[-Math.PI / 2, 0, 0]} scale={14} renderOrder={6} />
         </group>
       ))}
     </group>
