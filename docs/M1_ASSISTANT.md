@@ -40,6 +40,8 @@ When the intent is field information or an opinion on a cause (confidence ≥ 0.
 - « Le CRDA a réduit notre quota… »: Jev intent = field information on *quota*, confirm (0.97); feedback suggested, then saved on click; the funnel then keeps *quota*.
 - A first version stated "half the quota matches the 0.25 ratio" (wrong): Jev rated a similar answer 0.91 against 0.26 for a correct one, which is why the Verifier was added.
 
+- Qdrant Cloud (eu-central-1): 226 passages ingested; « Comment le stress hydrique réduit-il l'évapotranspiration ? » retrieved FAO-56 chapter 8 in the top 3 passages (scores 0.53 to 0.58).
+
 ## Limits
 
 - The Verifier lowers the risk of wrong claims, it does not remove it: an answer marked « à vérifier » must be checked against the tables.
