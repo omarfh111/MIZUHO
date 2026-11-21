@@ -38,6 +38,41 @@
 | **M7 · 3D dashboard** | Inspect plots, solar potential and water anomalies. Compare schedules, approve a simulated plan, and replay the [cinematic introduction](frontend/src/experience/README.md). |
 | **M8 · Evidence assistant** | Search the reviewed corpus with Qdrant dense retrieval and BM25, trace citations to their sources, and ask follow-up questions about the current simulation. |
 
+## How it works
+
+One browser app talks to one FastAPI service. M6 plans irrigation, M8 explains it with cited evidence, and M7 shows both on a 3D map of the pilot.
+
+```mermaid
+flowchart LR
+  subgraph M7["M7 · Browser"]
+    intro["Cinematic intro"] --> dash["3D dashboard<br/>site map · simulation · Ask Mizhuo"]
+  end
+
+  subgraph M6["M6 · FastAPI"]
+    api["/api routes"] --> compare["Compare schedules"]
+    compare --> baseline["Fixed baseline"]
+    compare --> cpsat["M5 · CP-SAT optimizer"]
+    cpsat --> sim["M4 · Simulator replay"]
+    api --> solar["Solar options"]
+    data[("Site layers · scenarios<br/>solar profiles · fixtures")]
+  end
+
+  subgraph M8["M8 · Evidence assistant"]
+    agent["LangGraph agent"] --> tools["Tools"]
+    tools --> search["Hybrid search<br/>dense + BM25"]
+  end
+
+  dash -- "/api" --> api
+  dash -- "Ask Mizhuo" --> agent
+  tools -- "current plan" --> compare
+  compare -.-> data
+  solar -.-> data
+  agent <--> llm["OpenAI<br/>gpt-6-luna"]
+  search <--> qdrant[("Qdrant Cloud")]
+```
+
+<sub>Vite proxies <code>/api</code> to FastAPI on port 8000 in development; in production both are served from one origin. Site layers, scenarios and solar profiles are simulated.</sub>
+
 ## Run MIZUHO
 
 Use Git, Python **3.12**, Node.js **22.12 or later**, an OpenAI project key with access to `gpt-6-luna` and `text-embedding-3-small`, and a Qdrant Cloud cluster with an API key that can read and write the evidence collection.
