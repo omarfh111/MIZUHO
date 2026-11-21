@@ -446,6 +446,13 @@ input[aria-invalid="true"] { border-color: var(--coral); }
 .what-if-controls[open] summary { margin-bottom: 10px; }
 .what-if-controls .outage-block { max-width: 40rem; }
 .outage-heading { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 7px; }
+.stock-only-example {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 12px 22px; margin-block: 16px; padding: 12px 16px;
+  border-inline-start: 3px solid var(--teal); background: var(--panel);
+}
+.stock-only-example strong { font-size: .92rem; }
+.stock-only-example p { margin: 3px 0 0; max-width: 68ch; color: var(--muted); font-size: .84rem; }
 .outage-heading > span { display: flex; align-items: center; gap: 6px; font-size: .79rem; font-weight: 780; }
 .outage-heading svg { color: var(--coral); }
 .outage-heading small { color: var(--muted); font: 630 .7rem var(--display); }

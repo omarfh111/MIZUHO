@@ -20,6 +20,8 @@ try {
   const scenario = page.getByRole('combobox', { name: 'Scenario', exact: true });
   const calculate = page.getByRole('button', { name: /^(Calculate schedules|Recalculate)$/ });
   const twin = page.getByRole('region', { name: 'Operational digital twin' });
+  const register = page.getByRole('region', { name: 'Daily delivery commitments', exact: true });
+  const inspected = register.getByRole('combobox', { name: 'Schedule to inspect' });
   const stock = page.getByLabel('Starting water stock (simulated input)', { exact: false });
   const quota = page.getByLabel('Remaining quota', { exact: false }).first();
   const shown = (locator) => locator.waitFor({ state: 'visible' });
@@ -42,6 +44,23 @@ try {
     await scenario.selectOption(id);
     const { result, frames } = await solve();
     const proposed = result.weather_comparison?.buffer_on_adverse ?? result.optimized;
+    await register.getByRole('table').waitFor();
+    for (const plot of proposed.plot_results) {
+      const row = register.getByRole('row', { name: new RegExp(`^Plot ${plot.plot_id} `) });
+      const cells = row.getByRole('cell');
+      assert.deepEqual((await cells.allTextContents()).slice(1, 4), [plot.minimum_m3, plot.delivered_on_time_m3,
+        Math.max(0, plot.minimum_m3 - plot.delivered_on_time_m3)].map(n => `${n} m³`), id);
+    }
+    if (id === 'mini') {
+      const replayPending = page.waitForResponse(r => hits(r, '/api/telemetry/replay'));
+      await inspected.selectOption('baseline');
+      await replayPending;
+      assert.equal(await twin.getByRole('button', { name: 'Fixed schedule' }).getAttribute('aria-pressed'), 'true');
+      for (const plot of result.baseline.plot_results) {
+        const row = register.getByRole('row', { name: new RegExp(`^Plot ${plot.plot_id} `) });
+        assert.equal(await row.getByRole('cell').nth(2).textContent(), `${plot.delivered_on_time_m3} m³`);
+      }
+    }
     assert.equal(frames.length, proposed.actions.length, id);
     for (const [index, frame] of frames.entries()) {
       const action = proposed.actions[index];
@@ -67,6 +86,7 @@ try {
 
   await scenario.selectOption('mini');
   await stock.fill('-1');
+  assert.equal(await register.getByRole('table').count(), 0);
   await calculate.click();
   await shown(page.getByRole('alert').getByText('Correct the highlighted inputs.'));
   assert.equal(await stock.getAttribute('aria-invalid'), 'true');
@@ -99,6 +119,7 @@ try {
   await page.getByLabel('Incident duration').selectOption('3');
   const recovery = await solve();
   assert.equal(recovery.result.incident_checkpoint.current_slot, 9);
+  await register.getByRole('columnheader', { name: 'Scheduled deliveries from 09:00' }).waitFor();
   assert.deepEqual(recovery.frames.filter(frame => frame.slot < 9),
     uninterrupted.frames.filter(frame => frame.slot < 9));
   for (const frame of recovery.frames.filter(frame => frame.slot >= 9 && frame.slot < 12)) {

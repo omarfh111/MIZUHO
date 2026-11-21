@@ -7,6 +7,8 @@ import type { FieldZone, Plan, RegionalDemandBasis, RegionalPlanningContext, Reg
   RegionSector, Site } from '../types.ts';
 import RegionalDemandEstimator from './RegionalDemandEstimator.tsx';
 import OutageLab, { OutageEntry } from './OutageLab.tsx';
+import CommitmentRegister from './CommitmentRegister.tsx';
+import OperatorRotation from './OperatorRotation.tsx';
 import './field-zone.css';
 
 const RegionalSiteScene = lazy(() => import('./RegionalSiteScene.tsx'));
@@ -95,7 +97,8 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
   const [selectedDate, setDate] = useState('');
   const [outages, setOutages] = useState<number[]>([]);
   const [exampleLoaded, setExampleLoaded] = useState(false);
-  const [result, setResult] = useState<RegionalPlanningResult>();
+  const [calculated, setCalculated] = useState<{ inputs: RegionPlanRequest; result: RegionalPlanningResult }>();
+  const result = calculated?.result;
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const request = useRef<AbortController | null>(null);
@@ -138,7 +141,7 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
   function invalidate() {
     request.current?.abort();
     setBusy(false);
-    setResult(undefined);
+    setCalculated(undefined);
     setError('');
     play(false);
     onPlanChange(undefined);
@@ -181,7 +184,7 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
     try {
       const response = await runRegionalPlanning(id, body, controller.signal);
       if (controller.signal.aborted) return;
-      setResult(response);
+      setCalculated({ inputs: body, result: response });
       seek(inputs.delivery_start_hour);
       selectPlan('optimized');
       onPlanChange({ inputs: body, comparison_id: response.comparison_id });
@@ -222,12 +225,6 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
   });
   const actionCount = plan?.actions?.length ?? 0;
   return <div className="region-planning" aria-label="Regional planning experiment">
-    <OutageEntry open={() => {
-      request.current?.abort();
-      setBusy(false);
-      setStress(true);
-      onPlanChange(undefined);
-    }}/>
     <section className="surface field-detail-card region-location" aria-label="Regional simulation terrain" ref={replayRegion} tabIndex={-1}>
       <div className="region-title"><div><h2><MapPin size={20} /> {site.properties.label}</h2>
         <p>Two hypothetical irrigation sectors, each anchored to a cell classified as cropland by ESA WorldCover in 2021.</p></div>
@@ -262,7 +259,14 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
         <small>Map labels show simulated hourly deliveries in Tunis time. The teal bars show each delivery as a share of assumed gravity capacity.</small>
       </section>}
     </section>
-    {result && <PlanSummary key={result.comparison_id} result={result} />}
+    {calculated && <>
+      <CommitmentRegister plan={calculated.result.comparison[planId]} selected={planId} labels={planNames}
+        onSelect={id => { selectPlan(id); play(false); }} fromSlot={0} sectors
+        plots={context.anchors.map(({ plot_id }) => ({ plot_id, deadline_slot: calculated.inputs.delivery_end_hour,
+          allowed_slots: hours.filter(h => h >= calculated.inputs.delivery_start_hour && h <= calculated.inputs.delivery_end_hour) }))} />
+      <OperatorRotation siteId={id} plan={calculated.inputs} plotIds={context.anchors.map(a => a.plot_id)} horizon={24} />
+      <PlanSummary key={calculated.result.comparison_id} result={calculated.result} />
+    </>}
     <section className="surface field-detail-card region-form" ref={assumptionSection}>
       <div className="region-title"><div><h2><Droplets size={20} /> Set planning assumptions</h2>
         <p>Compare an alternating fixed turn and an optimized schedule against the same water and power limits.</p></div>
@@ -313,11 +317,19 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
             {hours.map(h => <button type="button" key={h} aria-pressed={outages.includes(h)} onClick={() => {
               invalidate(); setOutages(current => current.includes(h) ? current.filter(v => v !== h) : [...current, h].sort((a, b) => a - b));
             }}>{clockHour(h)}</button>)}</div>
+          {outages.length > 0 && <button type="button" className="text-button" onClick={() => { invalidate(); setOutages([]); }}>
+            Clear outage hours</button>}
         </fieldset>
         {error && <p role="alert" className="field-error">{error}</p>}
         <button type="submit" className="button button-primary" disabled={busy || !day}>{busy ? 'Calculating…' : 'Compare regional plans'}</button>
         <p role="status" className="region-run-status">{result ? 'Comparison ready above. The terrain now shows hourly sector deliveries.' : ''}</p>
       </form>
     </section>
+    <OutageEntry open={() => {
+      request.current?.abort();
+      setBusy(false);
+      setStress(true);
+      onPlanChange(undefined);
+    }}/>
   </div>;
 }

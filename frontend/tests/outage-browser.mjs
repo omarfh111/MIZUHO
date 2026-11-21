@@ -13,6 +13,43 @@ const response = (page, endpoint) => page.waitForResponse(r =>
 const waiting = async ([reply]) => { assert.equal(reply.status(), 200); return reply.json(); };
 const amount = n => new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 }).format(n);
 
+async function checkOperatorRotation(page, site, regional) {
+  if (regional) await page.getByRole('button', { name: 'Load example assumptions' }).click();
+  else await page.getByRole('combobox', { name: 'Scenario', exact: true }).selectOption('normal');
+  await page.getByRole('button', { name: regional ? 'Compare regional plans' : 'Calculate schedules' }).click();
+  await page.getByText('Compare your own rotation', { exact: true }).click();
+  const submit = page.getByRole('button', { name: 'Replay rotation', exact: true });
+  const delivery = page.getByLabel('Delivery requested (m³) 1', { exact: true });
+  await delivery.fill('4000');
+  assert.ok(await submit.isDisabled());
+  await page.getByLabel('Parcel 1', { exact: true }).selectOption(regional ? 'west' : 'A');
+  const waitRotation = () => page.waitForResponse(r => new URL(r.url()).pathname === `/api/sites/${site}/operator-rotation`);
+  const reply = await waiting(await Promise.all([waitRotation(), submit.click()]));
+  const panel = page.getByRole('region', { name: 'Rotation replay results' });
+  await panel.getByText(`4,000 → ${amount(reply.hours[0].feasible_delivery_m3)}`, { exact: true }).waitFor();
+  const timely = panel.getByRole('row', { name: /^Delivered on time/ }).getByRole('cell');
+  assert.deepEqual(await timely.allTextContents(), [reply.operator, reply.optimized].map(p => `${amount(p.metrics.delivered_on_time_m3)} m³`));
+  await delivery.fill('2');
+  assert.equal(await panel.count(), 0);
+
+  // Hold one response while the operator changes an entry again.
+  let release;
+  const delay = new Promise(resolve => { release = resolve; });
+  let seen;
+  const intercepted = new Promise(resolve => { seen = resolve; });
+  await page.route('**/operator-rotation', async route => {
+    seen();
+    await delay;
+    await route.fulfill({ json: reply }).catch(() => {});
+  }, { times: 1 });
+  await submit.click();
+  await intercepted;
+  await delivery.fill('1');
+  release();
+  assert.equal(await panel.count(), 0);
+  await page.reload();
+}
+
 async function checkLateComparison(page, site, regional) {
   await page.evaluate(path => {
     const originalFetch = window.fetch.bind(window);
@@ -57,6 +94,7 @@ try {
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(url.href);
     const regional = width === 390;
+    await checkOperatorRotation(page, site, regional);
     if (regional) {
       await page.getByRole('button', { name: 'Test outage resilience' }).click();
       await page.getByRole('heading', { name: 'Set the station and parcel assumptions first' }).waitFor();

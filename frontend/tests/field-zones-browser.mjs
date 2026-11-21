@@ -99,6 +99,7 @@ try {
     await model.getByText('West sector', { exact: true }).waitFor();
     assert.equal(await page.getByRole('spinbutton', { name: 'Withdrawal limit' }).inputValue(), '');
     await page.getByRole('button', { name: 'Load example assumptions' }).click();
+    if (id === 'gafsa-oasis') await page.getByRole('button', { name: 'Clear outage hours' }).click();
     const day = id === 'kairouan-chebika' ? '2025-01-15' : '2025-07-15';
     const dateControl = page.getByRole('combobox', { name: 'Irradiation day' });
     await dateControl.selectOption(day);
@@ -121,6 +122,7 @@ try {
     await page.getByRole('button', { name: 'Compare regional plans' }).click();
     const response = await responsePromise;
     assert.equal(response.ok(), true);
+    if (id === 'gafsa-oasis') assert.deepEqual(response.request().postDataJSON().outage_hours, []);
     if (derived) {
       assert.deepEqual(response.request().postDataJSON().demand_basis, { east: derived.basis });
       assert.equal(response.request().postDataJSON().demand_east_m3, derived.amount);
@@ -129,6 +131,7 @@ try {
     assert.equal(result.date, day);
     assert.equal(await page.getByRole('link', { name: 'NASA POWER hourly estimate' }).getAttribute('href'), result.source.url);
     const table = page.getByRole('region', { name: 'Regional plan comparison' });
+    const register = page.getByRole('region', { name: 'Daily delivery commitments', exact: true });
     await table.waitFor();
     if (derived) {
       await table.getByRole('button', { name: 'Approve simulated plan' }).click();
@@ -155,6 +158,12 @@ try {
     const regionalRenderer = await model.locator('canvas').elementHandle();
     for (const [p, title] of [['optimized', 'Optimized plan'], ['baseline', 'Fixed turn']]) {
       await model.getByRole('button', { name: title }).click();
+      assert.equal(await register.getByRole('combobox', { name: 'Schedule to inspect' }).inputValue(), p);
+      for (const plot of result.comparison[p].plot_results) {
+        const name = plot.plot_id === 'west' ? 'West sector' : 'East sector';
+        const row = register.getByRole('row', { name: new RegExp(`^${name} `) });
+        assert.equal(await row.getByRole('cell').nth(2).textContent(), `${number.format(plot.delivered_on_time_m3)} m³`);
+      }
       const frame = result.comparison[p].actions[slot];
       const physicalScene = model.locator('figure');
       assert.equal(await physicalScene.getAttribute('data-stock-m3'), String(frame.tank_stock_m3));
@@ -188,6 +197,7 @@ try {
     }
     await page.getByRole('spinbutton', { name: 'Withdrawal limit' }).fill('0');
     assert.equal(await table.count(), 0);
+    assert.equal(await register.count(), 0);
     assert.equal(await model.getByRole('slider').count(), 0);
     await page.getByRole('button', { name: 'Back to map', exact: true }).click();
   }

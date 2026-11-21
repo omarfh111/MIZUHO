@@ -2,12 +2,18 @@ import { Activity, ArrowDownToLine, ArrowRight, BookOpenText, ChartNoAxesCombine
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { clockHour, hour, kilo, percent, provenanceLabel, value } from '../format.ts';
 import type { CompareRequest, Comparison, Plan, Scenario, Warning, WeatherComparison } from '../types.ts';
+import type { ReplaySelection } from '../twin.ts';
+import CommitmentRegister from './CommitmentRegister.tsx';
+import OperatorRotation from './OperatorRotation.tsx';
 
 interface Props {
   comparison: Comparison;
   input: CompareRequest;
   scenario: Scenario;
   stale: boolean;
+  live: boolean;
+  selectedPlan: ReplaySelection['plan'];
+  onSelectPlan: (plan: ReplaySelection['plan']) => void;
   onEvidence: (source: string) => void;
 }
 
@@ -192,7 +198,7 @@ function warningKey(warning: Warning | string) {
   return typeof warning === 'string' ? warning : JSON.stringify(warning);
 }
 
-export default function Planning({ comparison, input, scenario, stale, onEvidence }: Props) {
+export default function Planning({ comparison, input, scenario, stale, live, selectedPlan, onSelectPlan, onEvidence }: Props) {
   const weather = comparison.weather_comparison;
   const reference = weather?.reference_on_adverse ?? comparison.baseline;
   const proposed = weather?.buffer_on_adverse ?? comparison.optimized;
@@ -210,6 +216,14 @@ export default function Planning({ comparison, input, scenario, stale, onEvidenc
   };
   const warnings = [...new Map([...reference.warnings, ...proposed.warnings].map((warning) => [warningKey(warning), warning])).values()];
   return <div className={`results ${stale ? 'results-stale' : ''}`}>
+    <CommitmentRegister plan={selectedPlan === 'baseline' ? reference : proposed} selected={selectedPlan} onSelect={onSelectPlan}
+      labels={input.incident ? { baseline: 'Previous schedule', optimized: 'Recovery plan' } :
+        weather ? { baseline: 'Nominal on adverse', optimized: 'Reserve on adverse' } : { baseline: 'Fixed schedule', optimized: 'Optimized plan' }}
+      plots={scenario.plots} fromSlot={comparison.incident_checkpoint?.current_slot ?? input.state.current_slot}
+      unavailable={stale ? 'Inputs changed or the comparison is pending. Recalculate before confirming deliveries.' :
+        input.planning_mode === 'weather_buffer' && !weather ? 'The adverse-weather comparison is unavailable. Recalculate to check its delivery commitments.' : undefined} />
+    {live && !stale &&
+      <OperatorRotation siteId={scenario.site_id} plan={input} plotIds={scenario.plots.map(plot => plot.plot_id)} horizon={scenario.slots.length} />}
     <section className="overview-stats plan-stats" aria-label="Performance comparison">
       <Stat label="Minimum coverage" title={percent(metrics?.worst_coverage_bp)} reference={percent(baseline?.worst_coverage_bp)} unit=""
         icon={<Activity size={20} />} tone="lime" />
