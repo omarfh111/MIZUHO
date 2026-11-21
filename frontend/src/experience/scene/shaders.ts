@@ -542,16 +542,24 @@ export const cloudFragment = /* glsl */ `
   uniform vec3 uShade;
   varying vec2 vUv;
   varying float vViewDist;
+  float density(vec2 uv) {
+    vec2 p = (uv - .5) * 2.;
+    float falloff = 1. - smoothstep(.15, 1., length(p * vec2(1., 1.25)));
+    float d = fbm(uv * 3.2 + uSeed + uTime * .012);
+    d *= .55 + .65 * fbm(uv * 7.5 - uSeed + uTime * .02);
+    return smoothstep(.3, .72, d) * falloff;
+  }
   void main() {
-    vec2 p = (vUv - .5) * 2.;
-    float falloff = 1. - smoothstep(.2, 1., length(p));
-    float density = fbm(vUv * 3.2 + uSeed + uTime * .015);
-    density = smoothstep(.38, .75, density * (.6 + .6 * fbm(vUv * 7. - uSeed))) * falloff;
-    float near = smoothstep(1.5, 9., vViewDist);
-    float a = density * uOpacity * near * .85;
-    if (a < .002) discard;
-    vec3 col = mix(uShade, uLit, smoothstep(.0, 1., vUv.y * .6 + density * .6));
-    gl_FragColor = vec4(col, a);
+    float d = density(vUv);
+    float a = d * uOpacity * smoothstep(1.5, 9., vViewDist);
+    if (a < .003) discard;
+    // Light arrives from above: compare density with a sample nudged towards the top.
+    float above = density(vUv + vec2(.02, .05));
+    float light = clamp(.55 + (d - above) * 2.6 + vUv.y * .35, 0., 1.);
+    vec3 col = mix(uShade, uLit, light);
+    float rim = smoothstep(.02, .2, d) * (1. - smoothstep(.2, .55, d));
+    col += uLit * rim * .45 * vUv.y;
+    gl_FragColor = vec4(col, min(1., a * 1.1));
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
