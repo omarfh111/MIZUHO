@@ -73,6 +73,34 @@ flowchart LR
 
 <sub>Vite proxies <code>/api</code> to FastAPI on port 8000 in development; in production both are served from one origin. Site layers, scenarios and solar profiles are simulated.</sub>
 
+### Planning through an outage (M6)
+
+The fixed schedule and the optimized plan are computed from the same scenario, then both are replayed through the simulator so the dashboard compares like with like.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor You
+  participant D as Dashboard
+  participant A as FastAPI
+  participant B as Fixed baseline
+  participant O as CP-SAT optimizer
+  participant S as Simulator
+
+  You->>D: Calculate schedules
+  D->>A: POST /api/compare
+  A->>B: Build the fixed schedule
+  A->>O: Optimize, fairness first, time-limited
+  O-->>A: Plan, or NO_SOLUTION
+  A->>S: Replay the plan
+  S-->>A: Delivered water per plot
+  A-->>D: Baseline and proposed results
+  D-->>You: Minimum coverage 0% → 50%
+  You->>D: Approve the simulated plan
+```
+
+<sub>In the A/B demo the fixed schedule delivers 10 m³ to A and 0 m³ to B during the outage; the proposed schedule delivers 5 m³ to each. When the solver returns no solution, the fixed schedule stays available.</sub>
+
 ## Run MIZUHO
 
 Use Git, Python **3.12**, Node.js **22.12 or later**, an OpenAI project key with access to `gpt-6-luna` and `text-embedding-3-small`, and a Qdrant Cloud cluster with an API key that can read and write the evidence collection.
