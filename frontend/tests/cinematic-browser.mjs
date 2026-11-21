@@ -121,8 +121,29 @@ try {
   await skip(unsupported).click();
   await visible(unsupported.getByText(/3D view unavailable/));
   assert.equal(await unsupported.locator('canvas').count(), 0);
+  await unsupported.close();
+
+  const country = await browser.newPage({ viewport: { width: 1100, height: 850 }, reducedMotion: 'reduce' });
+  await watch(country, true);
+  const countryUrl = new URL(base.href);
+  countryUrl.hash = '';
+  await country.goto(countryUrl.href);
+  const atlas = country.getByRole('group', { name: 'Interactive map of Tunisia' });
+  await visible(atlas);
+  assert.equal(await atlas.getAttribute('data-view'), 'country');
+  await atlas.getByRole('button', { name: 'Explore Tozeur', exact: true }).click();
+  const city = country.getByRole('region', { name: 'Tozeur analysis' });
+  await visible(city.locator('[data-relief-mode="3d"] canvas'));
+  assert.equal(await rendererCount(country), 1);
+  await replay(country).click();
+  await visible(country.locator('.mx-gate[data-phase=film][data-mode=fallback]'));
+  assert.equal(await rendererCount(country), 0);
+  await skip(country).click();
+  await visible(city.locator('[data-relief-mode="3d"] canvas'));
+  assert.equal(await rendererCount(country), 1);
+  await country.close();
   assert.deepEqual(errors, []);
-  console.log('Chrome passed the cinematic handoff, repeated replays, WebGL cleanup and recovery, mobile, reduced motion, and no-WebGL fallback.');
+  console.log('Chrome passed the cinematic handoff, national city replay, WebGL cleanup and recovery, mobile, reduced motion, and no-WebGL fallback.');
 } finally {
   await browser.close();
 }
