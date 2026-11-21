@@ -355,7 +355,8 @@ def build_temperature_effect(features: list[dict], downloads: dict, dump) -> lis
     plots_out = []
     for f, vals in zip(features, aeti):
         p = f["properties"]
-        series = [{**climate[c], "aeti_mm_day": None if v is None else round(v, 2)} for c, v in zip(codes, vals)]
+        series = [{**climate[c], "aeti_mm_day": None if v is None else round(v, 2),
+                   "ret_mm_day": None if ret_by.get(c) is None else round(ret_by[c], 2)} for c, v in zip(codes, vals)]
         num = [{k: (nan(v) if k not in ("dekad", "month") else v) for k, v in s.items()} for s in series]
         plots_out.append({"plot_id": p["plot_id"], "surface_m2": p["surface_m2"],
                           "effect": analyse(num, p["surface_m2"]), "series": series})

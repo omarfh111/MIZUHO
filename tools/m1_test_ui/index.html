@@ -167,6 +167,42 @@ tr.click:hover td { background: color-mix(in srgb, var(--plot) 5%, transparent);
 .chart .fit.all { stroke: var(--idle); stroke-dasharray: 5 4; stroke-width: 2; }
 .limits { margin: 12px 0 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
 
+/* cause funnel */
+.plotchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.plotchips button { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); font-weight: 600; padding: 6px 12px; }
+.plotchips button[aria-pressed="true"] { border-color: var(--plot); background: color-mix(in srgb, var(--plot) 12%, var(--panel)); }
+.conseq { margin-top: 12px; font-size: 14px; padding: 10px 12px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); }
+.funnel { display: grid; gap: 6px; margin-top: 12px; }
+.fstage { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 10px; align-items: center; font-size: 13px; }
+.fstage .fa { font-weight: 600; }
+.fstage .fa small { display: block; font-weight: 400; color: var(--muted); font-size: 11px; }
+.fbar { position: relative; height: 30px; border-radius: 6px; background: var(--idle-bg); overflow: hidden; }
+.fbar i { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--accent) 70%, transparent); border-radius: 6px; transition: width .4s; }
+.fbar span { position: relative; z-index: 1; display: flex; align-items: center; height: 100%; padding: 0 10px; font-size: 12px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fbar b { margin-right: 8px; font-size: 14px; }
+.lanes h3 { font-size: 14px; margin: 18px 0 8px; display: flex; gap: 8px; align-items: center; }
+.ccards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+.cc { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--panel-2); display: grid; gap: 8px; align-content: start; }
+.cc.final { border-color: var(--ok); }
+.cc.field { border-style: dashed; }
+.cc-h { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.cc-h b { font-size: 14px; }
+.cc .pv { font-size: 20px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.pbar { height: 6px; border-radius: 99px; background: var(--idle-bg); overflow: hidden; }
+.pbar i { display: block; height: 100%; background: var(--ok); }
+.cc .why { font-size: 13px; }
+.cc .meta { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.fb { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.fb button { padding: 4px 10px; font-size: 12px; background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 600; }
+.fb button.on-confirm { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
+.fb button.on-reject { background: var(--bad-bg); color: var(--bad); border-color: var(--bad); }
+.fb button.on-unsure { background: var(--idle-bg); color: var(--idle); border-color: var(--idle); }
+.fb input { flex: 1; min-width: 140px; width: auto; font-size: 12px; padding: 5px 8px; }
+.elim { margin-top: 10px; }
+.elim summary { cursor: pointer; font-size: 13px; color: var(--muted); font-weight: 600; }
+.elim li { font-size: 13px; margin: 4px 0; }
+@media (max-width: 680px) { .fstage { grid-template-columns: minmax(0, 1fr); gap: 2px; } }
+
 @media (max-width: 960px) {
   .wrap { grid-template-columns: minmax(0, 1fr); }
   nav { position: static; display: flex; overflow-x: auto; gap: 4px; padding-bottom: 4px; scrollbar-width: none; }
@@ -194,7 +230,7 @@ tr.click:hover td { background: color-mix(in srgb, var(--plot) 5%, transparent);
     </div>
     <div class="progress">
       <div class="bar" aria-hidden="true"><i class="g" id="pg"></i><i class="y" id="py"></i><i class="r" id="pr"></i></div>
-      <span class="ptext" id="ptext">0 / 8 étapes</span>
+      <span class="ptext" id="ptext">0 / 9 étapes</span>
       <button id="runall" onclick="runAll()">▶ Tout lancer</button>
     </div>
   </div>
@@ -209,7 +245,8 @@ tr.click:hover td { background: color-mix(in srgb, var(--plot) 5%, transparent);
     <a href="#s5"><span class="dot" id="d5"></span>5 · Couverture</a>
     <a href="#s6"><span class="dot" id="d6"></span>6 · Rejets</a>
     <a href="#s7"><span class="dot" id="d7"></span>7 · Température</a>
-    <a href="#s8"><span class="dot" id="d8"></span>8 · pytest</a>
+    <a href="#s8"><span class="dot" id="d8"></span>8 · Causes</a>
+    <a href="#s9"><span class="dot" id="d9"></span>9 · pytest</a>
     <p class="note"><b>Données observées</b>, pas une prévision : FAO WaPOR v3, du 11 au 20 juillet 2026. La prévision à 24 h relève de M3.</p>
   </nav>
 
@@ -302,10 +339,18 @@ tr.click:hover td { background: color-mix(in srgb, var(--plot) 5%, transparent);
 
     <section class="card" id="s8">
       <div class="card-h"><div class="n">8</div>
-        <div class="t"><h2>Suite pytest</h2><p>Lance <code>tests/test_agriculture.py</code>, <code>tests/test_temperature_effect.py</code> et <code>tests/test_llm_explain.py</code> sur le serveur.</p></div>
+        <div class="t"><h2>Analyse des causes (entonnoir multi-agent)</h2><p>On part de 10 causes possibles de l'écart d'été entre l'eau utilisée et la demande, puis on les réduit : l'Agent Données teste chaque cause sur les séries, l'Agent Juge (Jev) donne une probabilité, l'Agent Critique (LLM) relit, et ton avis tranche.</p></div>
         <span class="chip c-idle" id="st8">Non lancé</span></div>
-      <div class="actions"><button onclick="step8()">Lancer les tests</button></div>
-      <div id="o8"></div>
+      <div class="fields"><div class="plotchips" id="cplots"></div><button onclick="step8()">Analyser les causes</button><button class="ghost" onclick="step8(false)">Sans agents IA</button></div>
+      <div id="o8c"></div>
+    </section>
+
+    <section class="card" id="s9">
+      <div class="card-h"><div class="n">9</div>
+        <div class="t"><h2>Suite pytest</h2><p>Lance <code>tests/test_agriculture.py</code>, <code>tests/test_temperature_effect.py</code>, <code>tests/test_llm_explain.py</code> et <code>tests/test_causal.py</code> sur le serveur.</p></div>
+        <span class="chip c-idle" id="st9">Non lancé</span></div>
+      <div class="actions"><button onclick="step9()">Lancer les tests</button></div>
+      <div id="o9"></div>
     </section>
   </main>
 </div>
@@ -325,7 +370,7 @@ function status(n, kind, text) {
 }
 function progress() {
   const v = Object.values(state), c = k => v.filter(x => x === k).length;
-  const N = 8;
+  const N = 9;
   $("pg").style.width = c("ok") / N * 100 + "%"; $("py").style.width = c("warn") / N * 100 + "%"; $("pr").style.width = c("bad") / N * 100 + "%";
   const done = c("ok") + c("warn") + c("bad");
   $("ptext").textContent = `${done} / ${N} étapes` + (c("bad") ? ` · ${c("bad")} en échec` : done === N ? " · terminé" : "");
@@ -397,6 +442,7 @@ function selectPlot(id, pan) {
     <dt>Besoin</dt><dd><b>${fmt(p.demand_m3)} m³/j</b></dd><dt>Culture</dt><dd>${p.crop ?? MISSING}</dd><dt>Minimum</dt><dd>${p.minimum_m3 ?? MISSING}</dd></dl>`;
   $("mm").value = p.irrigation_need_mm_day; $("m2").value = p.surface_m2;
   fromPlot = p; step4();
+  cplot = id; renderPlotChips();
   if (TEMP) { tsel = id; renderTemp(); }
 }
 function toggleWapor() { if (!map || !waporLayer) return; $("wap").checked ? waporLayer.addTo(map) : map.removeLayer(waporLayer); }
@@ -490,13 +536,13 @@ async function custom() {
   } catch (e) { $("o6").innerHTML = `<div class="result err">${esc(e.message)}</div>`; }
 }
 
-/* 8 */
-async function step8() { await guard(8, "o8", async () => {
+/* 9 */
+async function step9() { await guard(9, "o9", async () => {
   const j = await get("/api/tests");
   const pass = j.tests.filter(t => t.ok).length;
-  $("o8").innerHTML = `<div class="tests">${j.tests.map(t => `<div class="test" title="${esc(t.name)}"><span class="ic ${t.ok ? "ok" : "bad"}">${t.ok ? "✓" : "✗"}</span><span>${esc(t.name.replace(/^test_/, ""))}</span></div>`).join("")}</div>` +
+  $("o9").innerHTML = `<div class="tests">${j.tests.map(t => `<div class="test" title="${esc(t.name)}"><span class="ic ${t.ok ? "ok" : "bad"}">${t.ok ? "✓" : "✗"}</span><span>${esc(t.name.replace(/^test_/, ""))}</span></div>`).join("")}</div>` +
     (j.returncode ? `<div class="result err" style="white-space:pre-wrap">${esc(j.output)}</div>` : "");
-  status(8, j.returncode === 0 ? "ok" : "bad", `${pass}/${j.tests.length} passés`);
+  status(9, j.returncode === 0 ? "ok" : "bad", `${pass}/${j.tests.length} passés`);
 }); }
 
 /* 7 */
@@ -604,6 +650,66 @@ function chart(p) {
     <text x="12" y="${mid}" text-anchor="middle" transform="rotate(-90 12 ${mid})">AETI (mm/j)</text></svg></div>`;
 }
 
+/* 8 - cause funnel */
+let CAUSES = null, cplot = "P-03";
+const STANCE = {supports: ["c-ok", "données : soutient"], against: ["c-bad", "données : contredit"], neutral: ["c-idle", "données : neutre"], untestable: ["c-warn", "non testable"]};
+const OUT = {data: "écartée par l'Agent Données", judge: "écartée par l'Agent Juge (Jev)"};
+function renderPlotChips() {
+  $("cplots").innerHTML = ["P-01", "P-02", "P-03", "P-04", "P-05"].map(id =>
+    `<button aria-pressed="${id === cplot}" onclick="cplot='${id}';renderPlotChips();step8()">${id}</button>`).join("");
+}
+async function step8(agents = true) { await guard(8, "o8c", async () => {
+  $("o8c").innerHTML = `<div class="result empty">Les agents analysent ${cplot}…</div>`;
+  CAUSES = await get(`/api/causes/${cplot}?agents=${agents ? 1 : 0}`);
+  renderCauses();
+  const fin = CAUSES.final.length, field = CAUSES.causes.filter(c => c.lane === "field" && !c.human).length;
+  status(8, "ok", `${CAUSES.stages[0].kept} → ${fin} cause${fin > 1 ? "s" : ""} · ${field} à vérifier`);
+}); }
+function pct(p) { return Math.round(p * 100) + " %"; }
+function fbBox(c) {
+  const v = c.human ? c.human.verdict : null;
+  const b = (k, label) => `<button class="${v === k ? "on-" + k : ""}" onclick="sendFb('${c.id}','${k}')">${label}</button>`;
+  return `<div class="fb">${b("confirm", "✓ Confirmer")}${b("reject", "✗ Rejeter")}${b("unsure", "? Je ne sais pas")}
+    <input id="note-${c.id}" placeholder="Note terrain (facultatif)" value="${esc(c.human && c.human.note || "")}"></div>`;
+}
+function card(c, kind) {
+  const [cls, lbl] = STANCE[c.data.stance];
+  const jev = c.jev_p === null || c.jev_p === undefined ? "" : `<span>Jev : ${pct(c.jev_p)}</span>`;
+  const sc = c.score, parts = `données ${nf(sc.data, 1)} · Jev ${nf(sc.jev, 1)} · humain ${nf(sc.human, 1)}`;
+  const miss = c.data.missing && c.data.missing.length ? `<span>Manque : ${esc(c.data.missing.join(", "))}</span>` : "";
+  return `<div class="cc ${kind}"><div class="cc-h"><b>${esc(c.label)}</b>${kind === "field" ? "" : `<span class="pv">${pct(c.p)}</span>`}</div>
+    ${kind === "field" ? "" : `<div class="pbar"><i style="width:${c.p * 100}%"></i></div>`}
+    <div class="why"><span class="chip ${cls}">${lbl}</span> ${esc(c.data.why)}</div>
+    <div class="meta">${jev}${kind === "field" ? "" : `<span title="Somme des log-odds">score : ${parts}</span>`}${miss}</div>
+    ${kind === "field" ? `<div class="meta">${esc(c.prediction)}</div>` : ""}
+    ${fbBox(c)}</div>`;
+}
+function renderCauses() {
+  const R = CAUSES, max = R.stages[0].kept;
+  let h = `<div class="conseq"><b>Conséquence analysée :</b> ${esc(R.consequence.label)} — parcelle <b>${esc(R.plot_id)}</b> :
+    eau utilisée en été ${fmt(R.facts.ete_aeti_mm_jour, 2)} mm/j pour une demande de ${fmt(R.facts.ete_et0_mm_jour, 2)} mm/j (rapport ${fmt(R.facts.ete_rapport_aeti_et0, 2)}).</div>`;
+  h += `<div class="funnel">${R.stages.map(s => `<div class="fstage"><div class="fa">${esc(s.agent)}<small>${({catalogue: "point de départ", data: "étape 1 · tests", judge: "étape 2 · probabilités", critic: "étape 3 · relecture", human: "étape 4 · décision"})[s.id]}</small></div>
+    <div class="fbar"><i style="width:${Math.max(8, s.kept / max * 100)}%"></i><span><b>${s.kept}</b>${esc(s.note)}</span></div></div>`).join("")}</div>`;
+  const final = R.causes.filter(c => R.final.includes(c.id));
+  const field = R.causes.filter(c => c.lane === "field" && !R.final.includes(c.id));
+  const out = R.causes.filter(c => c.stage_out && !R.final.includes(c.id));
+  h += `<div class="lanes"><h3><span class="chip c-ok">✓ ${final.length}</span>Causes retenues</h3><div class="ccards">${final.map(c => card(c, "final")).join("") || '<div class="result empty">Aucune cause retenue.</div>'}</div>`;
+  if (R.judge_main_choice) h += `<p class="llm-meta">Choix principal de Jev : <b>${esc((R.causes.find(c => c.id === R.judge_main_choice.choice) || {}).label || R.judge_main_choice.choice)}</b> (confiance ${pct(R.judge_main_choice.confidence)}).</p>`;
+  h += `<h3><span class="chip c-warn">? ${field.length}</span>À vérifier sur le terrain (aucune donnée pour les tester, jamais éliminées faute de preuve)</h3><div class="ccards">${field.map(c => card(c, "field")).join("")}</div>`;
+  h += `<details class="elim"><summary>${out.length} causes écartées (cliquer pour voir et contester)</summary><div class="ccards" style="margin-top:8px">${out.map(c => card(c, "out").replace('<div class="cc-h">', `<div class="meta"><span class="chip c-idle">${OUT[c.stage_out] || ""}</span></div><div class="cc-h">`)).join("")}</div></details></div>`;
+  const cr = R.critic;
+  h += `<div class="llm" style="margin-top:16px"><div class="llm-h"><span class="chip c-run">✦ Agent Critique</span><button class="ghost sm" onclick="step8()">↻ Relancer les agents</button></div>` +
+    (cr.status === "ok" ? `<div class="llm-text">${mdLite(cr.text)}</div><p class="llm-meta">${cr.check.ok ? `<span class="chip c-ok">✓ ${cr.check.numbers} chiffres vérifiés</span>` : `<span class="chip c-bad">⚠ chiffres absents des faits : ${esc(cr.check.unknown.join(", "))}</span>`} Modèle <code>${esc(cr.model)}</code>. Texte généré par IA.</p>`
+      : `<p class="llm-wait">${cr.status === "skipped" ? "Non lancé." : esc(cr.error || "indisponible")}</p>`) + `</div>`;
+  h += `<p class="llm-meta">Agents : Données (règles fixes, sans IA) · Juge <code>${esc(R.agents.jev.model)}</code> ${R.agents.jev.configured ? "" : "(non configuré)"} · Critique <code>${esc(R.agents.llm.model)}</code> ${R.agents.llm.configured ? "" : "(non configuré)"}. Score = somme des log-odds : données ±1 par point de force, Jev logit(p) borné à ±3, humain ±4.</p>`;
+  $("o8c").innerHTML = h;
+}
+async function sendFb(cause, verdict) {
+  const note = ($("note-" + cause) || {}).value || "";
+  try { await post("/api/causes/feedback", {plot_id: cplot, cause_id: cause, verdict, note}); await step8(); }
+  catch (e) { alert(e.message); }
+}
+
 async function runAll() {
   const b = $("runall"); b.disabled = true; b.textContent = "En cours…";
   try {
@@ -611,10 +717,10 @@ async function runAll() {
     for (const k in caseRes) delete caseRes[k];
     status(6, "run", "En cours…"); for (let i = 0; i < CASES.length; i++) await runCase(i);
     $("mm").value = 4; $("m2").value = 500; await step4();
-    await step7(); await step8();
+    await step7(); await step8(); await step9();
   } finally { b.disabled = false; b.textContent = "▶ Tout lancer"; }
 }
-renderCases(); initSites(); step2();
+renderCases(); renderPlotChips(); initSites(); step2();
 </script>
 </body>
 </html>

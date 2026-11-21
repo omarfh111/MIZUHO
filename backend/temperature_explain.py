@@ -89,7 +89,8 @@ def _allowed_numbers(f: dict) -> set[str]:
         if isinstance(v, (int, float)):
             allowed.update({str(v), str(v).replace(".", ","), f"{v:g}", f"{v:g}".replace(".", ",")})
         elif isinstance(v, str):
-            allowed.update(_NUM.findall(v))
+            for n in _NUM.findall(v):
+                allowed.update({n, n.replace(".", ","), n.replace(",", ".")})
         elif isinstance(v, dict):
             for x in v.values():
                 walk(x)

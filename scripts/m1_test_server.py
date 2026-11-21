@@ -20,6 +20,7 @@ from backend import agriculture as agri  # noqa: E402
 from backend import llm  # noqa: E402
 from backend import temperature_effect as tfx  # noqa: E402
 from backend import temperature_explain as texp  # noqa: E402
+from backend.causal import funnel  # noqa: E402
 
 UI = ROOT / "tools" / "m1_test_ui" / "index.html"
 PORT = int(os.environ.get("PORT", "8765"))
@@ -77,7 +78,7 @@ def step_validate(body: dict) -> dict:
 
 
 def step_tests() -> dict:
-    r = subprocess.run([sys.executable, "-m", "pytest", "tests/test_agriculture.py", "tests/test_temperature_effect.py", "tests/test_llm_explain.py", "-v", "--no-header", "-p", "no:cacheprovider"],
+    r = subprocess.run([sys.executable, "-m", "pytest", "tests/test_agriculture.py", "tests/test_temperature_effect.py", "tests/test_llm_explain.py", "tests/test_causal.py", "-v", "--no-header", "-p", "no:cacheprovider"],
                        cwd=ROOT, capture_output=True, text=True, timeout=120)
     lines = [ln for ln in r.stdout.splitlines() if "::" in ln and ("PASSED" in ln or "FAILED" in ln or "ERROR" in ln)]
     tests = [{"name": ln.split("::")[1].split(" ")[0], "ok": "PASSED" in ln} for ln in lines]
@@ -124,6 +125,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._run(tfx.load_temperature_effect)
         if path == "/api/tests":
             return self._run(step_tests)
+        if path.startswith("/api/causes/"):
+            q = dict(x.split("=", 1) for x in self.path.split("?", 1)[1].split("&")) if "?" in self.path else {}
+            return self._run(funnel.run, path.rsplit("/", 1)[1], "summer_gap", q.get("agents", "1") != "0")
         if path == "/api/llm":
             return self._run(llm.public_config)
         self._json({"error": "not found"}, 404)
@@ -138,6 +142,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": str(e), "configured": False}, 503)
             except llm.LLMError as e:
                 return self._json({"error": str(e), "configured": True}, 502)
+        if self.path == "/api/causes/feedback":
+            return self._run(lambda b: funnel.add_feedback(b["plot_id"], "summer_gap", b["cause_id"], b["verdict"], b.get("note", "")), body)
         routes = {"/api/convert": step_convert, "/api/coverage": step_coverage, "/api/validate": step_validate}
         fn = routes.get(self.path)
         if fn is None:
