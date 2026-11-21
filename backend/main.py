@@ -23,6 +23,7 @@ from .simulator import StateError
 from .solar import compare_option
 from .weather_observations import RadiationDay, radiation_day
 from .telemetry import router as telemetry_router
+from .tunisia import router as tunisia_router
 
 
 DEV_ORIGINS = ",".join(
@@ -51,8 +52,10 @@ def create_app(data_dir: Path = DATA_DIR, *, solver_timeout: float | None = None
             service.close()
 
     app = FastAPI(title="Mizhuo API", version="1.0.0", lifespan=lifespan)
+    app.state.tunisia_data_dir = data_dir / "tunisia"
     app.include_router(assistant_router)
     app.include_router(telemetry_router)
+    app.include_router(tunisia_router)
     app.add_middleware(GZipMiddleware, minimum_size=4096, compresslevel=4)
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"],
                        allow_headers=["Accept", "Accept-Language", "Content-Type"])
