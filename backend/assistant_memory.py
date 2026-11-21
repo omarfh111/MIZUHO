@@ -94,7 +94,8 @@ class AssistantMemory:
 def planning_scope(request: AssistantRequest) -> str:
     comparison = request.comparison.model_dump(mode="json") if request.comparison else None
     snapshot = [request.site_id, request.solar_option_id, request.selected_scenario_id,
-                request.simulation_revision, request.simulation_pending, comparison]
+                request.simulation_revision, request.simulation_pending, comparison,
+                request.telemetry.model_dump(mode="json") if request.telemetry else None]
     return sha256(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
 
 

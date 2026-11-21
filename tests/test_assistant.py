@@ -52,6 +52,7 @@ def test_langgraph_uses_real_m6_for_farmer_a(context):
         turns.append(body)
         assert {item["name"] for item in body["tools"]} == {
             "search_evidence", "get_site_data", "get_simulation_results", "explain_decision",
+            "get_agricultural_insights", "get_sensor_anomalies",
         }
         if len(turns) == 1:
             return response(call("explain_decision", {"scenario_id": "mini", "quota_m3": None}))

@@ -14,6 +14,7 @@ from .models import (
 from .providers import Providers, ServiceError
 from .simulator import StateError
 from .solar import compare_option
+from tools.m2m3.mizu_m2m3.solar import simulation_solar_profile
 
 
 class ScenarioArgs(PlanningModel):
@@ -23,6 +24,10 @@ class ScenarioArgs(PlanningModel):
 
 class SiteArgs(PlanningModel):
     include_solar: bool
+
+
+class AgricultureArgs(PlanningModel):
+    plot_id: str | None
 
 
 @dataclass
@@ -57,7 +62,7 @@ class Turn:
         if fact is None:
             fact_id = f"f{len(self.facts) + 1}"
             fact = self.facts[fact_id] = DecisionFact(id=fact_id, text=text, provenance=provenance)
-        if remember and provenance == Provenance.SIMULATED:
+        if remember and provenance != Provenance.UNAVAILABLE:
             self.memory_facts.add(fact.id)
         return fact
 
@@ -108,11 +113,22 @@ def get_site_data(turn: Turn, args: SiteArgs) -> dict:
                 f"Azimuth {option.azimuth_deg}°, tilt {option.tilt_deg}°.",
                 option.provenance, remember=True,
             ))
+        comparison = turn.request.comparison
+        archive_id = comparison.overrides.pvgis_option_id if comparison and comparison.overrides else None
+        if archive_id:
+            profile = simulation_solar_profile(site_id, archive_id)
+            energy = sum(slot["solar_wh"] for slot in profile["slots"]) / 1000
+            facts.append(turn.fact(f"Active planning input: {profile['label']}, archived PVGIS-SARAH3 "
+                                   f"reference day {profile['profile_date']}, {energy:g} kWh estimated potential "
+                                   f"from {profile['capacity_kwp']:g} kWp at {profile['latitude']:g}°, "
+                                   f"{profile['longitude']:g}°. Grid outages curtail this grid-tied array.",
+                                   Provenance.ESTIMATED))
     missing = []
     if site.status == Provenance.SIMULATED:
         missing.append("The pilot has no observed borehole levels, pumping test or metered well withdrawals.")
     if args.include_solar:
-        missing.append("Site-level measured load, PVGIS output, and verified annual costs are unavailable.")
+        missing.append("Site-level measured load and verified annual costs are unavailable. The archived "
+                       "PVGIS profiles estimate production at the Jendouba reference coordinates.")
     explanation = "The site and layer records below identify which pilot data are available and how they were obtained."
     if args.include_solar and solar:
         explanation = ("The solar options are compared using their modeled generation and avoided grid energy. "
@@ -120,6 +136,34 @@ def get_site_data(turn: Turn, args: SiteArgs) -> dict:
     turn.explanations["site"] = GroundedParagraph(text=explanation, citation_ids=(),
                                                    fact_ids=tuple(fact.id for fact in facts))
     return {"facts": [fact.model_dump(mode="json") for fact in facts], "missing_information": missing}
+
+
+def get_agricultural_insights(turn: Turn, args: AgricultureArgs) -> dict:
+    survey = turn.catalog.agriculture.get(turn.request.site_id)
+    plots = [p for p in survey.parcels if args.plot_id in (None, p.plot_id)] if survey else []
+    if not plots:
+        gap = "No mapped agricultural survey matches the active site and parcel."
+        turn.gaps.add(gap)
+        return {"facts": [], "missing_information": [gap]}
+    facts = []
+    for plot in plots:
+        facts.append(turn.fact(f"{plot.plot_id}: OpenStreetMap way {plot.osm_way_id}, mapped as {plot.land_use}.",
+                               Provenance.OBSERVED, remember=True))
+        facts.append(turn.fact(f"{plot.plot_id}: mapped area {plot.surface_m2:g} m²; FAO WaPOR AETI "
+                               f"{plot.eta_mm_day:g} mm/day over {survey.period} at {survey.resolution}. "
+                               f"Positive ET minus gross rain equals {plot.et_minus_rain_m3_day:g} m³/day.",
+                               Provenance.ESTIMATED, remember=True))
+        if args.plot_id:
+            temp = plot.temperature
+            facts.append(turn.fact(f"{plot.plot_id}: rain-adjusted WaPOR AETI association with NASA POWER "
+                                   f"maximum temperature {temp.slope_mm_day_per_c:g} mm/day per °C, p={temp.p_value:g}, "
+                                   f"across {temp.samples} ten-day periods. This association cannot establish causation.",
+                                   Provenance.ESTIMATED, remember=True))
+    explanation = survey.interpretation
+    turn.explanations["agriculture"] = GroundedParagraph(text=explanation, citation_ids=(),
+                                                         fact_ids=tuple(f.id for f in facts))
+    return {"facts": [f.model_dump(mode="json") for f in facts], "interpretation": explanation,
+            "source_ids": survey.source_ids, "optimizer_ready": survey.optimizer_ready}
 
 
 def scenario_request(turn: Turn, args: ScenarioArgs) -> CompareRequest:
@@ -163,6 +207,8 @@ def planning_facts(turn: Turn, args: ScenarioArgs, *, explain: bool) -> dict:
         if args.quota_m3 > state.quota_remaining_m3:
             raise InputError("quota_m3", "Provide a reduced quota or use the current quota.")
         request = original.model_copy(update={"state": state.model_copy(update={"quota_remaining_m3": args.quota_m3})})
+        if request.incident and request.incident.previous_actions:
+            request = request.model_copy(update={"incident": request.incident.model_copy(update={"previous_actions": None})})
     scenario = turn.catalog.scenarios[request.scenario_id]
     result = turn.calculate(request)
     turn.discussed_scenario_id = scenario.id
@@ -173,9 +219,16 @@ def planning_facts(turn: Turn, args: ScenarioArgs, *, explain: bool) -> dict:
     facts = [
         turn.fact(f"{scenario.label} inputs: {request.state.tank_stock_m3} m³ starting stock and "
                   f"{request.state.quota_remaining_m3} m³ remaining withdrawal quota.", provenance),
-        *summarize_plan(turn, "Fixed schedule" if not weather else "Weather reference", fixed, provenance),
-        *summarize_plan(turn, "Proposed schedule", proposed, provenance),
+        *summarize_plan(turn, "Previous schedule replay" if request.incident else
+                        "Weather reference" if weather else "Fixed schedule", fixed, provenance),
+        *summarize_plan(turn, "Recovery schedule" if request.incident else "Proposed schedule", proposed, provenance),
     ]
+    if request.incident and result.incident_checkpoint:
+        checkpoint = result.incident_checkpoint
+        facts.append(turn.fact(
+            f"At hour {checkpoint.current_slot} the simulated {request.incident.kind.replace('_', ' ')} "
+            f"began with {checkpoint.tank_stock_m3} m³ in stock and {checkpoint.quota_remaining_m3} m³ quota. "
+            "Both schedules retain all completed actions.", provenance, remember=True))
     supporting = facts.copy()
     explanation = "The figures below compare the reference and proposed schedules under the same inputs."
     if request != original:
@@ -242,7 +295,40 @@ def explain_decision(turn: Turn, args: ScenarioArgs) -> dict:
     return planning_facts(turn, args, explain=True)
 
 
+def get_sensor_anomalies(turn: Turn, _: PlanningModel) -> dict:
+    from .telemetry import replay
+
+    selection = turn.request.telemetry
+    if not selection or not turn.request.comparison:
+        gap = "Select a calculated plan in the digital twin to inspect its virtual meters."
+        turn.gaps.add(gap)
+        return {"facts": [], "missing_information": [gap]}
+    result = replay(turn.catalog, turn.request.comparison, selection)
+    slot = selection.selected_slot
+    if slot is not None and slot not in {frame["slot"] for frame in result["frames"]}:
+        raise InputError("selected_slot", "Choose an hour within the replay.")
+    facts = []
+    for item in (*result["alerts"], *result["events"]):
+        if slot is not None and item["simulation_slot"] != slot:
+            continue
+        value = (f"{item['value']} {item['unit']}" if item["value"] is not None else "reading unavailable")
+        facts.append(turn.fact(f"Simulated hour {item['simulation_slot']} — {item['equipment_id']}: "
+                               f"{item['message']} ({value}).", Provenance.SIMULATED, remember=True))
+    if not facts:
+        scope = "this replay" if slot is None else f"simulated hour {slot}"
+        facts.append(turn.fact(f"No sensor alert or event was detected for {scope}.", Provenance.SIMULATED, remember=True))
+    explanation = ("These virtual meters describe the supplied actions after physical feasibility checks. "
+                   "Solver optimality is available separately from the planning results. "
+                   "A missing reading leaves the physical state intact. "
+                   "An unexplained balance calls for checking meter readings and reservoir stock before assigning a cause.")
+    turn.explanations["telemetry"] = GroundedParagraph(text=explanation, citation_ids=(),
+                                                       fact_ids=tuple(fact.id for fact in facts))
+    return {"facts": [fact.model_dump(mode="json") for fact in facts], "interpretation": explanation}
+
+
 TOOLS = {
+    "get_sensor_anomalies": (PlanningModel, get_sensor_anomalies, "Inspect the active digital twin's simulated equipment events, meter gaps and water-balance anomalies. Uses the selected replay hour, if supplied."),
+    "get_agricultural_insights": (AgricultureArgs, get_agricultural_insights, "Read surveyed parcels, missing planning inputs, WaPOR water use and rain-adjusted temperature associations at the active site. Pass null for all parcels."),
     "search_evidence": (EvidenceSearchRequest, search_evidence, "Look up verified official excerpts for citations or source questions."),
     "get_site_data": (SiteArgs, get_site_data, "Read site layers, missing observations and, if requested, M6 solar comparisons."),
     "get_simulation_results": (ScenarioArgs, get_simulation_results, "Run actual M6 plans; supply an optional reduced withdrawal quota for a what-if."),
