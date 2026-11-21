@@ -1,1 +1,7 @@
 Cahier des charges MIZU NEXUS Tunisie v5.md
+
+frontend/node_modules/
+frontend/dist/
+frontend/.env*
+!frontend/.env.example
+.venv/
