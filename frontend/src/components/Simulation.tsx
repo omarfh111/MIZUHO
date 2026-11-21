@@ -111,6 +111,7 @@ function readValidation(request: CompareRequest, actions: Plan['actions']) {
 }
 
 interface Props {
+  onAssistantContext?: (comparison: CompareRequest | undefined) => void;
   scenarios: Scenario[];
   mode: DataMode;
   solar: SolarOption | null;
@@ -118,7 +119,7 @@ interface Props {
   onEvidence: (source: string) => void;
 }
 
-export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvidence }: Props) {
+export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvidence, onAssistantContext }: Props) {
   const [inputs, setInputs] = useState(() => initialInputs(scenarios[0]));
   const [calculated, setCalculated] = useState<Calculated | null>(null);
   const [revision, setRevision] = useState(0);
@@ -156,6 +157,11 @@ export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvi
   const stale = Boolean(calculated && !current);
   const displayed = calculated?.comparison.weather_comparison?.buffer_on_adverse ?? calculated?.comparison.optimized;
   const missingWeather = calculated?.request.planning_mode === 'weather_buffer' && !calculated.comparison.weather_comparison;
+  const assistantContext = current && displayed?.metrics && !missingWeather ? calculated.request : undefined;
+  useEffect(() => {
+    onAssistantContext?.(assistantContext);
+    return () => onAssistantContext?.(undefined);
+  }, [assistantContext, onAssistantContext]);
   const canValidate = current && !missingWeather && displayed?.status !== 'NO_SOLUTION' && Boolean(displayed?.actions && displayed.metrics);
   const reset = () => { invalidate(); setInputs(initialInputs(scenario)); };
   const toggle = (slot: number) => update({ outages: inputs.outages.includes(slot)

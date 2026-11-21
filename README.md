@@ -56,6 +56,31 @@ If M6 is unavailable at startup, the frontend opens the local demo with a **Simu
 
 The bundled Jendouba site opts into M7's simulated relief in both modes. Other sites render their API geometry on the interactive 3D grid. The [data manifest](data/manifest.json) records provenance and missing inputs. The solar comparison uses synthetic hourly generation and a simulated service profile. Annual generation, annual cost savings and payback depend on field data such as PVGIS profiles, actual load and costs. The planning engine supports one plot per grower, as in the pilot.
 
+## M8 evidence assistant
+
+Use **Ask Mizhuo** from the connected interface. The assistant can search verified excerpts, inspect the current site and solar options, run a quota what-if, and explain allocations using M6. It reads the current valid comparison when available and never changes or approves a plan. Calculated values are rendered from M6 facts. Click an evidence card for its excerpt, scope, and source link.
+
+The server reads OpenAI and Qdrant credentials from the ignored root `.env`. The assistant uses `gpt-6-luna` and `text-embedding-3-small` with 1,536 dimensions. Set `QDRANT_COLLECTION` to select a collection. The default is `mizhuo_m8_evidence_v1` and it requires an unnamed cosine vector. M6 and the offline M7 demo remain available without assistant credentials.
+
+To build or check the index from the repository root, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m backend.evidence
+.\.venv\Scripts\python.exe -m backend.evidence --check
+```
+
+The [corpus manifest](data/m8_corpus.json) links the [source registry](data/sources.json) to short verified quotations in [the evidence directory](docs/evidence). Ingestion reads the reviewed local files and makes no requests to publishers. Stable IDs and content hashes avoid re-embedding unchanged excerpts. Retrieval restricts results to current corpus IDs and resolves citation text and links from the local registry.
+
+| Method | Route | Result |
+| --- | --- | --- |
+| POST | `/api/assistant/chat` | Grounded explanation, verified facts, citations, and missing information |
+| GET | `/api/assistant/health` | Configuration and active index readiness |
+| GET | `/api/assistant/index` | Indexed counts and registered evidence gaps |
+| POST | `/api/evidence/search` | Passage retrieval from the verified index |
+| GET | `/api/evidence/{source_id}/passages` | Local verified excerpts for a source |
+
+The index has regional publications and sample site context. It does not contain field records for the pilot borehole or measured PV yield. The API returns the available evidence and identifies those gaps.
+
 ## Local checks
 
 ```powershell
@@ -65,3 +90,5 @@ npm test
 .\node_modules\.bin\tsc.cmd --noEmit
 npm run build
 ```
+
+With Chrome, the frontend, and the configured backend running, run `npm run test:browser` from `frontend/` for the live assistant walkthrough. It sends two questions to the configured OpenAI model. Set `MIZHUO_TEST_URL` if the frontend is served somewhere other than `http://127.0.0.1:5173/`.

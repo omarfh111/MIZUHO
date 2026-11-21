@@ -206,3 +206,38 @@ export interface Evidence {
   url: string | null;
   limitation: string;
 }
+
+export interface Citation {
+  id: string;
+  source_id: string;
+  title: string;
+  organization: string;
+  date: string | null;
+  page: string | number | null;
+  url: string;
+  section: string;
+  excerpt: string;
+  limitation: string;
+}
+
+export interface AssistantHealth {
+  status: 'available' | 'unavailable' | 'incomplete';
+  configured: boolean;
+  index: { indexed_chunks: number | null; documents: number };
+}
+
+export interface AssistantRequest {
+  question: string;
+  site_id: string;
+  solar_option_id?: string;
+  comparison?: CompareRequest;
+  recent_questions?: string[];
+}
+
+export interface AssistantAnswer {
+  paragraphs: { text: string; citation_ids: string[]; fact_ids: string[] }[];
+  citations: Citation[];
+  facts: { id: string; text: string; provenance: Provenance }[];
+  missing_information: string[];
+  tools_used: string[];
+}
