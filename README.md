@@ -14,7 +14,7 @@
 [![M8 Evidence assistant](https://img.shields.io/badge/M8-Evidence_assistant-f7ce76?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
 [![Jendouba pilot](https://img.shields.io/badge/%F0%9F%93%8D_Pilot-Jendouba%2C_Tunisia-eef6ef?style=for-the-badge&labelColor=0b1f1c)](#reproduce-the-pilot)
 
-[![CI](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml/badge.svg)](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml)
+[![CI on feat/m7-carte-simulation](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml/badge.svg?branch=feat%2Fm7-carte-simulation)](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml?query=branch%3Afeat%2Fm7-carte-simulation)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat&logo=fastapi&logoColor=white)
 ![OR-Tools](https://img.shields.io/badge/OR--Tools-CP--SAT-4285F4?style=flat&logo=google&logoColor=white)
