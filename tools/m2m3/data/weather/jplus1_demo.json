@@ -1,0 +1,434 @@
+{
+  "jplus1-demo": {
+    "central": {
+      "id": "jplus1-demo-central",
+      "issued_at": "2026-11-20T18:00:00+01:00",
+      "valid_date": "2026-11-21",
+      "timezone": "Africa/Tunis",
+      "risk_start_slot": 11,
+      "source_id": "jplus1-demo",
+      "provenance": "simulated",
+      "slots": [
+        {
+          "slot": 0,
+          "solar_wh": 0
+        },
+        {
+          "slot": 1,
+          "solar_wh": 0
+        },
+        {
+          "slot": 2,
+          "solar_wh": 0
+        },
+        {
+          "slot": 3,
+          "solar_wh": 0
+        },
+        {
+          "slot": 4,
+          "solar_wh": 0
+        },
+        {
+          "slot": 5,
+          "solar_wh": 0
+        },
+        {
+          "slot": 6,
+          "solar_wh": 0
+        },
+        {
+          "slot": 7,
+          "solar_wh": 0
+        },
+        {
+          "slot": 8,
+          "solar_wh": 0
+        },
+        {
+          "slot": 9,
+          "solar_wh": 0
+        },
+        {
+          "slot": 10,
+          "solar_wh": 1000
+        },
+        {
+          "slot": 11,
+          "solar_wh": 0
+        },
+        {
+          "slot": 12,
+          "solar_wh": 0
+        },
+        {
+          "slot": 13,
+          "solar_wh": 3500
+        },
+        {
+          "slot": 14,
+          "solar_wh": 0
+        },
+        {
+          "slot": 15,
+          "solar_wh": 0
+        },
+        {
+          "slot": 16,
+          "solar_wh": 0
+        },
+        {
+          "slot": 17,
+          "solar_wh": 0
+        },
+        {
+          "slot": 18,
+          "solar_wh": 0
+        },
+        {
+          "slot": 19,
+          "solar_wh": 0
+        },
+        {
+          "slot": 20,
+          "solar_wh": 0
+        },
+        {
+          "slot": 21,
+          "solar_wh": 0
+        },
+        {
+          "slot": 22,
+          "solar_wh": 0
+        },
+        {
+          "slot": 23,
+          "solar_wh": 0
+        }
+      ]
+    },
+    "adverse": {
+      "id": "jplus1-demo-adverse",
+      "issued_at": "2026-11-20T18:00:00+01:00",
+      "valid_date": "2026-11-21",
+      "timezone": "Africa/Tunis",
+      "risk_start_slot": 11,
+      "source_id": "jplus1-demo",
+      "provenance": "simulated",
+      "slots": [
+        {
+          "slot": 0,
+          "solar_wh": 0
+        },
+        {
+          "slot": 1,
+          "solar_wh": 0
+        },
+        {
+          "slot": 2,
+          "solar_wh": 0
+        },
+        {
+          "slot": 3,
+          "solar_wh": 0
+        },
+        {
+          "slot": 4,
+          "solar_wh": 0
+        },
+        {
+          "slot": 5,
+          "solar_wh": 0
+        },
+        {
+          "slot": 6,
+          "solar_wh": 0
+        },
+        {
+          "slot": 7,
+          "solar_wh": 0
+        },
+        {
+          "slot": 8,
+          "solar_wh": 0
+        },
+        {
+          "slot": 9,
+          "solar_wh": 0
+        },
+        {
+          "slot": 10,
+          "solar_wh": 1000
+        },
+        {
+          "slot": 11,
+          "solar_wh": 0
+        },
+        {
+          "slot": 12,
+          "solar_wh": 0
+        },
+        {
+          "slot": 13,
+          "solar_wh": 2500
+        },
+        {
+          "slot": 14,
+          "solar_wh": 0
+        },
+        {
+          "slot": 15,
+          "solar_wh": 0
+        },
+        {
+          "slot": 16,
+          "solar_wh": 0
+        },
+        {
+          "slot": 17,
+          "solar_wh": 0
+        },
+        {
+          "slot": 18,
+          "solar_wh": 0
+        },
+        {
+          "slot": 19,
+          "solar_wh": 0
+        },
+        {
+          "slot": 20,
+          "solar_wh": 0
+        },
+        {
+          "slot": 21,
+          "solar_wh": 0
+        },
+        {
+          "slot": 22,
+          "solar_wh": 0
+        },
+        {
+          "slot": 23,
+          "solar_wh": 0
+        }
+      ]
+    }
+  },
+  "jplus1-stable": {
+    "central": {
+      "id": "jplus1-stable-central",
+      "issued_at": "2026-11-20T18:00:00+01:00",
+      "valid_date": "2026-11-21",
+      "timezone": "Africa/Tunis",
+      "risk_start_slot": 11,
+      "source_id": "jplus1-demo",
+      "provenance": "simulated",
+      "slots": [
+        {
+          "slot": 0,
+          "solar_wh": 0
+        },
+        {
+          "slot": 1,
+          "solar_wh": 0
+        },
+        {
+          "slot": 2,
+          "solar_wh": 0
+        },
+        {
+          "slot": 3,
+          "solar_wh": 0
+        },
+        {
+          "slot": 4,
+          "solar_wh": 0
+        },
+        {
+          "slot": 5,
+          "solar_wh": 0
+        },
+        {
+          "slot": 6,
+          "solar_wh": 0
+        },
+        {
+          "slot": 7,
+          "solar_wh": 0
+        },
+        {
+          "slot": 8,
+          "solar_wh": 0
+        },
+        {
+          "slot": 9,
+          "solar_wh": 0
+        },
+        {
+          "slot": 10,
+          "solar_wh": 1000
+        },
+        {
+          "slot": 11,
+          "solar_wh": 0
+        },
+        {
+          "slot": 12,
+          "solar_wh": 0
+        },
+        {
+          "slot": 13,
+          "solar_wh": 3500
+        },
+        {
+          "slot": 14,
+          "solar_wh": 0
+        },
+        {
+          "slot": 15,
+          "solar_wh": 0
+        },
+        {
+          "slot": 16,
+          "solar_wh": 0
+        },
+        {
+          "slot": 17,
+          "solar_wh": 0
+        },
+        {
+          "slot": 18,
+          "solar_wh": 0
+        },
+        {
+          "slot": 19,
+          "solar_wh": 0
+        },
+        {
+          "slot": 20,
+          "solar_wh": 0
+        },
+        {
+          "slot": 21,
+          "solar_wh": 0
+        },
+        {
+          "slot": 22,
+          "solar_wh": 0
+        },
+        {
+          "slot": 23,
+          "solar_wh": 0
+        }
+      ]
+    },
+    "adverse": {
+      "id": "jplus1-stable-adverse",
+      "issued_at": "2026-11-20T18:00:00+01:00",
+      "valid_date": "2026-11-21",
+      "timezone": "Africa/Tunis",
+      "risk_start_slot": 11,
+      "source_id": "jplus1-demo",
+      "provenance": "simulated",
+      "slots": [
+        {
+          "slot": 0,
+          "solar_wh": 0
+        },
+        {
+          "slot": 1,
+          "solar_wh": 0
+        },
+        {
+          "slot": 2,
+          "solar_wh": 0
+        },
+        {
+          "slot": 3,
+          "solar_wh": 0
+        },
+        {
+          "slot": 4,
+          "solar_wh": 0
+        },
+        {
+          "slot": 5,
+          "solar_wh": 0
+        },
+        {
+          "slot": 6,
+          "solar_wh": 0
+        },
+        {
+          "slot": 7,
+          "solar_wh": 0
+        },
+        {
+          "slot": 8,
+          "solar_wh": 0
+        },
+        {
+          "slot": 9,
+          "solar_wh": 0
+        },
+        {
+          "slot": 10,
+          "solar_wh": 1000
+        },
+        {
+          "slot": 11,
+          "solar_wh": 0
+        },
+        {
+          "slot": 12,
+          "solar_wh": 0
+        },
+        {
+          "slot": 13,
+          "solar_wh": 3500
+        },
+        {
+          "slot": 14,
+          "solar_wh": 0
+        },
+        {
+          "slot": 15,
+          "solar_wh": 0
+        },
+        {
+          "slot": 16,
+          "solar_wh": 0
+        },
+        {
+          "slot": 17,
+          "solar_wh": 0
+        },
+        {
+          "slot": 18,
+          "solar_wh": 0
+        },
+        {
+          "slot": 19,
+          "solar_wh": 0
+        },
+        {
+          "slot": 20,
+          "solar_wh": 0
+        },
+        {
+          "slot": 21,
+          "solar_wh": 0
+        },
+        {
+          "slot": 22,
+          "solar_wh": 0
+        },
+        {
+          "slot": 23,
+          "solar_wh": 0
+        }
+      ]
+    }
+  }
+}

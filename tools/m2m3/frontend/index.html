@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Mizu Nexus · Energy workbench</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" type="module"></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">M</span><div>Mizu Nexus<small>Energy workbench</small></div></div>
+      <nav aria-label="Calculations">
+        <button type="button" data-view="simulation" aria-current="page"><span aria-hidden="true">◉</span> Simulation</button>
+        <button type="button" data-view="solar"><span aria-hidden="true">☼</span> Solar comparison</button>
+        <button type="button" data-view="forecast"><span aria-hidden="true">∿</span> Load forecast</button>
+        <button type="button" data-view="anomalies"><span aria-hidden="true">◇</span> Anomaly checks</button>
+        <button type="button" data-view="weather"><span aria-hidden="true">☁</span> J+1 scenarios</button>
+      </nav>
+      <div class="sidebar-footer">Station network <span>·</span> Tunisia</div>
+    </aside>
+
+    <main>
+      <header class="topbar"><span>M2 / M3</span><span class="local"><i aria-hidden="true"></i> Local workbench</span></header>
+      <div class="content">
+        <div class="page-heading">
+          <div><h1 id="title">Station network</h1><p id="description">Compare stations under the same replay conditions and investigate alerts.</p></div>
+          <button type="button" class="secondary" id="download" hidden>Download JSON</button>
+        </div>
+
+        <section id="simulation" aria-label="Station simulation">
+          <div class="station-overview" id="sim-network" aria-label="Station overview"></div>
+          <div class="sim-stage" id="sim-stage">
+            <div class="sim-stage-top"><div><span class="sim-source" id="sim-source">SIMULATED FEED</span><h2 id="sim-station">Jendouba pilot</h2></div><div class="sim-clock"><strong id="sim-clock">––:––</strong><span id="sim-date"></span></div></div>
+            <div class="station" aria-label="Pump, reservoir and irrigation flow">
+              <div class="station-node"><div class="machine pump"><span aria-hidden="true">✳</span></div><span>Pump</span><strong id="sim-pump">—</strong></div>
+              <div class="pipe pipe-in" aria-hidden="true"><span></span></div>
+              <div class="station-node"><div class="machine reservoir"><div id="sim-water" class="water"></div><div class="tank-lines"></div></div><span>Reservoir</span><strong id="sim-stock">—</strong></div>
+              <div class="pipe" aria-hidden="true"><span></span></div>
+              <div class="station-node"><div class="machine field" aria-hidden="true"><i></i><i></i><i></i><i></i></div><span>Irrigation</span><strong id="sim-delivery">—</strong></div>
+            </div>
+            <div class="sim-foot"><span id="sim-grid">Awaiting telemetry</span><span id="sim-rate">1 simulated hour per tick</span></div>
+          </div>
+          <div class="sim-controls card">
+            <div class="sim-transport"><button type="button" class="primary" id="sim-play">Pause feed</button><button type="button" class="secondary" id="sim-reset">Reset</button><label class="sim-select">Speed <select id="sim-speed"><option value="2600">Slow</option><option value="1450" selected>Normal</option><option value="650">Fast</option></select></label><label class="sim-select">Source <select id="sim-mode"><option value="simulated">Simulation</option><option value="connected" disabled>Connected station</option></select></label><label class="sim-select">Station <select id="sim-site"><option value="jendouba-pilote">Jendouba pilot</option></select></label></div>
+            <form id="sim-config" class="sim-config">
+              <label>Scenario <select id="sim-scenario"><option value="routine">Routine irrigation</option><option value="stress">Stress test</option></select></label>
+              <label>Seed <input type="number" id="sim-seed" value="21" min="0" max="4294967295" step="1" required></label>
+              <button type="submit" class="secondary">Apply and reset</button>
+            </form>
+            <div class="sim-injections"><span id="sim-injection-target">Inject at selected station</span><button type="button" class="secondary" data-fault="inefficiency">Pump inefficiency</button><button type="button" class="secondary" data-fault="imbalance">Water imbalance</button><button type="button" class="secondary" data-fault="outage">Grid outage</button><button type="button" class="secondary" data-fault="sensor_dropout">Flow sensor dropout</button></div>
+          </div>
+          <p id="sim-status" class="status" role="status" hidden></p>
+          <div class="summary sim-metrics">
+            <article class="card metric"><p>Pump energy</p><strong id="sim-energy">—</strong><p class="detail">Current hourly reading</p></article>
+            <article class="card metric"><p>Energy intensity</p><strong id="sim-intensity">—</strong><p class="detail" id="sim-reference">Reference pending</p></article>
+            <article class="card metric"><p>Anomalies detected</p><strong id="sim-count">0</strong><p class="detail">In the current telemetry window</p></article>
+          </div>
+          <div class="result-grid sim-results">
+            <article class="card output-card"><h2>Energy intensity trend</h2><p class="caption">A pump alert requires two consecutive comparable hours above the threshold.</p><ul class="legend"><li><span class="swatch"></span> Meter ratio</li><li id="sim-threshold-key" hidden><span class="swatch other"></span> Alert threshold</li></ul><canvas class="chart" id="sim-chart" role="img" aria-label="Hourly energy intensity and the alert threshold"></canvas><details><summary>Recent meter readings</summary><div id="sim-readings" class="table-wrap"></div></details></article>
+            <article class="card output-card"><h2>Detection timeline</h2><p class="caption">Alerts calculated from incoming readings.</p><ol class="incidents" id="sim-alerts" aria-live="polite"><li>Waiting for telemetry.</li></ol></article>
+          </div>
+          <article class="card output-card full-card" id="sim-sensors-card" hidden>
+            <div class="item-title"><div><h2>Virtual sensors</h2><p class="caption" id="sim-solar-input"></p></div><button class="secondary" type="button" id="sim-export">Download telemetry JSON</button></div>
+            <p class="hint" id="sim-quality" role="status"></p>
+            <div id="sim-sensors" class="table-wrap"></div>
+          </article>
+        </section>
+
+        <section class="card controls" id="calculation-inputs" aria-labelledby="inputs-title" hidden>
+          <h2 id="inputs-title">Inputs</h2>
+          <form id="solar-form" data-form="solar">
+            <div class="fields">
+              <label>Profile date <input type="date" name="day" value="2023-06-21" required></label>
+              <label>Tariff <span class="with-unit"><input type="number" name="price" value="0.25" step="any" min="0"><span>TND/kWh</span></span></label>
+              <label>Load dataset <select name="dataset"><option value="sample">Standard day</option><option value="irrigation">Irrigation day · seed 21</option><option value="none">Production only</option><option value="file">Custom file</option></select></label>
+              <label class="file-field" data-custom-file hidden>Load CSV <input type="file" name="load" accept=".csv,text/csv"></label>
+              <button class="primary" type="submit">Compare options</button>
+            </div>
+            <div class="choices" role="group" aria-label="PV configurations">
+              <label><input type="checkbox" name="option" value="toiture" checked> Pump station rooftop</label>
+              <label><input type="checkbox" name="option" value="ombriere" checked> Solar canopy</label>
+            </div>
+          </form>
+          <form id="forecast-form" data-form="forecast" hidden>
+            <div class="fields">
+              <label>Station <select name="site_id" data-station-select><option value="jendouba-pilote">Jendouba pilot</option></select></label>
+              <label data-custom-site hidden>Site ID in CSV <input name="custom_site" value="jendouba-pilote"></label>
+              <label>Forecast cutoff <input type="datetime-local" name="as_of" value="2026-11-20T18:00" step="3600" required></label>
+              <label>Telemetry dataset <select name="dataset"><option value="stress">Stress test · seed 21</option><option value="routine">Routine irrigation · seed 21</option><option value="sample">Reference example</option><option value="file">Custom file</option></select></label>
+              <label class="file-field" data-custom-file hidden>Telemetry CSV <input type="file" name="telemetry" accept=".csv,text/csv"></label>
+              <button class="primary" type="submit">Run forecast</button>
+            </div>
+            <div class="choices forecast-extra"><span>Tunisia time (UTC+1). Preloaded datasets are simulated.</span><details><summary>Optional weather input</summary><label class="file-field">Archived forecast weather CSV <input type="file" name="weather" accept=".csv,text/csv"></label></details></div>
+          </form>
+          <form id="anomalies-form" data-form="anomalies" hidden>
+            <div class="fields">
+              <label>Station <select name="site_id" data-station-select><option value="jendouba-pilote">Jendouba pilot</option></select></label>
+              <label>Pump energy reference <span class="with-unit"><input type="number" name="reference" value="0.5" min="0.000001" step="any"><span>kWh/m³</span></span></label>
+              <label>Telemetry dataset <select name="dataset"><option value="stress">Stress test · seed 21</option><option value="routine">Routine irrigation · seed 21</option><option value="sample">Reference example</option><option value="file">Custom file</option></select></label>
+              <label class="file-field" data-custom-file hidden>Telemetry CSV <input type="file" name="telemetry" accept=".csv,text/csv"></label>
+              <label data-custom-site hidden>Site ID in CSV <input name="custom_site" placeholder="All sites"></label>
+              <button class="primary" type="submit">Check anomalies</button>
+            </div>
+            <p class="hint">Uses simulated telemetry by default. Clear the reference to run the water balance independently.</p>
+          </form>
+          <form id="weather-form" data-form="weather" hidden>
+            <div class="fields">
+              <label id="bundled-pair">Scenario pair <select name="pair"><option value="seeded">Cloud risk · seeded</option><option value="jplus1-demo">Adverse · reference case</option><option value="jplus1-stable">Stable · reference case</option></select></label>
+              <label id="weather-seed">Seed <input type="number" name="seed" value="21" min="0" max="4294967295" step="1" required></label>
+              <label class="file-field">Scenario JSON <input type="file" name="profiles" accept=".json,application/json"></label>
+              <label id="custom-pair" hidden>Scenario pair ID <select name="custom_pair"></select></label>
+              <button class="primary" type="submit">Validate scenario</button>
+            </div>
+            <p class="hint">Load a bundled simulation or upload a central and adverse pair to validate.</p>
+          </form>
+        </section>
+
+        <p id="status" class="status" role="status" aria-live="polite" hidden></p>
+        <section id="results" aria-label="Calculation results" aria-busy="false"></section>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
