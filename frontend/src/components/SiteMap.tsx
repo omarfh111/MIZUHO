@@ -34,11 +34,11 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
   const [catalog, setCatalog] = useState<LayerState>({});
   const [visible, setVisible] = useState<LayerId[]>(['plots', 'solar']);
   const [active, setActive] = useState<LayerProperties | null>(null);
-  const isDemo = mode === 'demo';
   const [hardwareError, setHardwareError] = useState(false);
   const controls = useRef<MapControls>(null);
   const fallback = useCallback(() => setHardwareError(true), []);
   const { properties } = site;
+  const hasDemoRelief = mode === 'demo' || (properties.status === 'simulated' && properties.relief === 'jendouba-demo');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -79,9 +79,9 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
           </div> : <>
             <Suspense fallback={<div className="map-loading" role="status">Loading the map…</div>}>
               <TerrainMap site={site} layers={layers} active={active} select={setActive} controls={controls}
-                onUnavailable={fallback} demo={isDemo} />
+                onUnavailable={fallback} demo={hasDemoRelief} />
             </Suspense>
-            <div className="map-tag"><span className="status-dot" />{isDemo ? 'Simulated terrain' : 'Site geometry'}</div>
+            <div className="map-tag"><span className="status-dot" />{hasDemoRelief ? 'Simulated terrain' : 'Site geometry'}</div>
             <div className="map-compass" aria-label="North"><span>N</span><Compass size={29} strokeWidth={1.25} /></div>
             <div className="map-controls">
               <button type="button" aria-label="Zoom in" title="Zoom in" onClick={() => controls.current?.zoom(1)}><Plus size={19} /></button>
@@ -95,7 +95,7 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
           <span className="map-coordinates"><Crosshair size={14} /> {location}</span>
           <div className="map-key">
             {layers.plots && <span><i className="map-swatch" /> Plots</span>}
-            {isDemo && !hardwareError && layers.plots && <span><i className="map-swatch water-swatch" /> Irrigation network</span>}
+            {hasDemoRelief && !hardwareError && layers.plots && <span><i className="map-swatch water-swatch" /> Irrigation network</span>}
             {layers.solar && <span><i className="map-swatch solar-swatch" /> Solar PV</span>}
             {layers.anomalies && <span><i className="map-swatch anomaly-swatch" /> Anomalies</span>}
             {layers.wind && <span><i className="map-swatch wind-swatch" /> Wind</span>}
@@ -109,7 +109,7 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
           {sites.length > 1 && <select className="site-select" aria-label="Pilot site" value={properties.site_id} onChange={(event) => onSelectSite(event.target.value)}>
             {sites.map(({ properties }) => <option key={properties.site_id} value={properties.site_id}>{properties.label}</option>)}
           </select>}
-          {(hardwareError || !isDemo) && inspectable.length > 0 && <select className="site-select" aria-label="Inspect an area"
+          {(hardwareError || !hasDemoRelief) && inspectable.length > 0 && <select className="site-select" aria-label="Inspect an area"
             value={active ? inspectable.indexOf(active) : -1}
             onChange={(event) => setActive(inspectable[Number(event.target.value)] ?? null)}>
             <option value={-1}>Site overview</option>

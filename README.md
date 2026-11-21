@@ -1,10 +1,18 @@
-# Mizhuo · M7
+# Mizhuo · M6 API and M7 interface
 
 Irrigation mapping and scheduling for the Jendouba pilot site.
 
 ## Getting started
 
-Use Node.js 22.12 or later.
+Use Python 3.12 and Node.js 22.12 or later. From the repository root, start the API.
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+
+In a second terminal, start the frontend.
 
 ```powershell
 cd frontend
@@ -12,7 +20,7 @@ npm ci
 npm run dev
 ```
 
-Open the [local demo](http://localhost:5173/?mode=demo). The site, plots, solar profiles and scenarios are simulated. The 3D map works offline. If WebGL is unavailable, use the area selector to inspect site layers.
+Open the [connected interface](http://localhost:5173/) or the [offline demo](http://localhost:5173/?mode=demo). The bundled site, plots, solar profiles and scenarios are simulated. Connected mode sends calculations to the Python engine and labels the sample data as simulated. If WebGL is unavailable, use the area selector to inspect site layers.
 
 ## Demo walkthrough
 
@@ -22,19 +30,38 @@ Open the [local demo](http://localhost:5173/?mode=demo). The site, plots, solar 
 4. Approve the proposed plan and change the water stock. The previous result remains visible and requires recalculation before approval. In **Successive outages**, select H12 to inspect the grid restart.
 5. Run **Day-ahead weather reserve**. The proposed plan pumps 2 m³ before 11:00 and increases on-time delivery from 6 to 8 m³. With a quota of 5 m³, the remaining shortfall is 2 m³. **Day-ahead reserve · Stable profile** requires 0 m³ of early pumping.
 
-## M6 integration
+## API
+
+[OpenAPI documentation](http://127.0.0.1:8000/docs) is available while the API runs.
+
+| Method | Route | Result |
+| --- | --- | --- |
+| GET | `/api/health` | `{"status":"ok"}` after catalog validation |
+| GET | `/api/scenarios` | Six scenarios and their initial states |
+| GET | `/api/sites` | WGS84 GeoJSON sites |
+| GET | `/api/layers/{site_id}/{layer_id}` | Plot, solar, wind or anomaly layer |
+| POST | `/api/solar/compare` | Option assumptions, profiles, grid savings and calculable financial metrics |
+| POST | `/api/compare` | Replayed fixed schedule, verified CP-SAT plan and optional weather comparison |
+| GET | `/api/evidence/{source_id}` | Source metadata or 404 |
+
+The [versioned A/B example](data/fixtures/compare.json) includes the request and a recorded response. The response reports deliveries including observed history. Withdrawals and energy cover the remaining simulation horizon.
+
+The solver optimizes fairness, weighted shortfall, useful service, grid peak, grid energy and withdrawals in order. It then replays every returned plan through the simulator. An interrupted solve can return a verified `FEASIBLE` plan, and `NO_SOLUTION` leaves the fixed schedule available. Request errors return HTTP 422 with the field path in `detail[].loc`.
 
 At startup the frontend requests `GET /api/sites` and `GET /api/scenarios`. Vite proxies `/api` to `http://127.0.0.1:8000` in development. Set `MIZU_API_TARGET` in `frontend/.env.local` to change the target. In production, serve `frontend/dist` and route `/api` to M6 on the same origin.
 
-Layer IDs are `plots`, `solar`, `wind` and `anomalies`. The solar layer supplies an `option_id` for each configuration. The comparison and evidence endpoints are `POST /api/solar/compare`, `POST /api/compare` and `GET /api/evidence/{source_id}`. The optional `restart_grid_cap_w` field sets the restart cap in watts. Weather scenarios specify their pairing via `weather_pair_id`.
+Copy the root `.env.example` to `.env` to override the allowed CORS origins or the solver time budget. The optional `restart_grid_cap_w` limits grid power in the first hour of each restart. In nominal mode, selecting a solar option supplies its hourly profile. Weather mode uses the scenario's registered `weather_pair_id` for both profiles and reports total and additional early pumping separately.
 
-If M6 is unavailable at startup, the frontend opens the local demo with a **Simulated data** badge. Set `VITE_DATA_MODE=live` to keep the app in connected mode while diagnosing M6. The demo uses a repeatable scheduling heuristic. Connected mode delegates scheduling and operational data to M6 and requests English content.
+If M6 is unavailable at startup, the frontend opens the local demo with a **Simulated data** badge. Set `VITE_DATA_MODE=live` to require a backend connection. The offline demo uses its existing heuristic. Connected mode uses the M4 simulator and M5 CP-SAT solver from [the irrigation-planning commit](https://github.com/omarfh111/MIZUHO/commit/c4d59e6).
 
-Connected mode shows the API's site geometry on an interactive 3D grid. The demo uses simulated terrain.
+The bundled Jendouba site opts into M7's simulated relief in both modes. Other sites render their API geometry on the interactive 3D grid. The [data manifest](data/manifest.json) records provenance and missing inputs. The solar comparison uses synthetic hourly generation and a simulated service profile. Annual generation, annual cost savings and payback depend on field data such as PVGIS profiles, actual load and costs. The planning engine supports one plot per grower, as in the pilot.
 
 ## Local checks
 
 ```powershell
+.\.venv\Scripts\python.exe -m pytest
+cd frontend
 npm test
+.\node_modules\.bin\tsc.cmd --noEmit
 npm run build
 ```

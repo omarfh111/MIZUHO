@@ -32,7 +32,9 @@ function WeatherDecision({ weather, onEvidence }: { weather: WeatherComparison; 
       <p>{weather.reason ?? 'Both plans use the same adverse weather profile.'}</p>
       <div className="weather-facts"><span>Expected water stock <b>{value(weather.expected_stock_m3)} m³</b></span>
         <span>Remaining quota <b>{value(weather.quota_remaining_m3 ?? buffer?.quota_remaining_m3)} m³</b></span>
-        <span>Remaining shortfall <b>{value(weather.remaining_deficit_m3)} m³</b></span></div>
+        <span>Remaining shortfall <b>{value(weather.remaining_deficit_m3)} m³</b></span>
+        {weather.additional_early_pump_m3 != null && weather.additional_early_pump_m3 !== weather.early_pump_m3 &&
+          <span>Additional reserve <b>{value(weather.additional_early_pump_m3)} m³</b></span>}</div>
       <div className="weather-source">
         <span>{weather.provenance ? `Profile · ${provenanceLabel[weather.provenance]}` : 'Adverse profile'}</span>
         {weather.source_id && <button type="button" className="text-button" onClick={() => onEvidence(weather.source_id!)}><BookOpenText size={14} /> Provenance</button>}

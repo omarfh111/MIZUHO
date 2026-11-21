@@ -11,6 +11,7 @@ export interface SiteProperties {
   locality?: string;
   description?: string;
   date?: string;
+  relief?: 'jendouba-demo';
 }
 
 export type Site = Feature<Point, SiteProperties> & { outline?: Geometry };
@@ -154,6 +155,7 @@ export interface WeatherComparison {
   reference_on_adverse: Plan;
   buffer_on_adverse: Plan;
   early_pump_m3: number;
+  additional_early_pump_m3?: number | null;
   before_slot: number;
   expected_stock_m3: number;
   remaining_deficit_m3: number;

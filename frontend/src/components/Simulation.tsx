@@ -243,7 +243,7 @@ export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvi
       </div>
       <div className="simulation-actions">
         <div className="simulation-options">
-          <span className="selection-chip"><Sun size={15} /> {mode === 'demo' && inputs.weather
+          <span className="selection-chip"><Sun size={15} /> {inputs.weather
             ? 'Scenario weather profiles' : solar?.label ?? 'No solar option selected'}
             {solar && <button type="button" className="text-button" onClick={onClearSolar}>Remove</button>}
           </span>
