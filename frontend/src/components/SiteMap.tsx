@@ -8,6 +8,7 @@ import { dateLabel, provenanceLabel, value } from '../format.ts';
 import { useExperience } from '../experience/index.ts';
 import type { Layer, LayerId, LayerProperties, Scenario, Site, SolarOption } from '../types.ts';
 import type { MapControls } from './mapControls.ts';
+import AgriculturePanel from './AgriculturePanel.tsx';
 
 const TerrainMap = lazy(() => import('./TerrainMap.tsx'));
 const layerOptions = [
@@ -15,6 +16,10 @@ const layerOptions = [
   { id: 'solar', title: 'Solar potential', details: 'Solar PV configurations', icon: Sun, tone: 'gold' },
   { id: 'wind', title: 'Wind potential', details: 'Insufficient data', icon: Wind, tone: 'periwinkle' },
   { id: 'anomalies', title: 'Water anomalies', details: 'Meter discrepancies', icon: Radio, tone: 'coral' },
+] as const;
+const surveyLayers = [
+  { ...layerOptions[0], details: 'Mapped parcel boundaries' },
+  { id: 'wapor', title: 'WaPOR water use', details: 'Estimated evapotranspiration · 100 m cells', icon: Droplets, tone: 'teal' },
 ] as const;
 
 type LayerState = Partial<Record<LayerId, Layer | null>>;
@@ -34,23 +39,30 @@ interface Props {
 export default function SiteMap({ site, sites, scenario, selectedOption, mode, onSelectSite, onCompare, onEvidence, onSimulate }: Props) {
   const { active: cinematicActive } = useExperience();
   const [catalog, setCatalog] = useState<LayerState>({});
-  const [visible, setVisible] = useState<LayerId[]>(['plots', 'solar']);
+  const layerChoices = site.properties.survey_available ? surveyLayers : layerOptions;
+  const [visible, setVisible] = useState<LayerId[]>(site.properties.survey_available ? ['plots', 'wapor'] : ['plots', 'solar']);
   const [active, setActive] = useState<LayerProperties | null>(null);
   const [hardwareError, setHardwareError] = useState(false);
   const controls = useRef<MapControls>(null);
+  const loads = useRef<AbortController | null>(null);
   const fallback = useCallback(() => setHardwareError(true), []);
   const { properties } = site;
   const hasDemoRelief = mode === 'demo' || (properties.status === 'simulated' && properties.relief === 'jendouba-demo');
 
+  const loadLayer = useCallback((id: LayerId) => {
+    const signal = loads.current?.signal;
+    if (!signal || signal.aborted) return;
+    setCatalog(current => ({ ...current, [id]: undefined }));
+    getLayer(properties.site_id, id, mode, signal)
+      .then(layer => { if (!signal.aborted) setCatalog(current => ({ ...current, [id]: layer })); })
+      .catch(() => { if (!signal.aborted) setCatalog(current => ({ ...current, [id]: null })); });
+  }, [mode, properties.site_id]);
   useEffect(() => {
     const controller = new AbortController();
-    layerOptions.forEach(({ id }) => {
-      getLayer(properties.site_id, id, mode, controller.signal)
-        .then((layer) => { if (!controller.signal.aborted) setCatalog((catalog) => ({ ...catalog, [id]: layer })); })
-        .catch(() => { if (!controller.signal.aborted) setCatalog((catalog) => ({ ...catalog, [id]: null })); });
-    });
+    loads.current = controller;
+    layerChoices.forEach(({ id }) => loadLayer(id));
     return () => controller.abort();
-  }, [mode, properties.site_id]);
+  }, [layerChoices, loadLayer]);
 
   const layers = useMemo(() => {
     const active: Partial<Record<LayerId, Layer>> = {};
@@ -64,7 +76,8 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
     if (catalog[id]?.features.some(({ properties }) => properties === active)) setActive(null);
   };
   const location = `${site.geometry.coordinates[1].toFixed(4)}° N  ·  ${site.geometry.coordinates[0].toFixed(4)}° E`;
-  const inspectable = Object.values(layers).flatMap((layer) => layer.features.map(({ properties }) => properties));
+  const inspectable = Object.entries(layers).flatMap(([id, layer]) =>
+    id === 'wapor' ? [] : layer.features.map(({ properties }) => properties));
 
   return <>
     <div className="workbench">
@@ -101,6 +114,7 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
             {layers.solar && <span><i className="map-swatch solar-swatch" /> Solar PV</span>}
             {layers.anomalies && <span><i className="map-swatch anomaly-swatch" /> Anomalies</span>}
             {layers.wind && <span><i className="map-swatch wind-swatch" /> Wind</span>}
+            {layers.wapor && <span><i className="wapor-gradient" /> AETI · 0–6 mm/day</span>}
           </div>
         </div>
       </section>
@@ -131,7 +145,7 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
 
         <section className="surface layers-card">
           <h2><Layers3 size={17} /> Data layers</h2>
-          {layerOptions.map(({ id, title, details, icon: Icon, tone }) => {
+          {layerChoices.map(({ id, title, details, icon: Icon, tone }) => {
             const layer = catalog[id];
             const status = layer === undefined ? 'Loading…' : !layer || layer.status === 'unavailable'
               ? 'Unavailable' : provenanceLabel[layer.status ?? layer.features[0]?.properties.status ?? properties.status];
@@ -144,8 +158,10 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
               </div>
               {sourceId && <button type="button" className="bare-icon layer-source" aria-label={`Source · ${title}`} title={`Source · ${title}`}
                 onClick={() => onEvidence(sourceId)}><BookOpenText size={13} /></button>}
-              <button type="button" className="toggle" role="switch" aria-label={title} aria-checked={visible.includes(id)}
-                disabled={!layer || layer.status === 'unavailable' || !layer.features.length} onClick={() => toggleLayer(id)}><span /></button>
+              {layer === null ? <button type="button" className="text-button" aria-label={`Retry ${title}`}
+                onClick={() => loadLayer(id)}>Retry</button> :
+                <button type="button" className="toggle" role="switch" aria-label={title} aria-checked={visible.includes(id)}
+                  disabled={!layer || layer.status === 'unavailable' || !layer.features.length} onClick={() => toggleLayer(id)}><span /></button>}
             </div>;
           })}
         </section>
@@ -160,6 +176,7 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
         </div>
       </aside>
     </div>
+    {properties.survey_available && <AgriculturePanel siteId={properties.site_id} plotId={active?.plot_id} onEvidence={onEvidence} />}
     {scenario && <section className="overview-stats" aria-label="Site configuration">
       {[
         { icon: Droplets, title: 'Initial water stock', amount: value(scenario.state.tank_stock_m3), unit: 'm³', tone: 'teal', hint: 'Water available in the reservoir' },

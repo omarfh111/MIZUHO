@@ -1,0 +1,39 @@
+.twin { overflow: hidden; margin: 20px 0; }
+.twin-head, .twin-transport, .twin-switch { display: flex; align-items: center; gap: .6rem; }
+.twin-head { padding: 1.2rem; justify-content: space-between; flex-wrap: wrap; }
+.twin-head p, .twin-inspector p { margin: .35rem 0; }
+.twin-switch { gap: .2rem; padding: .2rem; border: 1px solid #71917d66; border-radius: .7rem; }
+.twin button, .twin select { cursor: pointer; }
+.twin-switch button, .twin-transport button, .twin-transport select, .twin-inspector select {
+  font: inherit; color: inherit; background: transparent; border: 0; border-radius: .5rem; padding: .5rem .7rem;
+}
+.twin-switch button[aria-pressed=true] { background: #214e40; color: #ebf9dc; }
+.twin-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 27%); }
+.twin-body[hidden] { display: none; }
+.twin .twin-map { min-height: 340px; height: clamp(340px, 37vw, 490px); }
+.twin-inspector { padding: 1.3rem; background: #1b302a; color: #ecf4e6; }
+.twin-inspector label { display: grid; gap: .6rem; font-size: .83rem; }
+.twin-inspector select { background: #29433a; width: 100%; }
+.twin-reading { display: block; font-size: clamp(1.6rem, 3vw, 2.7rem); margin-top: 1.7rem; color: #d9f3a4; }
+.twin-inspector p { color: #c3d3c7; font-size: .85rem; }
+.twin-inspector ul { padding: 0; list-style: none; margin: 1.4rem 0 0; }
+.twin-inspector li { display: flex; align-items: center; gap: .45rem; padding: .55rem 0; border-top: 1px solid #69847766; font-size: .8rem; }
+.twin-inspector li b { margin-left: auto; }
+.twin-inspector li svg, .twin-transport svg { width: 1rem; height: 1rem; }
+.twin-transport { padding: .8rem 1rem; font-variant-numeric: tabular-nums; }
+.twin-transport input { flex: 1; min-width: 2rem; accent-color: #417e58; }
+.twin-transport button { display: grid; place-items: center; border: 1px solid #71917d66; }
+.twin-details { padding: .8rem 1.2rem; border-top: 1px solid #71917d44; overflow-x: auto; }
+.twin-details summary { cursor: pointer; font-weight: 650; }
+.twin-details table { margin: 1rem 0; width: 100%; font-size: .84rem; border-collapse: collapse; }
+.twin-details th, .twin-details td { padding: .45rem; text-align: left; border-bottom: 1px solid #71917d44; }
+.twin-details fieldset { margin: 1rem 0; padding: .8rem; border: 1px solid #71917d66; }
+.twin-details label { display: inline-flex; gap: .4rem; align-items: center; margin-right: 1rem; }
+.twin-message { padding: 0 1.2rem 1rem; }
+@media (max-width: 740px) {
+  .twin-body { grid-template-columns: 1fr; }
+  .twin .twin-map { height: 340px; }
+  .twin-inspector { padding: 1rem; }
+  .twin-reading { margin-top: .7rem; }
+  .twin-inspector ul { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 0 .8rem; }
+}

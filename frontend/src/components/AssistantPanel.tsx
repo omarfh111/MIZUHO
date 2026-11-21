@@ -10,6 +10,11 @@ const suggestions = [
   'What does ANME say about photovoltaic potential in northwest Tunisia?',
   'Which site data are simulated?',
 ];
+const surveySuggestions = [
+  'What does WaPOR estimate for parcel P-01?',
+  'Which measurements are missing before these parcels can be scheduled?',
+  'Does the temperature analysis establish a cause for changes in water use?',
+];
 
 function createSessionId() {
   if (crypto.randomUUID) return crypto.randomUUID();
@@ -87,7 +92,7 @@ export default function AssistantPanel({ site, mode, solar, simulation, open, cl
   const last = turns.at(-1);
   const pending = Boolean(last && !last.answer && !last.error);
   const available = mode !== 'demo' && (health === 'available' || health === 'incomplete');
-  const scope = JSON.stringify([site.properties.site_id, solar?.id, simulation]);
+  const scope = JSON.stringify([site.properties.site_id, solar?.id, solar?.source_id, simulation]);
 
   useEffect(() => {
     if (!open || mode === 'demo') return;
@@ -118,9 +123,11 @@ export default function AssistantPanel({ site, mode, solar, simulation, open, cl
       request.current = null;
     };
     askAssistant({
-      question: prompt, site_id: site.properties.site_id, solar_option_id: solar?.id, session_id: sessionId,
+      question: prompt, site_id: site.properties.site_id,
+      solar_option_id: solar?.source_id === 'pvgis-sarah3-jendouba-2023' ? undefined : solar?.id, session_id: sessionId,
       comparison: simulation?.comparison, selected_scenario_id: simulation?.scenarioId,
       simulation_revision: simulation?.revision, simulation_pending: simulation?.pending,
+      telemetry: simulation?.telemetry,
     }, controller.signal).then((answer) => finish({ ...turn, answer })).catch((error) => {
       const message = error instanceof ApiError && error.status === 429
         ? 'The assistant is busy. Try again shortly.' : 'The assistant could not answer. Try again in a moment.';
@@ -147,7 +154,7 @@ export default function AssistantPanel({ site, mode, solar, simulation, open, cl
       {available && turns.length === 0 && <div className="assistant-welcome">
           <h3>Ask about a plan or its evidence</h3>
           <p>Explore the assumptions, official sources, or trade-offs behind an irrigation decision.</p>
-          <div className="assistant-suggestions">{suggestions.map((suggestion) =>
+          <div className="assistant-suggestions">{(site.properties.survey_available ? surveySuggestions : suggestions).map((suggestion) =>
             <button key={suggestion} type="button" onClick={() => send(suggestion)}>{suggestion}</button>)}</div>
         </div>}
       {turns.map((turn, index) => <article key={index} className="assistant-turn">

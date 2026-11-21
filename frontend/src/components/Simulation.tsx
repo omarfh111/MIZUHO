@@ -4,8 +4,13 @@ import {
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError, compare, type DataMode, type FieldErrors } from '../api.ts';
 import { hour, percent, value } from '../format.ts';
+import { defaultOperating, parseOperating, type OperatingInputs } from '../operating.ts';
+import OperatingEditor from './OperatingEditor.tsx';
 import type { AssistantSimulationContext, CompareRequest, Comparison, Plan, Scenario, SolarOption } from '../types.ts';
 import Planning from './Planning.tsx';
+import DigitalTwin from './DigitalTwin.tsx';
+import type { ReplayContext } from '../twin.ts';
+import type { Site } from '../types.ts';
 
 interface Inputs {
   scenarioId: string;
@@ -14,9 +19,11 @@ interface Inputs {
   restartCap: string;
   outages: number[];
   weather: boolean;
+  operating: OperatingInputs;
 }
 
 interface Calculated {
+  solarSelection?: SolarOption | null;
   revision: number;
   request: CompareRequest;
   scenario: Scenario;
@@ -31,6 +38,7 @@ function initialInputs(scenario: Scenario): Inputs {
     quota: String(scenario.state.quota_remaining_m3), restartCap: '3',
     outages: scenario.slots.filter(({ grid_available }) => !grid_available).map(({ slot }) => slot),
     weather: Boolean(scenario.weather_pair_id),
+    operating: defaultOperating(scenario),
   };
 }
 
@@ -70,11 +78,18 @@ function parseInputs(inputs: Inputs, scenario: Scenario, solar: SolarOption | nu
     scenario_id: scenario.id,
     state: { ...scenario.state, tank_stock_m3: stock, quota_remaining_m3: quota },
     outage_slots: [...inputs.outages].sort((a, b) => a - b),
-    solar_option_id: solar?.id ?? null,
+    solar_option_id: solar?.source_id === 'pvgis-sarah3-jendouba-2023' ? null : solar?.id ?? null,
     restart_grid_cap_w: inputs.restartCap.trim() ? cap : undefined,
     planning_mode: inputs.weather ? 'weather_buffer' : 'nominal',
     weather_pair_id: inputs.weather ? scenario.weather_pair_id : undefined,
   };
+  const operating = parseOperating(inputs.operating, scenario, inputs.weather, inputs.outages);
+  Object.assign(request, operating.fields);
+  if (!inputs.weather && !inputs.operating.profile && solar?.source_id === 'pvgis-sarah3-jendouba-2023'
+      && (solar.id === 'toiture' || solar.id === 'ombriere')) {
+    request.overrides = { ...request.overrides, pvgis_option_id: solar.id };
+  }
+  Object.assign(errors, operating.errors);
   return { request, errors };
 }
 
@@ -83,7 +98,8 @@ function statusText(calculated: Calculated, mode: DataMode) {
     return 'Insufficient data for the weather reserve plan';
   }
   const proposed = calculated.comparison.weather_comparison?.buffer_on_adverse ?? calculated.comparison.optimized;
-  if (proposed.status === 'NO_SOLUTION' || !proposed.metrics || !proposed.actions) return 'Calculation interrupted · fixed schedule available';
+  if (proposed.status === 'NO_SOLUTION' || !proposed.metrics || !proposed.actions) return calculated.request.incident
+    ? 'Recovery plan unavailable within the solver time limit' : 'Calculation interrupted · fixed schedule available';
   if (mode === 'live' && proposed.status === 'FEASIBLE') return 'Calculation interrupted · feasible plan available';
   if ((proposed.metrics.worst_coverage_bp ?? 10000) < 10000) return 'Partial plan · minimum targets unmet';
   return mode === 'demo' ? 'Simulated plan available' : 'Plan ready';
@@ -111,6 +127,8 @@ function readValidation(request: CompareRequest, actions: Plan['actions']) {
 }
 
 interface Props {
+  site: Site;
+  visible: boolean;
   onAssistantContext?: (simulation: AssistantSimulationContext | undefined) => void;
   scenarios: Scenario[];
   mode: DataMode;
@@ -119,7 +137,8 @@ interface Props {
   onEvidence: (source: string) => void;
 }
 
-export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvidence, onAssistantContext }: Props) {
+export default function Simulation({ site, visible, scenarios, mode, solar, onClearSolar, onEvidence, onAssistantContext }: Props) {
+  const [telemetry, setTelemetry] = useState<ReplayContext>();
   const [inputs, setInputs] = useState(() => initialInputs(scenarios[0]));
   const [calculated, setCalculated] = useState<Calculated | null>(null);
   const [revision, setRevision] = useState(0);
@@ -128,7 +147,7 @@ export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvi
   const [errors, setErrors] = useState<FieldErrors>({});
   const [validation, setValidation] = useState<string | null>(null);
   const inFlight = useRef<AbortController | null>(null);
-  const initialSolar = useRef(solar?.id);
+  const initialSolar = useRef(solar);
   const scenario = scenarios.find(({ id }) => id === inputs.scenarioId) ?? scenarios[0];
 
   useEffect(() => () => inFlight.current?.abort(), []);
@@ -144,16 +163,16 @@ export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvi
   };
 
   useEffect(() => {
-    if (initialSolar.current === solar?.id) return;
-    initialSolar.current = solar?.id;
+    if (initialSolar.current === solar) return;
+    initialSolar.current = solar;
     invalidate();
-  }, [solar?.id]);
+  }, [solar]);
 
   const update = (change: Partial<Inputs>) => {
     setInputs((previous) => ({ ...previous, ...change }));
     invalidate();
   };
-  const current = calculated?.revision === revision && calculated?.request.solar_option_id === (solar?.id ?? null) && !loading && !error;
+  const current = calculated?.revision === revision && calculated?.solarSelection === solar && !loading && !error;
   const stale = Boolean(calculated && !current);
   const displayed = calculated?.comparison.weather_comparison?.buffer_on_adverse ?? calculated?.comparison.optimized;
   const missingWeather = calculated?.request.planning_mode === 'weather_buffer' && !calculated.comparison.weather_comparison;
@@ -162,9 +181,10 @@ export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvi
   useEffect(() => {
     onAssistantContext?.({
       scenarioId: scenario.id, revision, pending: assistantPending, comparison: assistantContext,
+      telemetry: assistantContext && visible ? telemetry : undefined,
     });
     return () => onAssistantContext?.(undefined);
-  }, [assistantContext, assistantPending, onAssistantContext, revision, scenario.id]);
+  }, [assistantContext, assistantPending, onAssistantContext, revision, scenario.id, telemetry, visible]);
   const canValidate = current && !missingWeather && displayed?.status !== 'NO_SOLUTION' && Boolean(displayed?.actions && displayed.metrics);
   const reset = () => { invalidate(); setInputs(initialInputs(scenario)); };
   const toggle = (slot: number) => update({ outages: inputs.outages.includes(slot)
@@ -175,6 +195,11 @@ export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvi
     setError('');
     setValidation(null);
     const { request, errors } = parseInputs(inputs, scenario, solar);
+    if (request.incident && calculated &&
+      JSON.stringify({ ...request, incident: undefined }) === JSON.stringify({ ...calculated.request, incident: undefined })) {
+      const previous = calculated.request.incident ? calculated.request.incident.previous_actions : calculated.comparison.optimized.actions;
+      if (previous) request.incident.previous_actions = previous.map(({ slot, pump_m3, deliveries }) => ({ slot, pump_m3, deliveries }));
+    }
     setErrors(errors);
     if (Object.keys(errors).length) {
       setError('Correct the highlighted inputs.');
@@ -187,7 +212,7 @@ export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvi
     try {
       const result = await compare(request, scenario, mode, controller.signal);
       if (controller.signal.aborted) return;
-      setCalculated({ scenario, request, revision, comparison: result });
+      setCalculated({ scenario, request, revision, comparison: result, solarSelection: solar });
       setValidation(readValidation(request, (result.weather_comparison?.buffer_on_adverse ?? result.optimized).actions));
     } catch (failure) {
       if (controller.signal.aborted) return;
@@ -230,7 +255,7 @@ export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvi
           }}>{scenarios.map(({ id, label }) => <option value={id} key={id}>{label}</option>)}</select>
           {fieldError('scenario_id') && <small className="field-error">{fieldError('scenario_id')}</small>}
         </label>
-        <Field id="tank-stock" label="Measured water stock" unit="m³" input={inputs.stock}
+        <Field id="tank-stock" label={scenario.provenance === 'simulated' ? 'Measured water stock (simulated input)' : 'Starting water stock'} unit="m³" input={inputs.stock}
           error={fieldError('state.tank_stock_m3')} change={(stock) => update({ stock })} />
         <Field id="remaining-quota" label="Remaining quota" unit="m³" input={inputs.quota}
           error={fieldError('state.quota_remaining_m3')} change={(quota) => update({ quota })} />
@@ -250,10 +275,12 @@ export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvi
         </div>
         {fieldError('outage_slots') && <p className="field-error">{fieldError('outage_slots')}</p>}
       </div>
+      {mode === 'live' && <OperatingEditor settings={inputs.operating} scenario={scenario} weather={inputs.weather} errors={errors}
+        change={(patch) => update({ operating: { ...inputs.operating, ...patch } })} />}
       <div className="simulation-actions">
         <div className="simulation-options">
           <span className="selection-chip"><Sun size={15} /> {inputs.weather
-            ? 'Scenario weather profiles' : solar?.label ?? 'No solar option selected'}
+            ? 'Scenario weather profiles' : inputs.operating.profile ? 'Archived PVGIS reference day' : solar?.label ?? 'No solar option selected'}
             {solar && <button type="button" className="text-button" onClick={onClearSolar}>Remove</button>}
           </span>
           {fieldError('solar_option_id') && <small className="field-error">{fieldError('solar_option_id')}</small>}
@@ -272,6 +299,8 @@ export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvi
       {calculated && current && delta != null && <span>{delta >= 0 ? '+' : '−'}{value(Math.abs(delta))} pts minimum coverage · {percent(displayed?.metrics?.worst_coverage_bp)}</span>}
     </div>
     {calculated && <>
+      {mode === 'live' && visible && current && <DigitalTwin key={calculated.revision} site={site}
+        request={calculated.request} comparison={calculated.comparison} onContext={setTelemetry} />}
       <Planning key={`${calculated.scenario.id}-${calculated.revision}`} comparison={calculated.comparison}
         scenario={calculated.scenario} input={calculated.request} stale={stale} onEvidence={onEvidence} />
       <section className="surface validation-panel">

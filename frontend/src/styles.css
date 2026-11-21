@@ -412,6 +412,10 @@ body::before {
 input[aria-invalid="true"] { border-color: var(--coral); }
 .field-error { color: var(--coral); font-size: .74rem; line-height: 1.4; }
 .outage-block { padding: 13px 0; }
+.what-if-controls { border-top: 1px solid var(--line); }
+.what-if-controls summary { cursor: pointer; font-weight: 700; }
+.what-if-controls[open] summary { margin-bottom: 10px; }
+.what-if-controls .outage-block { max-width: 40rem; }
 .outage-heading { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 7px; }
 .outage-heading > span { display: flex; align-items: center; gap: 6px; font-size: .79rem; font-weight: 780; }
 .outage-heading svg { color: var(--coral); }

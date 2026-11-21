@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
-    "test:browser": "node tests/cinematic-browser.mjs && node tests/m8-browser.mjs"
+    "test:browser": "node tests/cinematic-browser.mjs && node tests/m8-browser.mjs",
+    "test:integration": "node tests/twin-browser.mjs && node tests/agriculture-browser.mjs && node tests/operating-browser.mjs"
   },
   "engines": {
     "node": ">=22.12.0"

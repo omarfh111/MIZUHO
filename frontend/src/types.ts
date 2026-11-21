@@ -1,7 +1,7 @@
 import type { Feature, FeatureCollection, Geometry, Point } from 'geojson';
 
 export type Provenance = 'observed' | 'estimated' | 'simulated' | 'unavailable';
-export type LayerId = 'plots' | 'solar' | 'wind' | 'anomalies';
+export type LayerId = 'plots' | 'solar' | 'wind' | 'anomalies' | 'wapor';
 
 export interface SiteProperties {
   site_id: string;
@@ -12,12 +12,15 @@ export interface SiteProperties {
   description?: string;
   date?: string;
   relief?: 'jendouba-demo';
+  survey_available?: boolean;
 }
 
 export type Site = Feature<Point, SiteProperties> & { outline?: Geometry };
 export type Sites = FeatureCollection<Point, SiteProperties> & { features: Site[] };
 
 export interface LayerProperties {
+  equipment?: 'pump' | 'grid';
+  eta_mm_day?: number;
   label?: string;
   plot_id?: string;
   crop?: string;
@@ -36,6 +39,24 @@ export type Layer = FeatureCollection<Geometry, LayerProperties> & {
   source_id?: string;
   status?: Provenance;
 };
+
+export interface AgriculturalSurvey {
+  site_id: string;
+  period: string;
+  resolution: string;
+  interpretation: string;
+  optimizer_ready: false;
+  parcels: {
+    plot_id: string;
+    osm_way_id: number;
+    surface_m2: number;
+    eta_mm_day: number;
+    precip_mm_day: number;
+    ref_et_mm_day: number;
+    et_minus_rain_m3_day: number;
+    temperature: {period: string; slope_mm_day_per_c: number; samples: number; p_value: number};
+  }[];
+}
 
 export interface SiteCapacity {
   tank_capacity_m3: number;
@@ -99,6 +120,21 @@ export interface CompareRequest {
   restart_grid_cap_w?: number;
   planning_mode?: 'nominal' | 'weather_buffer';
   weather_pair_id?: string;
+  overrides?: OperatingOverrides;
+  incident?: {
+    kind: 'unexpected_outage' | 'pump_shutdown'; start_slot: number; duration_slots: number;
+    previous_actions?: Pick<Action, 'slot' | 'pump_m3' | 'deliveries'>[];
+  };
+}
+
+export interface OperatingOverrides {
+  pump_max_m3_per_slot?: number;
+  pump_power_cap_w?: number;
+  grid_cap_w?: number;
+  gravity_available?: boolean;
+  solar_percent?: number;
+  pvgis_option_id?: 'ombriere' | 'toiture';
+  demand_by_plot_m3?: Record<string, number>;
 }
 
 export interface Action {
@@ -166,6 +202,7 @@ export interface WeatherComparison {
 }
 
 export interface Comparison {
+  incident_checkpoint?: State | null;
   baseline: Plan;
   optimized: Plan;
   weather_comparison?: WeatherComparison | null;
@@ -227,6 +264,7 @@ export interface AssistantHealth {
 }
 
 export interface AssistantRequest {
+  telemetry?: import('./twin.ts').ReplayContext;
   question: string;
   site_id: string;
   solar_option_id?: string;
@@ -239,6 +277,7 @@ export interface AssistantRequest {
 }
 
 export interface AssistantSimulationContext {
+  telemetry?: import('./twin.ts').ReplayContext;
   scenarioId: string;
   revision: number;
   pending: boolean;

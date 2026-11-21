@@ -172,7 +172,7 @@ function boundaries() {
   return group;
 }
 
-export function buildTerrain() {
+export function buildTerrain(operational = false) {
   const group = new THREE.Group();
   const trees: [number, number, number][] = [];
   const geometry = new THREE.PlaneGeometry(width, depth, 116, 82).rotateX(-Math.PI / 2);
@@ -216,6 +216,19 @@ export function buildTerrain() {
   const roof = new THREE.Mesh(new THREE.BoxGeometry(2.7, .18, 3.1), new THREE.MeshStandardMaterial({ color: '#254c60' }));
   roof.position.set(-1, 1.64, -4.3);
   tank.add(tankBody, tankTop, tankRing, station, roof);
+  if (operational) {
+    tankBody.material.transparent = true;
+    tankBody.material.opacity = .23;
+    tankBody.material.depthWrite = false;
+    tankTop.visible = false;
+    const water = new THREE.Mesh(new THREE.CylinderGeometry(2.31, 2.43, 1.6, 32).translate(0, .8, 0),
+      new THREE.MeshStandardMaterial({ color: '#58dccd', metalness: .35, roughness: .2 }));
+    water.name = 'reservoir-fill';
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(.53, 12, 8), new THREE.MeshBasicMaterial({ color: '#546760' }));
+    lamp.name = 'pump-indicator';
+    lamp.position.set(-1, 2, -4.3);
+    tank.add(water, lamp);
+  }
   group.add(tank);
   return group;
 }
