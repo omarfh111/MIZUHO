@@ -42,6 +42,7 @@ export function makeDropPath(world: World) {
 export function makeKeys(world: World): Key[] {
   const v = world.valley.center;
   const st = world.valley.station;
+  const sc = world.valley.solarCenter;
   const drop = makeDropPath(world);
   const near = (s: number, dx: number, dy: number, dz: number) => drop(s, new THREE.Vector3()).add(V(dx, dy, dz));
   const medjez = toWorld([9.62, 36.66]);
@@ -62,11 +63,14 @@ export function makeKeys(world: World): Key[] {
     // 4 · Canals: down into the valley, skimming the fields.
     { s: 4, pos: V(v.x + 3.6, 2.6, v.z + 4.2), at: V(v.x + 0.1, v.y, v.z - 0.9), fov: 46, roll: -0.03, shift: 0.14 },
     { s: 4.5, pos: V(v.x + 1.7, 1.15, v.z + 1.7), at: V(v.x - 1.4, v.y + 0.1, v.z - 0.9), fov: 50, roll: -0.05, shift: 0.1 },
-    // 5 · Sun: across the solar array towards the pumping station.
-    { s: 5, pos: V(st.x + 1.5, st.y + 0.75, st.z + 1.25), at: V(st.x + 0.35, st.y, st.z - 0.1), fov: 44, roll: 0.04, shift: -0.14 },
-    { s: 5.5, pos: V(st.x + 0.4, st.y + 2.6, st.z + 3.6), at: V(v.x, v.y, v.z - 0.6), fov: 44, roll: 0, shift: -0.05 },
-    // 6 · MIZUHO: rise to the full valley, centred under the wordmark.
-    { s: 6, pos: V(v.x + 0.3, 7.6, v.z + 6.6), at: V(v.x - 0.2, v.y, v.z - 0.4), fov: 44, roll: 0, shift: 0 },
+    // 5 · Energy: over the solar field, turbines turning on the ridge beyond.
+    { s: 5, pos: V(v.x + (sc.x - v.x) * 0.25 + 0.6, sc.y + 0.95, v.z + (sc.z - v.z) * 0.25 + 0.5), at: V(sc.x + (sc.x - v.x) * 0.4, sc.y + 0.3, sc.z + (sc.z - v.z) * 0.4), fov: 46, roll: 0.03, shift: -0.14 },
+    { s: 5.5, pos: V(v.x + 1.2, 2.4, v.z + 3.8), at: V(sc.x, sc.y + 0.2, sc.z), fov: 44, roll: -0.02, shift: -0.08 },
+    // 6 · Renewables: rise to see Tunisia's operating wind and solar plants.
+    { s: 6, pos: V(16, 150, 52), at: V(-2, 0, -38), fov: 40, roll: 0, shift: 0.14 },
+    { s: 6.5, pos: V(4, 138, 46), at: V(-6, 0, -40), fov: 40, roll: 0.02, shift: 0.12 },
+    // 7 · MIZUHO: dive back to the valley, centred under the wordmark.
+    { s: 7, pos: V(v.x + 0.3, 7.6, v.z + 6.6), at: V(v.x - 0.2, v.y, v.z - 0.4), fov: 44, roll: 0, shift: 0 },
   ];
 }
 

@@ -2,10 +2,10 @@
  * The film's direction as a pure function of scene time.
  *
  * Whole numbers are chapter anchors (0 cloud · 1 rain · 2 river · 3 dams ·
- * 4 canals · 5 sun · 6 MIZUHO). Nothing here reads a clock or accumulates, so
+ * 4 canals · 5 energy · 6 renewables · 7 MIZUHO). Nothing here reads a clock or accumulates, so
  * scrubbing backwards is exact and every frame is reproducible.
  */
-export const SCENE_END = 6;
+export const SCENE_END = 7;
 
 export interface Director {
   /** Scene time, 0 → SCENE_END. */
@@ -25,6 +25,8 @@ export interface Director {
   solar: number;
   plots: number;
   labels: number;
+  /** Real renewable plants across Tunisia, shown from altitude. */
+  renewables: number;
   twin: number;
   exit: number;
   /** Black dip used for hard cuts in reduced-motion mode. */
@@ -35,7 +37,7 @@ export interface Director {
 
 export const createDirector = (): Director => ({
   time: 0, mapReveal: 0, mapLabels: 0, clouds: 1, veil: 0, drop: 0, rain: 0, river: 0, dams: 0, valley: 0, reservoir: 0,
-  canals: 0, solar: 0, plots: 0, labels: 0, twin: 0, exit: 0, dip: 0, pointer: { x: 0, y: 0, active: false },
+  canals: 0, solar: 0, plots: 0, labels: 0, renewables: 0, twin: 0, exit: 0, dip: 0, pointer: { x: 0, y: 0, active: false },
 });
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
@@ -63,9 +65,10 @@ export function direct(director: Director, s: number) {
   director.reservoir = ramp(s, 2.9, 3.6);
   director.canals = ramp(s, 3.85, 4.75);
   director.plots = ramp(s, 4.1, 5.0);
-  director.solar = ramp(s, 4.65, 5.3);
-  director.labels = bell(s, 4.15, 4.45, 5.55, 5.85);
-  director.twin = ramp(s, 5.55, 6.0);
+  director.solar = ramp(s, 4.55, 5.25);
+  director.labels = bell(s, 4.15, 4.45, 4.85, 5.1);
+  director.renewables = bell(s, 5.6, 6.0, 6.55, 6.85);
+  director.twin = ramp(s, 6.55, 7.0);
 }
 
 /** Index of the chapter whose copy owns scene time `s`. */

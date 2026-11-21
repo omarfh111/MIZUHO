@@ -4,7 +4,7 @@
  */
 
 export const BRAND = 'MIZUHO';
-export const TAGLINE = 'Water intelligence for Tunisian agriculture';
+export const TAGLINE = 'Renewable-powered water intelligence for Tunisian agriculture';
 
 export interface Chapter {
   id: string;
@@ -14,6 +14,8 @@ export interface Chapter {
   body: string;
   /** Which side of the frame the copy occupies; the camera keeps that side quiet. */
   side: 'left' | 'right' | 'center';
+  /** Accent of the chapter: water by default, sun for the renewable energy chapters. */
+  tone?: 'water' | 'sun';
 }
 
 export const CHAPTERS: Chapter[] = [
@@ -58,19 +60,29 @@ export const CHAPTERS: Chapter[] = [
     side: 'left',
   },
   {
-    id: 'sun',
-    short: 'Sun',
-    eyebrow: 'Energy',
-    title: ['The sun runs', 'the pumps.'],
-    body: 'Solar arrays can power pumping where the grid is far away or costly.',
+    id: 'energy',
+    short: 'Energy',
+    eyebrow: 'Renewable energy · Jendouba',
+    tone: 'sun',
+    title: ['Sun and wind', 'power the pumps.'],
+    body: 'A solar field and wind turbines can drive irrigation with clean, local energy, where the grid is far away or costly.',
     side: 'right',
+  },
+  {
+    id: 'renewables',
+    short: 'Renewables',
+    eyebrow: 'Renewable Tunisia',
+    tone: 'sun',
+    title: ['Clean energy', 'for every drop.'],
+    body: 'Wind farms at Sidi Daoud and Bizerte and the Tozeur solar plant already feed the grid. Pairing irrigation with renewables cuts cost and emissions.',
+    side: 'left',
   },
   {
     id: 'mizuho',
     short: 'MIZUHO',
     eyebrow: TAGLINE,
     title: [BRAND],
-    body: 'Map, simulate and anticipate irrigation continuity, before the canals run dry.',
+    body: 'Map, simulate and anticipate irrigation, powered by the sun and the wind.',
     side: 'center',
   },
 ];
