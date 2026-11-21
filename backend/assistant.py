@@ -11,11 +11,10 @@ from langsmith import tracing_context
 from .assistant_memory import AssistantMemory, recall
 from .assistant_tools import TOOLS, Turn, run_tool
 from .catalog import Catalog
-from .compare import InputError
+from .compare import InputError, effective_scenario
 from .evidence import Corpus
 from .models import AssistantAnswer, AssistantRequest, GroundedParagraph
 from .providers import Providers, ServiceError
-from .simulator import validate_state
 from tools.m2m3.mizu_m2m3.solar import simulation_solar_profile
 
 MAX_ROUNDS = 4
@@ -30,7 +29,7 @@ When simulation inputs have changed, ask the user to recalculate before discussi
 Select tools yourself. Use get_agricultural_insights for parcel boundaries, WaPOR water use, temperature
 associations and missing farming inputs. Water use from satellites is distinct from irrigation demand.
 Use explain_decision for allocation reasons, get_simulation_results for actual or
-reduced-quota results, get_site_data for solar and provenance, and search_evidence when external evidence is
+reduced-quota results, get_site_data with include_solar=true for solar profiles and output, and search_evidence when external evidence is
 requested or relied on. For photovoltaic potential search for ANME in Tunisia and cite the relevant verified passage.
 An option selected in the interface is a modeled comparison, not a field-verified recommendation.
 You may call multiple complementary tools. If a hypothetical quota is unspecified, ask for the target quota;
@@ -82,7 +81,9 @@ ARGUMENT_SCHEMAS = {
     "get_sensor_anomalies": object_schema({}),
     "get_agricultural_insights": object_schema({"plot_id": {"type": ["string", "null"]}}),
     "search_evidence": object_schema({"query": STRING}),
-    "get_site_data": object_schema({"include_solar": {"type": "boolean"}}),
+    "get_site_data": object_schema({"include_solar": {
+        "type": "boolean", "description": "True for solar production, configurations, or grid savings.",
+    }}),
     "get_simulation_results": SCENARIO_ARGS,
     "explain_decision": SCENARIO_ARGS,
 }
@@ -304,7 +305,7 @@ def run_assistant(request: AssistantRequest, catalog: Catalog, corpus: Corpus, p
         scenario = catalog.scenarios.get(comparison.scenario_id)
         if scenario is None or scenario.site_id != request.site_id:
             raise InputError(("comparison", "scenario_id"), "The comparison must belong to the current site.")
-        validate_state(scenario, comparison.state)
+        effective_scenario(catalog, comparison)
     turn = Turn(request, catalog, corpus, providers, monotonic() + TURN_TIMEOUT, solver_budget)
     if memory is None or request.session_id is None:
         return answer_turn(turn, [])

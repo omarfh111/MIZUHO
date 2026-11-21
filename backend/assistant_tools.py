@@ -105,19 +105,24 @@ def get_site_data(turn: Turn, args: SiteArgs) -> dict:
                                    f"{len(layer.features)} mapped features.", layer.status))
     selected_archive = turn.request.pvgis_option_id
     solar = turn.catalog.solar.get(site_id)
-    if args.include_solar and selected_archive:
-        for option in compare_solar(site_id, ["ombriere", "toiture"]):
-            selection = " (selected in the interface)" if option["id"] == selected_archive else ""
+    if selected_archive:
+        option_ids = ["ombriere", "toiture"] if args.include_solar else [selected_archive]
+        for option in compare_solar(site_id, option_ids):
+            selected = option["id"] == selected_archive
+            selection = " (selected in the interface)" if selected else ""
             avoided = option["grid_avoided_kwh"]
             modeled_load = (
                 f"{avoided:g} kWh of grid energy avoided against simulated load."
                 if avoided is not None else "Grid energy avoided is unavailable for this day."
             )
-            facts.append(turn.fact(
+            fact = turn.fact(
                 f"{option['label']}{selection}: {option['capacity_kwp']:g} kWp; "
                 f"{option['production_kwh']:g} kWh estimated production on the archived PVGIS-SARAH3 "
                 f"reference day {option['profile_date']}. {modeled_load}", Provenance.ESTIMATED, remember=True,
-            ))
+            )
+            facts.append(fact)
+            if selected:
+                turn.requested_facts.add(fact.id)
     elif args.include_solar and solar:
         for option in solar.options:
             result = compare_option(solar, option, None)
@@ -142,11 +147,11 @@ def get_site_data(turn: Turn, args: SiteArgs) -> dict:
     missing = []
     if site.status == Provenance.SIMULATED:
         missing.append("The pilot has no observed borehole levels, pumping test or metered well withdrawals.")
-    if args.include_solar:
+    if args.include_solar or selected_archive:
         missing.append("Site-level measured load and verified annual costs are unavailable. The archived "
                        "PVGIS profiles estimate production at the Jendouba reference coordinates.")
     explanation = "The site and layer records below identify which pilot data are available and how they were obtained."
-    if args.include_solar and selected_archive:
+    if selected_archive:
         explanation = ("Archived PVGIS estimates describe the reference location and day. "
                        "Grid savings use simulated pumping demand. A field recommendation requires site measurements.")
     elif args.include_solar and solar:

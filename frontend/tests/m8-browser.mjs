@@ -158,9 +158,12 @@ try {
     assert.equal(pvRequest.comparison, undefined);
     const pvAnswer = await pvResponse.json();
     assert.ok(pvAnswer.tools_used.includes('get_site_data'));
-    assert.ok(pvAnswer.facts.some(fact => fact.provenance === 'estimated' &&
-      fact.text.includes('Solar canopy (selected in the interface)') &&
-      fact.text.includes(`${canopy.production_kwh} kWh estimated production`)));
+    const selectedCanopy = pvAnswer.facts.find(fact =>
+      fact.provenance === 'estimated' && fact.text.includes('Solar canopy (selected in the interface)'));
+    assert.ok(selectedCanopy, 'The answer omitted the selected PVGIS canopy estimate');
+    const production = selectedCanopy.text.match(/([\d.]+) kWh estimated production/)?.[1];
+    assert.equal(Number(production), Number(canopy.production_kwh.toPrecision(6)));
+    assert.ok(selectedCanopy.text.includes(canopy.profile_date));
   }
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
   mobile.on('pageerror', (error) => errors.push(error.message));

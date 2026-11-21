@@ -460,8 +460,12 @@ def test_selected_archive_uses_pvgis_output_before_plan_calculation():
 
     def respond(body, *, timeout):
         if len(body["input"]) == 1:
-            prompts.append(json.loads(body["input"][0]["content"]))
-            return response(call("get_site_data", {"include_solar": True}))
+            prompt = json.loads(body["input"][0]["content"])
+            prompts.append(prompt)
+            return response(call("get_site_data", {"include_solar": not bool(prompt["selected_pvgis"])}))
+        if prompts[-1]["selected_pvgis"]:
+            site = json.loads(body["input"][-1]["output"])["facts"][0]
+            return complete([{"text": "The site is simulated.", "fact_ids": [site["id"]], "citation_ids": []}])
         return complete()
 
     def factory(data_dir, catalog, budget):
@@ -491,6 +495,28 @@ def test_selected_archive_uses_pvgis_output_before_plan_calculation():
         assert prompts[-1]["prior_answers"] == []
         assert any("on the modeled day" in fact["text"] for fact in result.json()["facts"])
         assert client.post("/api/assistant/chat", json={**body, "solar_option_id": "ombriere"}).status_code == 422
+
+
+def test_assistant_accepts_completed_deliveries_under_changed_demand(context):
+    catalog, corpus = context
+
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            return response(call("get_simulation_results", {"scenario_id": None, "quota_m3": None}))
+        return complete()
+
+    scenario = catalog.scenarios["normal"]
+    request = AssistantRequest(site_id=scenario.site_id, question="Show the current schedule.", comparison={
+        "scenario_id": scenario.id,
+        "state": {
+            "current_slot": 9, "tank_stock_m3": 12, "quota_remaining_m3": 49,
+            "delivered_by_plot_m3": {"A": 16}, "delivered_on_time_by_plot_m3": {"A": 16},
+        },
+        "outage_slots": [], "solar_option_id": None, "overrides": {"demand_by_plot_m3": {"A": 18}},
+    })
+    answer = run_assistant(request, catalog, corpus, SimpleNamespace(respond=respond), 5)
+    assert answer.tools_used == ("get_simulation_results",)
+    assert any(fact.text.startswith("Proposed schedule:") for fact in answer.facts)
 
 
 def test_chat_api_validates_inputs_and_handles_provider_failure():
