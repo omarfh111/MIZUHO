@@ -188,6 +188,8 @@ Open the root `.env` and fill in these three fields. The root file is loaded by 
 | `QDRANT_URL` | The HTTPS REST endpoint of your Qdrant Cloud cluster, for example `https://<cluster>.cloud.qdrant.io:6333`. Use the cluster URL without a dashboard or collection path. |
 | `QDRANT_API_KEY` | The Qdrant API key for the evidence collection. |
 
+To use NVIDIA for answer generation, set `LLM_API_KEY` to your NVIDIA API key and `LLM_MODEL=nvidia/nemotron-3.5-lightning-30b-a3b` in the root `.env`. Restart FastAPI and select **NVIDIA · Nemotron 3.5 Lightning** under **Ask Mizhuo → Answer model**. The default is OpenAI. Both models use the same LangGraph tools, M6 calculations, OpenAI embeddings, Qdrant index and citation checks. Selecting NVIDIA sends the question and relevant verified context to NVIDIA's hosted API. Provider credentials stay on the server.
+
 Keep the template's model settings, including the **1,536** embedding dimensions. Open the cluster's Web UI, enter your Qdrant key when prompted, and select **Console**. Run the request below if the collection does not exist. It uses one unnamed dense vector and cosine distance. If you choose a different name, update `QDRANT_COLLECTION` to match. [Qdrant Web UI guide](https://qdrant.tech/documentation/web-ui/)
 
 ```http
@@ -289,6 +291,8 @@ Pop-Location
 With Chrome installed and both servers running, use `npm --prefix frontend run test:browser` to exercise the cinematic handoff, M6 schedule approval, and the M8 citation follow-up. The test sends three chat questions to the live assistant. Set `MIZHUO_TEST_URL` when testing a frontend served at a different URL.
 
 Run `npm --prefix frontend run test:integration` against those same local servers for the survey map and desktop/mobile twin tests. These checks do not require provider credentials.
+
+To repeat the live evidence walkthrough with Nemotron in PowerShell, set `$env:MIZHUO_TEST_PROVIDER='nvidia'` and run `node frontend/tests/m8-browser.mjs`. Clear the test setting with `Remove-Item Env:MIZHUO_TEST_PROVIDER` to return to the default walkthrough.
 
 GitHub Actions runs backend and frontend checks. A browser job exercises the built dashboard and local API in desktop and mobile Chrome viewports for the survey, twin and incident workflows without provider keys. Security checks include CodeQL, Gitleaks and an OSV dependency comparison on pull requests that change dependency manifests. [CI workflow](.github/workflows/ci.yml) · [Security workflow](.github/workflows/security.yml)
 

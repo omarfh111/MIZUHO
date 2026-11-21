@@ -258,12 +258,14 @@ export interface Citation {
 }
 
 export interface AssistantHealth {
+  nvidia_model?: string | null;
   status: 'available' | 'unavailable' | 'incomplete';
   configured: boolean;
   index: { indexed_chunks: number | null; documents: number };
 }
 
 export interface AssistantRequest {
+  provider?: 'openai' | 'nvidia';
   telemetry?: import('./twin.ts').ReplayContext;
   question: string;
   site_id: string;

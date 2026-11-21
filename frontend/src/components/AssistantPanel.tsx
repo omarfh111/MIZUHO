@@ -85,6 +85,8 @@ export default function AssistantPanel({ site, mode, solar, simulation, open, cl
   const [sessionId] = useState(createSessionId);
   const [health, setHealth] = useState<AssistantHealth['status'] | 'checking'>('checking');
   const [healthAttempt, setHealthAttempt] = useState(0);
+  const [nvidia, setNvidia] = useState<string | null>(null);
+  const [provider, setProvider] = useState<'openai' | 'nvidia'>('openai');
   const [question, setQuestion] = useState('');
   const [turns, setTurns] = useState<Turn[]>([]);
   const request = useRef<AbortController | null>(null);
@@ -99,7 +101,11 @@ export default function AssistantPanel({ site, mode, solar, simulation, open, cl
     const controller = new AbortController();
     setHealth('checking');
     getAssistantHealth(controller.signal).then((result) => {
-      if (!controller.signal.aborted) setHealth(result.status);
+      if (!controller.signal.aborted) {
+        setHealth(result.status);
+        setNvidia(result.nvidia_model ?? null);
+        if (!result.nvidia_model) setProvider('openai');
+      }
     }).catch(() => {
       if (!controller.signal.aborted) setHealth('unavailable');
     });
@@ -123,7 +129,7 @@ export default function AssistantPanel({ site, mode, solar, simulation, open, cl
       request.current = null;
     };
     askAssistant({
-      question: prompt, site_id: site.properties.site_id,
+      provider, question: prompt, site_id: site.properties.site_id,
       solar_option_id: solar?.source_id === 'pvgis-sarah3-jendouba-2023' ? undefined : solar?.id, session_id: sessionId,
       comparison: simulation?.comparison, selected_scenario_id: simulation?.scenarioId,
       simulation_revision: simulation?.revision, simulation_pending: simulation?.pending,
@@ -141,6 +147,10 @@ export default function AssistantPanel({ site, mode, solar, simulation, open, cl
       <span className="assistant-site">{site.properties.label}</span>
       <span className="assistant-context">{simulation?.comparison ? 'Current comparison available' : 'Site and evidence'}</span>
       {available && health === 'incomplete' && <span className="assistant-context">Evidence index incomplete</span>}
+      {available && nvidia && <label className="field"><span>Answer model</span>
+        <select disabled={pending} value={provider} onChange={(e) => setProvider(e.target.value === 'nvidia' ? 'nvidia' : 'openai')}>
+          <option value="openai">OpenAI · GPT-6 Luna</option><option value="nvidia">NVIDIA · Nemotron 3.5 Lightning</option>
+        </select></label>}
     </div>
     <div className="assistant-thread" aria-live="polite" aria-relevant="additions text">
       {mode === 'demo' || health === 'unavailable'
