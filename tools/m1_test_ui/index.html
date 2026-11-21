@@ -7,283 +7,465 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
 :root {
-  --bg: #f6f7f5; --panel: #ffffff; --ink: #1d2320; --muted: #5d6762; --line: #dde2de;
-  --accent: #1f6f5c; --ok: #1d7a3e; --ok-bg: #e5f4ea; --bad: #b3261e; --bad-bg: #fbe9e7;
-  --warn: #8a5a00; --warn-bg: #fdf1d8; --code: #f0f2f0;
+  --bg: #f4f5f2; --panel: #ffffff; --panel-2: #f9faf8; --ink: #17201c; --muted: #5b6661; --line: #e1e5e1;
+  --accent: #17695a; --accent-ink: #ffffff; --accent-soft: #e3f1ed;
+  --ok: #18733a; --ok-bg: #e4f3e9; --bad: #b3261e; --bad-bg: #fbe8e6; --warn: #8a5800; --warn-bg: #fcf0d4;
+  --idle: #6b7570; --idle-bg: #eceeeb; --code: #eef1ee; --plot: #c2410c; --plot-sel: #7c2d12;
+  --shadow: 0 1px 2px rgba(20, 30, 25, .05), 0 4px 16px rgba(20, 30, 25, .04);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #121614; --panel: #1b201d; --ink: #e6ebe8; --muted: #9aa5a0; --line: #2d3531;
-    --accent: #5cc3a6; --ok: #6fd39a; --ok-bg: #17301f; --bad: #ff8a80; --bad-bg: #3a1a17;
-    --warn: #f0c060; --warn-bg: #33290f; --code: #232a26;
+    --bg: #0f1311; --panel: #171c19; --panel-2: #1c221f; --ink: #e5ebe7; --muted: #97a39d; --line: #2a322e;
+    --accent: #59c2a4; --accent-ink: #0c1a15; --accent-soft: #163029;
+    --ok: #6fd39a; --ok-bg: #15301f; --bad: #ff8a80; --bad-bg: #3a1917; --warn: #f2c25c; --warn-bg: #33280e;
+    --idle: #8d9993; --idle-bg: #222926; --code: #1f2622; --plot: #fb923c; --plot-sel: #fed7aa;
+    --shadow: none;
   }
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-header { padding: 20px 16px 8px; max-width: 1100px; margin: 0 auto; }
-h1 { font-size: 22px; margin: 0 0 4px; }
-header p { margin: 0; color: var(--muted); }
-main { max-width: 1100px; margin: 0 auto; padding: 8px 16px 48px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
-section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
-section > h2 { font-size: 16px; margin: 0 0 4px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
-.num { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--panel); font-size: 13px; font-weight: 700; flex: none; }
-.hint { color: var(--muted); margin: 0 0 12px; font-size: 14px; }
-.badge { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; margin-left: auto; }
-.b-ok { background: var(--ok-bg); color: var(--ok); }
-.b-bad { background: var(--bad-bg); color: var(--bad); }
-.b-idle { background: var(--code); color: var(--muted); }
-.b-warn { background: var(--warn-bg); color: var(--warn); }
-button { font: inherit; font-size: 14px; padding: 7px 12px; border-radius: 7px; border: 1px solid var(--accent); background: var(--accent); color: var(--panel); cursor: pointer; }
+html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+code { font-family: ui-monospace, Consolas, monospace; font-size: .92em; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+
+/* header */
+.top { position: sticky; top: 0; z-index: 1000; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.top-in { max-width: 1240px; margin: 0 auto; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.brand { display: flex; gap: 10px; align-items: center; min-width: 0; }
+.logo { width: 34px; height: 34px; border-radius: 9px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 800; font-size: 14px; flex: none; }
+.brand h1 { font-size: 17px; margin: 0; line-height: 1.2; }
+.brand p { margin: 0; color: var(--muted); font-size: 13px; }
+.progress { margin-left: auto; display: flex; gap: 12px; align-items: center; }
+.bar { width: 140px; height: 8px; border-radius: 99px; background: var(--idle-bg); overflow: hidden; display: flex; }
+.bar i { display: block; height: 100%; transition: width .3s; }
+.bar .g { background: var(--ok); } .bar .r { background: var(--bad); } .bar .y { background: var(--warn); }
+.ptext { font-size: 13px; color: var(--muted); white-space: nowrap; }
+
+/* layout */
+.wrap { max-width: 1240px; margin: 0 auto; padding: 18px 16px 56px; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 20px; align-items: start; }
+nav { position: sticky; top: 84px; display: grid; gap: 2px; }
+nav a { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 8px; color: var(--ink); text-decoration: none; font-size: 14px; }
+nav a:hover { background: var(--panel); }
+nav .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--idle-bg); border: 2px solid var(--idle); flex: none; }
+nav .dot.ok { background: var(--ok); border-color: var(--ok); } nav .dot.bad { background: var(--bad); border-color: var(--bad); }
+nav .dot.warn { background: var(--warn); border-color: var(--warn); } nav .dot.run { border-color: var(--accent); animation: pulse 1s infinite; }
+@keyframes pulse { 50% { opacity: .3; } }
+nav .note { margin: 12px 10px 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
+main { display: grid; gap: 16px; min-width: 0; }
+
+/* cards */
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; box-shadow: var(--shadow); min-width: 0; }
+.card-h { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-start; margin-bottom: 12px; }
+.card-h .n { width: 28px; height: 28px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-weight: 700; font-size: 14px; flex: none; }
+.card-h .t { flex: 1; min-width: 200px; }
+.card-h h2 { font-size: 16px; margin: 2px 0 2px; }
+.card-h p { margin: 0; color: var(--muted); font-size: 14px; }
+.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+/* status chips */
+.chip { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 99px; white-space: nowrap; }
+.c-ok { background: var(--ok-bg); color: var(--ok); } .c-bad { background: var(--bad-bg); color: var(--bad); }
+.c-warn { background: var(--warn-bg); color: var(--warn); } .c-idle { background: var(--idle-bg); color: var(--idle); }
+.c-run { background: var(--accent-soft); color: var(--accent); }
+
+/* controls */
+button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+button:hover { filter: brightness(1.07); }
 button.ghost { background: transparent; color: var(--accent); }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
-label { display: grid; gap: 2px; font-size: 13px; color: var(--muted); }
-input, select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); width: 140px; }
-.out { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--code); font-family: ui-monospace, Consolas, monospace; font-size: 13px; white-space: pre-wrap; word-break: break-word; }
-.tbl { overflow-x: auto; }
+button.ghost:hover { background: var(--accent-soft); }
+button:disabled { opacity: .55; cursor: progress; }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+label { display: grid; gap: 3px; font-size: 12px; font-weight: 600; color: var(--muted); }
+input, select { font: inherit; font-size: 14px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--ink); width: 130px; }
+select { width: auto; min-width: 200px; max-width: 100%; }
+
+/* results */
+.result { margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); font-size: 14px; }
+.result.empty { color: var(--muted); }
+.big { font-size: 28px; font-weight: 750; letter-spacing: -.01em; line-height: 1.1; }
+.big small { font-size: 14px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+.formula { font-family: ui-monospace, Consolas, monospace; font-size: 13px; color: var(--muted); margin-top: 6px; white-space: pre-wrap; }
+.err { color: var(--bad); font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+.tbl { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
-th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-th { color: var(--muted); font-weight: 600; }
-td.null { color: var(--warn); font-style: italic; }
-#map { height: 420px; border-radius: 8px; border: 1px solid var(--line); }
-.legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 13px; color: var(--muted); align-items: center; }
-.ramp { width: 160px; height: 10px; border-radius: 3px; background: linear-gradient(90deg, #f7e9c3, #8cc6a0, #1f6f8b, #142e6b); }
-.sw { display: inline-block; width: 14px; height: 10px; border: 2px solid; margin-right: 4px; vertical-align: middle; }
-.cases { display: flex; flex-wrap: wrap; gap: 8px; }
-.ok { color: var(--ok); } .bad { color: var(--bad); }
-.tag { font-size: 12px; padding: 1px 6px; border-radius: 4px; background: var(--warn-bg); color: var(--warn); }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+th { color: var(--muted); font-weight: 600; background: var(--panel-2); position: sticky; top: 0; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.missing { display: inline-block; font-size: 11px; font-weight: 600; color: var(--warn); background: var(--warn-bg); padding: 1px 6px; border-radius: 4px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 13px; margin-top: 10px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; font-variant-numeric: tabular-nums; }
+.note-box { margin-top: 12px; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 8px 8px 0; font-size: 13px; }
+
+/* map */
+.mapgrid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; }
+#map { height: 460px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); }
+.side { display: grid; gap: 10px; align-content: start; }
+.plist { display: grid; gap: 6px; }
+.pbtn { display: flex; justify-content: space-between; gap: 8px; align-items: center; width: 100%; text-align: left; background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); font-weight: 500; padding: 8px 10px; }
+.pbtn b { font-weight: 700; }
+.pbtn span { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.pbtn[aria-pressed="true"] { border-color: var(--plot); background: color-mix(in srgb, var(--plot) 10%, var(--panel)); }
+.pbtn:hover { filter: none; border-color: var(--plot); }
+.detail { padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); font-size: 13px; }
+.detail h3 { margin: 0 0 2px; font-size: 15px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 12px; color: var(--muted); align-items: center; }
+.ramp { width: 130px; height: 10px; border-radius: 3px; background: linear-gradient(90deg, #f7e9c3, #8cc6a0, #1f6f8b, #142e6b); }
+.sw { display: inline-block; width: 14px; height: 10px; border: 2px solid; margin-right: 5px; vertical-align: -1px; }
+.toggle { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; font-weight: 500; color: var(--ink); }
+.toggle input { width: auto; }
+.leaflet-tooltip.plbl { background: transparent; border: 0; box-shadow: none; font-weight: 700; color: var(--plot-sel); text-shadow: 0 0 3px var(--panel), 0 0 3px var(--panel); }
+.leaflet-tooltip.plbl::before { display: none; }
+
+/* validation cases */
+.cases { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.case { display: grid; gap: 4px; text-align: left; background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); font-weight: 500; padding: 10px 12px; }
+.case:hover { filter: none; border-color: var(--accent); }
+.case .ct { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-weight: 600; }
+.case .cs { font-size: 12px; color: var(--muted); }
+.case.ok { border-color: var(--ok); } .case.bad { border-color: var(--bad); }
+.custom { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); }
+
+/* tests */
+.tests { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; margin-top: 12px; }
+.test { display: flex; gap: 8px; align-items: center; font-size: 13px; padding: 6px 10px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); min-width: 0; }
+.test span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.ic { flex: none; font-weight: 800; }
+.ic.ok { color: var(--ok); } .ic.bad { color: var(--bad); }
+
+@media (max-width: 960px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); }
+  nav { position: static; display: flex; overflow-x: auto; gap: 4px; padding-bottom: 4px; scrollbar-width: none; }
+  nav::-webkit-scrollbar { display: none; }
+  nav a { flex: none; background: var(--panel); border: 1px solid var(--line); padding: 6px 10px; font-size: 13px; }
+  nav .note { display: none; }
+  .mapgrid { grid-template-columns: minmax(0, 1fr); }
+  #map { height: 360px; }
+}
+@media (max-width: 680px) {
+  .pair { grid-template-columns: minmax(0, 1fr); }
+  .progress { margin-left: 0; width: 100%; }
+  .bar { flex: 1; width: auto; }
+  .brand p { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } nav .dot.run { animation: none; } }
 </style>
 </head>
 <body>
-<header>
-  <h1>Banc de test M1 — parcelles, besoins et règles de volume</h1>
-  <p>Chaque étape appelle le vrai code <code>backend/agriculture.py</code> sur les fichiers locaux du dépôt.</p>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">M1</div>
+      <div><h1>Banc de test M1</h1><p>Parcelles, besoins et règles de volume · code réel de <code>backend/agriculture.py</code></p></div>
+    </div>
+    <div class="progress">
+      <div class="bar" aria-hidden="true"><i class="g" id="pg"></i><i class="y" id="py"></i><i class="r" id="pr"></i></div>
+      <span class="ptext" id="ptext">0 / 7 étapes</span>
+      <button id="runall" onclick="runAll()">▶ Tout lancer</button>
+    </div>
+  </div>
 </header>
-<main>
 
-<section id="s1">
-  <h2><span class="num">1</span>Sources et intégrité des fichiers bruts <span class="badge b-idle" id="st1">non lancé</span></h2>
-  <p class="hint">Recalcule le SHA-256 de chaque fichier téléchargé et le compare au journal <code>data/raw/m1_downloads.json</code>.</p>
-  <button onclick="step1()">Vérifier les sources</button>
-  <div class="tbl" id="o1"></div>
-</section>
+<div class="wrap">
+  <nav aria-label="Étapes">
+    <a href="#s1"><span class="dot" id="d1"></span>1 · Sources</a>
+    <a href="#s2"><span class="dot" id="d2"></span>2 · Carte</a>
+    <a href="#s3"><span class="dot" id="d3"></span>3 · load_plots</a>
+    <a href="#s4"><span class="dot" id="d4"></span>4 · mm → m³</a>
+    <a href="#s5"><span class="dot" id="d5"></span>5 · Couverture</a>
+    <a href="#s6"><span class="dot" id="d6"></span>6 · Rejets</a>
+    <a href="#s7"><span class="dot" id="d7"></span>7 · pytest</a>
+    <p class="note"><b>Données observées</b>, pas une prévision : FAO WaPOR v3, du 11 au 20 juillet 2026. La prévision à 24 h relève de M3.</p>
+  </nav>
 
-<section id="s2">
-  <h2><span class="num">2</span>Carte : site, parcelles OSM et couche WaPOR <span class="badge b-idle" id="st2">non lancé</span></h2>
-  <p class="hint"><b>Données observées, pas une prévision :</b> mesures satellite FAO WaPOR pour la période passée du 11 au 20 juillet 2026. La prévision à 24 h relève de M3. Clique une parcelle pour remplir le calculateur de l'étape 4. Le fond de carte OSM demande Internet ; sans lui, les couches restent visibles.</p>
-  <div class="row" style="margin-bottom:8px"><button onclick="step2()">Charger les couches</button>
-    <label style="flex-direction:row;display:flex;gap:6px;align-items:center;color:var(--ink)"><input type="checkbox" id="wap" checked style="width:auto" onchange="toggleWapor()"> Couche WaPOR AETI</label></div>
-  <div id="map" role="region" aria-label="Carte des parcelles"></div>
-  <div class="legend">
-    <span><span class="sw" style="border-color:#c2410c"></span>Parcelles</span>
-    <span><span class="sw" style="border-color:#555;border-style:dashed"></span>Site (enveloppe)</span>
-    <span>AETI 11–20 juil. 2026 :</span><span>0</span><span class="ramp"></span><span id="rampmax">mm/j</span>
-  </div>
-</section>
+  <main>
+    <section class="card" id="s1">
+      <div class="card-h"><div class="n">1</div>
+        <div class="t"><h2>Sources et intégrité</h2><p>Recalcule le SHA-256 de chaque fichier brut et le compare au journal de téléchargement.</p></div>
+        <span class="chip c-idle" id="st1">Non lancé</span></div>
+      <div class="actions"><button onclick="step1()">Vérifier les sources</button></div>
+      <div id="o1"></div>
+    </section>
 
-<section id="s3">
-  <h2><span class="num">3</span>load_plots(site_id) <span class="badge b-idle" id="st3">non lancé</span></h2>
-  <p class="hint">Charge et valide les parcelles d'un site. Les champs sans source publique sont affichés « donnée locale requise ».</p>
-  <div class="row"><label>Site<select id="site"></select></label><button onclick="step3()">Charger</button></div>
-  <div class="tbl" id="o3"></div>
-</section>
+    <section class="card" id="s2">
+      <div class="card-h"><div class="n">2</div>
+        <div class="t"><h2>Carte des parcelles</h2><p>Site, 5 parcelles OpenStreetMap et pixels WaPOR (100 m). Choisis une parcelle sur la carte ou dans la liste : le calculateur de l'étape 4 se remplit.</p></div>
+        <span class="chip c-idle" id="st2">Non lancé</span></div>
+      <div class="mapgrid">
+        <div>
+          <div id="map" role="region" aria-label="Carte des parcelles"></div>
+          <div class="legend">
+            <span><span class="sw" style="border-color:var(--plot)"></span>Parcelle</span>
+            <span><span class="sw" style="border-color:var(--muted);border-style:dashed"></span>Site</span>
+            <span>AETI</span><span>0</span><span class="ramp" aria-hidden="true"></span><span id="rampmax">— mm/j</span>
+            <label class="toggle"><input type="checkbox" id="wap" checked onchange="toggleWapor()"> Couche WaPOR</label>
+          </div>
+        </div>
+        <div class="side">
+          <div class="plist" id="plist"><div class="result empty">Chargement des parcelles…</div></div>
+          <div class="detail" id="pdetail">Aucune parcelle sélectionnée.</div>
+        </div>
+      </div>
+    </section>
 
-<section id="s4">
-  <h2><span class="num">4</span>Conversion mm → m³ <span class="badge b-idle" id="st4">non lancé</span></h2>
-  <p class="hint">m³ = mm × m² ÷ 1000, arrondi au m³ (demi vers le haut). Recette du cahier : 4 mm sur 500 m² = 2 m³. Un clic sur une parcelle de la carte remplit les deux champs et compare le résultat à <code>plots.geojson</code>.</p>
-  <div class="row">
-    <label>Hauteur (mm)<input id="mm" type="number" step="0.01" min="0" value="4"></label>
-    <label>Surface (m²)<input id="m2" type="number" step="1" min="0" value="500"></label>
-    <button onclick="step4()">Convertir</button>
-  </div>
-  <div class="out" id="o4">—</div>
-</section>
+    <section class="card" id="s3">
+      <div class="card-h"><div class="n">3</div>
+        <div class="t"><h2>load_plots(site_id)</h2><p>Charge et valide les parcelles d'un site. Les champs sans source publique restent vides.</p></div>
+        <span class="chip c-idle" id="st3">Non lancé</span></div>
+      <div class="fields"><label>Site<select id="site"></select></label><button onclick="step3()">Charger</button></div>
+      <div id="o3"></div>
+    </section>
 
-<section id="s5">
-  <h2><span class="num">5</span>Taux de couverture du minimum <span class="badge b-idle" id="st5">non lancé</span></h2>
-  <p class="hint">min(100 %, m³ servis à temps ÷ minimum), en points de base. Recette : minimum 10 m³, 5 m³ livrés = 50 %.</p>
-  <div class="row">
-    <label>Minimum (m³)<input id="mn" type="number" step="1" min="0" value="10"></label>
-    <label>Livré à temps (m³)<input id="dl" type="number" step="1" min="0" value="5"></label>
-    <button onclick="step5()">Calculer</button>
-  </div>
-  <div class="out" id="o5">—</div>
-</section>
+    <div class="pair">
+      <section class="card" id="s4">
+        <div class="card-h"><div class="n">4</div>
+          <div class="t"><h2>Conversion mm → m³</h2><p>m³ = mm × m² ÷ 1000, arrondi au m³. Recette : 4 mm × 500 m² = 2 m³.</p></div>
+          <span class="chip c-idle" id="st4">Non lancé</span></div>
+        <div class="fields">
+          <label>Hauteur (mm)<input id="mm" type="number" step="0.01" min="0" value="4"></label>
+          <label>Surface (m²)<input id="m2" type="number" step="1" min="0" value="500"></label>
+          <button onclick="step4()">Convertir</button>
+        </div>
+        <div class="result empty" id="o4">Saisis une valeur ou choisis une parcelle sur la carte.</div>
+      </section>
 
-<section id="s6">
-  <h2><span class="num">6</span>Rejet des données incohérentes <span class="badge b-idle" id="st6">non lancé</span></h2>
-  <p class="hint">Modifie la parcelle A du cas miniature et vérifie que la validation rejette l'erreur sur le bon champ.</p>
-  <div class="cases" id="cases"></div>
-  <div class="row" style="margin-top:12px">
-    <label>Champ<select id="cf"><option>minimum_m3</option><option>demand_m3</option><option>deadline_slot</option><option>allowed_slots</option><option>site_id</option><option>source_id</option><option>past_deferrals</option></select></label>
-    <label>Valeur (JSON)<input id="cv" value="11" style="width:180px"></label>
-    <button class="ghost" onclick="custom()">Tester ma valeur</button>
-  </div>
-  <div class="tbl" id="o6"></div>
-</section>
+      <section class="card" id="s5">
+        <div class="card-h"><div class="n">5</div>
+          <div class="t"><h2>Taux de couverture</h2><p>min(100 %, livré à temps ÷ minimum). Recette : 5 ÷ 10 = 50 %.</p></div>
+          <span class="chip c-idle" id="st5">Non lancé</span></div>
+        <div class="fields">
+          <label>Minimum (m³)<input id="mn" type="number" step="1" min="0" value="10"></label>
+          <label>Livré à temps (m³)<input id="dl" type="number" step="1" min="0" value="5"></label>
+          <button onclick="step5()">Calculer</button>
+        </div>
+        <div class="result empty" id="o5">—</div>
+      </section>
+    </div>
 
-<section id="s7">
-  <h2><span class="num">7</span>Suite pytest complète <span class="badge b-idle" id="st7">non lancé</span></h2>
-  <p class="hint">Lance <code>tests/test_agriculture.py</code> sur le serveur.</p>
-  <button onclick="step7()">Lancer les tests</button>
-  <div class="tbl" id="o7"></div>
-</section>
+    <section class="card" id="s6">
+      <div class="card-h"><div class="n">6</div>
+        <div class="t"><h2>Rejet des données incohérentes</h2><p>Modifie la parcelle A du cas miniature. Chaque cas doit être rejeté sur le bon champ.</p></div>
+        <span class="chip c-idle" id="st6">Non lancé</span></div>
+      <div class="cases" id="cases"></div>
+      <div class="custom">
+        <div class="fields">
+          <label>Champ<select id="cf" style="min-width:160px"><option>minimum_m3</option><option>demand_m3</option><option>deadline_slot</option><option>allowed_slots</option><option>site_id</option><option>source_id</option><option>past_deferrals</option></select></label>
+          <label>Valeur (JSON)<input id="cv" value="11" style="width:170px"></label>
+          <button class="ghost" onclick="custom()">Tester ma valeur</button>
+        </div>
+        <div id="o6"></div>
+      </div>
+    </section>
 
-<section>
-  <h2>Tout lancer</h2>
-  <button onclick="runAll()">Lancer les étapes 1 à 7</button>
-</section>
-</main>
+    <section class="card" id="s7">
+      <div class="card-h"><div class="n">7</div>
+        <div class="t"><h2>Suite pytest</h2><p>Lance <code>tests/test_agriculture.py</code> sur le serveur.</p></div>
+        <span class="chip c-idle" id="st7">Non lancé</span></div>
+      <div class="actions"><button onclick="step7()">Lancer les tests</button></div>
+      <div id="o7"></div>
+    </section>
+  </main>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-function status(n, kind, text) { const b = $("st" + n); b.className = "badge b-" + kind; b.textContent = (kind === "ok" ? "✓ " : kind === "bad" ? "✗ " : "") + text; }
+const fmt = (v, d = 0) => v === null || v === undefined ? "—" : Number(v).toLocaleString("fr-FR", {maximumFractionDigits: d});
+const MISSING = '<span class="missing">donnée locale requise</span>';
+const state = {};
+
+function status(n, kind, text) {
+  const icon = {ok: "✓ ", bad: "✗ ", warn: "! ", run: "", idle: ""}[kind];
+  $("st" + n).className = "chip c-" + kind; $("st" + n).textContent = icon + text;
+  $("d" + n).className = "dot " + kind; state[n] = kind; progress();
+}
+function progress() {
+  const v = Object.values(state), c = k => v.filter(x => x === k).length;
+  $("pg").style.width = c("ok") / 7 * 100 + "%"; $("py").style.width = c("warn") / 7 * 100 + "%"; $("pr").style.width = c("bad") / 7 * 100 + "%";
+  const done = c("ok") + c("warn") + c("bad");
+  $("ptext").textContent = `${done} / 7 étapes` + (c("bad") ? ` · ${c("bad")} en échec` : done === 7 ? " · terminé" : "");
+}
 async function get(u) { const r = await fetch(u); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); return j; }
 async function post(u, b) { const r = await fetch(u, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(b)}); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); return j; }
 function table(cols, rows) {
-  return "<table><thead><tr>" + cols.map(c => `<th>${esc(c[1])}</th>`).join("") + "</tr></thead><tbody>" +
-    rows.map(r => "<tr>" + cols.map(c => { const v = c[2] ? c[2](r) : r[c[0]]; return v === null || v === undefined ? '<td class="null">donnée locale requise</td>' : `<td>${v}</td>`; }).join("") + "</tr>").join("") + "</tbody></table>";
+  return '<div class="tbl"><table><thead><tr>' + cols.map(c => `<th${c[3] ? ' class="num"' : ""}>${esc(c[1])}</th>`).join("") + "</tr></thead><tbody>" +
+    rows.map(r => "<tr>" + cols.map(c => { const v = c[2] ? c[2](r) : r[c[0]]; return `<td${c[3] ? ' class="num"' : ""}>${v === null || v === undefined ? MISSING : v}</td>`; }).join("") + "</tr>").join("") + "</tbody></table></div>";
 }
 async function guard(n, out, fn) {
-  status(n, "idle", "en cours…");
-  try { await fn(); } catch (e) { status(n, "bad", "erreur"); $(out).innerHTML = `<div class="out bad">${esc(e.message)}</div>`; }
+  status(n, "run", "En cours…");
+  try { await fn(); } catch (e) { status(n, "bad", "Erreur"); if (out) $(out).innerHTML = `<div class="result err">${esc(e.message)}</div>`; }
 }
 
+/* 1 */
 async function step1() { await guard(1, "o1", async () => {
   const j = await get("/api/sources");
   const ok = j.downloads.every(d => d.sha256_ok);
   $("o1").innerHTML = table([
-    ["file", "Fichier", r => `<code>${esc(r.file)}</code>`],
-    ["source", "Source", r => esc(r.source)],
-    ["retrieved_at", "Téléchargé le", r => esc(r.retrieved_at)],
-    ["sha256_ok", "SHA-256", r => r.sha256_ok ? '<span class="ok">✓ identique</span>' : '<span class="bad">✗ différent</span>'],
-  ], j.downloads) + `<div class="out">Règle d'arrondi : ${esc(j.manifest.rounding_rule)}\nFormule du besoin : ${esc(j.manifest.need_formula)}</div>`;
-  status(1, ok ? "ok" : "bad", ok ? `${j.downloads.length} fichiers intacts` : "fichier modifié");
+    ["file", "Fichier", r => `<code>${esc(r.file.replace("data/raw/", ""))}</code>`],
+    ["source", "Source", r => esc(r.source.split(" (")[0])],
+    ["retrieved_at", "Téléchargé", r => esc(r.retrieved_at.replace("T", " ").slice(0, 16)) + " UTC"],
+    ["sha256_ok", "SHA-256", r => r.sha256_ok ? '<span class="chip c-ok">✓ identique</span>' : '<span class="chip c-bad">✗ modifié</span>'],
+  ], j.downloads) + `<div class="note-box"><b>Besoin :</b> ${esc(j.manifest.need_formula)}<br><b>Arrondi :</b> ${esc(j.manifest.rounding_rule)}</div>`;
+  status(1, ok ? "ok" : "bad", ok ? `${j.downloads.length} fichiers intacts` : "Fichier modifié");
 }); }
 
-let map, waporLayer;
-function color(v, max) { const t = Math.min(1, v / max); const stops = [[247,233,195],[140,198,160],[31,111,139],[20,46,107]]; const i = Math.min(2, Math.floor(t * 3)), f = t * 3 - i; const a = stops[i], b = stops[i + 1]; return `rgb(${a.map((x, k) => Math.round(x + (b[k] - x) * f)).join(",")})`; }
-async function step2() { await guard(2, "map", async () => {
+/* 2 */
+let map, waporLayer, plotLayers = {}, plotsData = [], selected = null;
+function color(v, max) { const t = Math.min(1, v / max); const s = [[247,233,195],[140,198,160],[31,111,139],[20,46,107]]; const i = Math.min(2, Math.floor(t * 3)), f = t * 3 - i; return `rgb(${s[i].map((x, k) => Math.round(x + (s[i + 1][k] - x) * f)).join(",")})`; }
+const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function plotStyle(id) { return id === selected ? {color: cssv("--plot-sel"), weight: 4, fillOpacity: .22, fillColor: cssv("--plot")} : {color: cssv("--plot"), weight: 2, fillOpacity: .08, fillColor: cssv("--plot")}; }
+async function step2() { await guard(2, null, async () => {
   if (!map) {
-    map = L.map("map");
+    map = L.map("map", {scrollWheelZoom: false});
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, attribution: "© OpenStreetMap contributors"}).addTo(map);
   }
   map.eachLayer(l => { if (!(l instanceof L.TileLayer)) map.removeLayer(l); });
   const [sites, plots, wap] = await Promise.all([get("/data/sites.geojson"), get("/data/plots.geojson"), get("/data/wapor.geojson")]);
   const max = Math.max(...wap.features.map(f => f.properties.eta_mm_day));
-  $("rampmax").textContent = max.toFixed(1) + " mm/j";
+  $("rampmax").textContent = fmt(max, 1) + " mm/j";
   waporLayer = L.geoJSON(wap, {style: f => ({stroke: false, fillOpacity: .55, fillColor: color(f.properties.eta_mm_day, max)}),
-    onEachFeature: (f, l) => l.bindTooltip(`AETI ${f.properties.eta_mm_day} mm/j`)});
+    onEachFeature: (f, l) => l.bindTooltip(`AETI ${fmt(f.properties.eta_mm_day, 1)} mm/j`)});
   if ($("wap").checked) waporLayer.addTo(map);
-  L.geoJSON(sites, {style: {color: "#555", weight: 2, dashArray: "6 4", fill: false},
-    onEachFeature: (f, l) => l.bindPopup(`<b>${esc(f.properties.label)}</b><br>site_id : ${esc(f.properties.site_id)}<br>quota : ${f.properties.quota_m3 ?? "donnée locale requise"}`)}).addTo(map);
-  const pl = L.geoJSON(plots, {style: {color: "#c2410c", weight: 2, fillOpacity: .08},
-    onEachFeature: (f, l) => { const p = f.properties; l.bindTooltip(p.plot_id, {permanent: true, direction: "center", className: ""});
-      l.bindPopup(`<b>${p.plot_id}</b> (OSM way ${p.osm_way_id})<br>${p.land_use}, ${p.surface_m2.toLocaleString("fr")} m²<br>AETI ${p.eta_mm_day} mm/j · pluie ${p.precip_mm_day} · ET0 ${p.ref_et_mm_day}<br><b>${p.demand_m3} m³/j</b> (brut ${p.demand_m3_raw})<br><i>Observé du 11 au 20 juil. 2026, pas une prévision.</i><br>→ calculateur (étape 4) rempli`);
-      l.on("click", () => fillCalc(p)); }}).addTo(map);
-  map.fitBounds(pl.getBounds(), {padding: [20, 20]});
-  status(2, "ok", `${plots.features.length} parcelles, ${wap.features.length} pixels`);
+  L.geoJSON(sites, {style: {color: cssv("--muted"), weight: 2, dashArray: "6 5", fill: false}, interactive: false}).addTo(map);
+  plotLayers = {}; plotsData = plots.features.map(f => f.properties);
+  const pl = L.geoJSON(plots, {style: f => plotStyle(f.properties.plot_id),
+    onEachFeature: (f, l) => { const p = f.properties; plotLayers[p.plot_id] = l;
+      l.bindTooltip(p.plot_id, {permanent: true, direction: "center", className: "plbl"});
+      l.on("click", () => selectPlot(p.plot_id, false)); }}).addTo(map);
+  map.fitBounds(pl.getBounds(), {padding: [24, 24]});
+  const site = sites.features[0].properties;
+  $("plist").innerHTML = plotsData.map(p => `<button class="pbtn" aria-pressed="false" data-id="${p.plot_id}" onclick="selectPlot('${p.plot_id}', true)"><b>${p.plot_id}</b><span>${fmt(p.surface_m2 / 10000, 2)} ha · ${fmt(p.demand_m3)} m³/j</span></button>`).join("");
+  $("pdetail").innerHTML = `<h3>${esc(site.imada)}</h3><div style="color:var(--muted)">${esc(site.delegation)}, ${esc(site.governorate)}</div>
+    <dl class="kv"><dt>site_id</dt><dd><code>${esc(site.site_id)}</code></dd><dt>Quota</dt><dd>${site.quota_m3 ?? MISSING}</dd><dt>Période</dt><dd>11–20 juil. 2026</dd></dl>`;
+  status(2, "ok", `${plotsData.length} parcelles · ${wap.features.length} pixels`);
 }); }
-let fromPlot = null;
-async function fillCalc(p) {
-  $("mm").value = p.irrigation_need_mm_day;
-  $("m2").value = p.surface_m2;
-  fromPlot = p;
-  await step4();
+function selectPlot(id, pan) {
+  selected = id;
+  Object.entries(plotLayers).forEach(([k, l]) => l.setStyle(plotStyle(k)));
+  document.querySelectorAll(".pbtn").forEach(b => b.setAttribute("aria-pressed", b.dataset.id === id));
+  const p = plotsData.find(x => x.plot_id === id);
+  if (pan) map.fitBounds(plotLayers[id].getBounds(), {padding: [60, 60], maxZoom: 16});
+  $("pdetail").innerHTML = `<h3>${p.plot_id} <span class="chip c-idle" style="font-weight:500">${p.land_use}</span></h3>
+    <div style="color:var(--muted)">OSM way ${p.osm_way_id} · tracé le ${p.osm_last_edit.slice(0, 10)}</div>
+    <dl class="kv"><dt>Surface</dt><dd>${fmt(p.surface_m2)} m²</dd><dt>AETI</dt><dd>${fmt(p.eta_mm_day, 2)} mm/j</dd>
+    <dt>Pluie</dt><dd>${fmt(p.precip_mm_day, 2)} mm/j</dd><dt>ET0</dt><dd>${fmt(p.ref_et_mm_day, 2)} mm/j</dd>
+    <dt>Besoin</dt><dd><b>${fmt(p.demand_m3)} m³/j</b></dd><dt>Culture</dt><dd>${p.crop ?? MISSING}</dd><dt>Minimum</dt><dd>${p.minimum_m3 ?? MISSING}</dd></dl>`;
+  $("mm").value = p.irrigation_need_mm_day; $("m2").value = p.surface_m2;
+  fromPlot = p; step4();
 }
 function toggleWapor() { if (!map || !waporLayer) return; $("wap").checked ? waporLayer.addTo(map) : map.removeLayer(waporLayer); }
 
+/* 3 */
 async function initSites() {
-  try { const s = await get("/data/sites.geojson"); $("site").innerHTML = s.features.map(f => `<option>${esc(f.properties.site_id)}</option>`).join("") + "<option>mini</option><option>site-inexistant</option>"; } catch (e) {}
+  try { const s = await get("/data/sites.geojson"); $("site").innerHTML = s.features.map(f => `<option value="${esc(f.properties.site_id)}">${esc(f.properties.site_id)} (réel)</option>`).join("") + '<option value="mini">mini (cas A/B du cahier)</option><option value="site-inexistant">site-inexistant (doit échouer)</option>'; } catch (e) {}
 }
 async function step3() { await guard(3, "o3", async () => {
   const id = $("site").value;
   let j;
   try { j = await get("/api/plots/" + encodeURIComponent(id)); }
-  catch (e) { $("o3").innerHTML = `<div class="out">${esc(e.message)}</div>`; status(3, id === "site-inexistant" ? "ok" : "bad", id === "site-inexistant" ? "site inconnu rejeté" : "erreur"); return; }
+  catch (e) {
+    const expected = id === "site-inexistant";
+    $("o3").innerHTML = `<div class="result">${expected ? "Rejeté comme attendu : " : ""}<span class="err">${esc(e.message)}</span></div>`;
+    return status(3, expected ? "ok" : "bad", expected ? "Site inconnu rejeté" : "Erreur");
+  }
   $("o3").innerHTML = table([
-    ["plot_id", "plot_id"], ["farmer_id", "farmer_id"], ["crop", "crop"], ["surface_m2", "surface m²"], ["demand_m3", "besoin m³"],
-    ["minimum_m3", "minimum m³"], ["deadline_slot", "échéance"], ["allowed_slots", "créneaux", r => r.allowed_slots && r.allowed_slots.join(", ")],
-    ["past_deferrals", "reports"], ["source_id", "source"],
-    ["solver_ready", "solveur", r => r.solver_ready ? '<span class="ok">✓ prêt</span>' : '<span class="tag">incomplet</span>'],
+    ["plot_id", "Parcelle", r => `<b>${r.plot_id}</b>`], ["farmer_id", "Exploitant"], ["crop", "Culture"],
+    ["surface_m2", "Surface m²", r => r.surface_m2 === null ? null : fmt(r.surface_m2), 1], ["demand_m3", "Besoin m³", null, 1],
+    ["minimum_m3", "Minimum m³", null, 1], ["deadline_slot", "Échéance", null, 1], ["allowed_slots", "Créneaux", r => r.allowed_slots && r.allowed_slots.join(", ")],
+    ["past_deferrals", "Reports", null, 1],
+    ["solver_ready", "Solveur", r => r.solver_ready ? '<span class="chip c-ok">✓ prêt</span>' : '<span class="chip c-warn">incomplet</span>'],
   ], j.plots);
   const ready = j.plots.filter(p => p.solver_ready).length;
-  status(3, ready === j.plots.length ? "ok" : "warn", `${j.plots.length} parcelles, ${ready} prêtes pour le solveur`);
+  status(3, ready === j.plots.length ? "ok" : "warn", `${ready}/${j.plots.length} prêtes pour le solveur`);
 }); }
 
+/* 4 */
+let fromPlot = null;
 async function step4() { await guard(4, "o4", async () => {
   const mm = +$("mm").value, m2 = +$("m2").value;
   const p = fromPlot && fromPlot.irrigation_need_mm_day === mm && fromPlot.surface_m2 === m2 ? fromPlot : null;
   fromPlot = null;
   const j = await post("/api/convert", {depth_mm: mm, surface_m2: m2});
-  let txt = `${mm} mm × ${m2} m² ÷ 1000 = ${j.raw_m3} m³ brut → ${j.rounded_m3} m³ arrondi`;
+  let html = `<div class="big">${fmt(j.rounded_m3)}<small>m³</small></div><div class="formula">${fmt(mm, 2)} mm × ${fmt(m2)} m² ÷ 1000 = ${fmt(j.raw_m3, 3)} m³ → arrondi ${fmt(j.rounded_m3)}</div>`;
+  $("o4").className = "result";
   if (p) {
     const same = j.rounded_m3 === p.demand_m3;
-    txt = `Parcelle ${p.plot_id} (cliquée sur la carte)\nBesoin = AETI ${p.eta_mm_day} − pluie ${p.precip_mm_day} = ${mm} mm/j, observé du 11 au 20 juil. 2026\n` + txt +
-      `\nValeur dans plots.geojson : ${p.demand_m3} m³/j → ${same ? "✓ identique" : "✗ différente"}`;
-    $("o4").textContent = txt;
-    return status(4, same ? "ok" : "bad", same ? `${p.plot_id} : ${j.rounded_m3} m³/j vérifié` : `${p.plot_id} : écart`);
+    $("o4").innerHTML = `<div style="font-size:13px;color:var(--muted);margin-bottom:4px">Parcelle <b style="color:var(--ink)">${p.plot_id}</b> · AETI ${fmt(p.eta_mm_day, 2)} − pluie ${fmt(p.precip_mm_day, 2)} = ${fmt(mm, 2)} mm/j</div>` + html.replace("m³</small>", "m³/jour</small>") +
+      `<div style="margin-top:8px">${same ? '<span class="chip c-ok">✓ identique à plots.geojson</span>' : `<span class="chip c-bad">✗ plots.geojson indique ${p.demand_m3}</span>`}</div>`;
+    return status(4, same ? "ok" : "bad", same ? `${p.plot_id} vérifiée` : `${p.plot_id} : écart`);
   }
-  $("o4").textContent = txt;
+  $("o4").innerHTML = html;
   const recette = mm === 4 && m2 === 500;
-  status(4, recette ? (j.rounded_m3 === 2 ? "ok" : "bad") : "ok", recette ? (j.rounded_m3 === 2 ? "recette 2 m³ vérifiée" : "recette échouée") : "calculé");
+  status(4, recette ? (j.rounded_m3 === 2 ? "ok" : "bad") : "ok", recette ? (j.rounded_m3 === 2 ? "Recette 2 m³" : "Recette échouée") : "Calculé");
 }); }
 
+/* 5 */
 async function step5() { await guard(5, "o5", async () => {
   const mn = +$("mn").value, dl = +$("dl").value;
   const j = await post("/api/coverage", {minimum_m3: mn, delivered_on_time_m3: dl});
-  $("o5").textContent = j.coverage_bp === null ? "Minimum nul : parcelle non prioritaire, pas de taux." : `${j.coverage_bp} pb = ${j.coverage_pct} %`;
+  $("o5").className = "result";
+  $("o5").innerHTML = j.coverage_bp === null ? "Minimum nul : parcelle non prioritaire, aucun taux calculé." :
+    `<div class="big">${fmt(j.coverage_pct, 2)}<small>%</small></div><div class="formula">min(10 000, ${dl} × 10 000 ÷ ${mn}) = ${j.coverage_bp} points de base</div>`;
   const recette = mn === 10 && dl === 5;
-  status(5, recette ? (j.coverage_bp === 5000 ? "ok" : "bad") : "ok", recette ? (j.coverage_bp === 5000 ? "recette 50 % vérifiée" : "recette échouée") : "calculé");
+  status(5, recette ? (j.coverage_bp === 5000 ? "ok" : "bad") : "ok", recette ? (j.coverage_bp === 5000 ? "Recette 50 %" : "Recette échouée") : "Calculé");
 }); }
 
+/* 6 */
 const CASES = [
-  {label: "Données correctes", body: {changes: {}}, expect: null},
-  {label: "Identifiant dupliqué", body: {duplicate: true}, expect: "plot_id"},
-  {label: "Parcelle sans site", body: {changes: {site_id: "nulle-part"}}, expect: "site_id"},
-  {label: "Minimum > besoin", body: {changes: {minimum_m3: 11}}, expect: "minimum_m3"},
-  {label: "Échéance hors créneaux", body: {changes: {deadline_slot: 0}}, expect: "deadline_slot"},
-  {label: "Créneau 24 (hors 0–23)", body: {changes: {allowed_slots: [1, 24]}}, expect: "allowed_slots"},
-  {label: "Volume négatif", body: {changes: {demand_m3: -1}}, expect: "demand_m3"},
-  {label: "Source inconnue", body: {changes: {source_id: "inventee"}}, expect: "source_id"},
+  {label: "Données correctes", hint: "A et B inchangées", body: {changes: {}}, expect: null},
+  {label: "Identifiant dupliqué", hint: "A ajoutée deux fois", body: {duplicate: true}, expect: "plot_id"},
+  {label: "Parcelle sans site", hint: "site_id = nulle-part", body: {changes: {site_id: "nulle-part"}}, expect: "site_id"},
+  {label: "Minimum > besoin", hint: "minimum 11, besoin 10", body: {changes: {minimum_m3: 11}}, expect: "minimum_m3"},
+  {label: "Échéance hors créneaux", hint: "échéance 0, créneaux 1–2", body: {changes: {deadline_slot: 0}}, expect: "deadline_slot"},
+  {label: "Créneau hors 0–23", hint: "créneaux [1, 24]", body: {changes: {allowed_slots: [1, 24]}}, expect: "allowed_slots"},
+  {label: "Volume négatif", hint: "besoin −1", body: {changes: {demand_m3: -1}}, expect: "demand_m3"},
+  {label: "Source inconnue", hint: "source_id = inventee", body: {changes: {source_id: "inventee"}}, expect: "source_id"},
 ];
-const results6 = [];
-$("cases").innerHTML = CASES.map((c, i) => `<button class="ghost" onclick="runCase(${i})">${esc(c.label)}</button>`).join("");
-function render6() {
-  $("o6").innerHTML = table([["label", "Cas"], ["expect", "Attendu", r => r.expect ? `rejet sur <code>${r.expect}</code>` : "accepté"],
-    ["got", "Obtenu", r => esc(r.got)], ["ok", "Résultat", r => r.ok ? '<span class="ok">✓</span>' : '<span class="bad">✗</span>']], results6);
-  const bad = results6.filter(r => !r.ok).length;
-  status(6, bad ? "bad" : "ok", `${results6.length - bad}/${results6.length} conformes`);
+const caseRes = {};
+function renderCases() {
+  $("cases").innerHTML = CASES.map((c, i) => { const r = caseRes[i];
+    const chip = !r ? '<span class="chip c-idle">à tester</span>' : r.ok ? '<span class="chip c-ok">✓</span>' : '<span class="chip c-bad">✗</span>';
+    const sub = !r ? `${esc(c.hint)} → ${c.expect ? "rejet sur " + c.expect : "accepté"}` : esc(r.got);
+    return `<button class="case ${r ? (r.ok ? "ok" : "bad") : ""}" onclick="runCase(${i})"><span class="ct">${esc(c.label)}${chip}</span><span class="cs">${sub}</span></button>`; }).join("");
+  const done = Object.values(caseRes), bad = done.filter(r => !r.ok).length;
+  if (done.length) status(6, bad ? "bad" : (done.length === CASES.length ? "ok" : "run"), `${done.length - bad}/${CASES.length} conformes`);
 }
-async function check(label, body, expect) {
-  const j = await post("/api/validate", body);
-  const got = j.valid ? "accepté" : `rejet sur ${j.field} — ${j.message}`;
-  const ok = expect === undefined ? true : (expect === null ? j.valid : (!j.valid && j.field === expect));
-  results6.unshift({label, expect, got, ok});
-  render6();
+async function validate(body) { const j = await post("/api/validate", body); return {j, got: j.valid ? "accepté" : `rejeté sur ${j.field}`}; }
+async function runCase(i) {
+  try { const c = CASES[i], {j, got} = await validate(c.body);
+    caseRes[i] = {got, ok: c.expect === null ? j.valid : (!j.valid && j.field === c.expect)};
+  } catch (e) { caseRes[i] = {got: e.message, ok: false}; }
+  renderCases();
 }
-async function runCase(i) { await guard(6, "o6", () => check(CASES[i].label, CASES[i].body, CASES[i].expect)); }
-async function custom() { await guard(6, "o6", async () => {
+async function custom() {
   let v; try { v = JSON.parse($("cv").value); } catch { v = $("cv").value; }
-  await check(`${$("cf").value} = ${JSON.stringify(v)}`, {changes: {[$("cf").value]: v}}, undefined);
-}); }
+  try { const {j} = await validate({changes: {[$("cf").value]: v}});
+    $("o6").innerHTML = `<div class="result">${j.valid ? '<span class="chip c-ok">accepté</span>' : '<span class="chip c-bad">rejeté</span>'} <code>${esc($("cf").value)} = ${esc(JSON.stringify(v))}</code>${j.valid ? "" : `<div class="err" style="margin-top:6px">${esc(j.message)}</div>`}</div>`;
+  } catch (e) { $("o6").innerHTML = `<div class="result err">${esc(e.message)}</div>`; }
+}
 
+/* 7 */
 async function step7() { await guard(7, "o7", async () => {
   const j = await get("/api/tests");
   const pass = j.tests.filter(t => t.ok).length;
-  $("o7").innerHTML = table([["name", "Test"], ["ok", "Résultat", r => r.ok ? '<span class="ok">✓ passé</span>' : '<span class="bad">✗ échoué</span>']], j.tests) +
-    (j.returncode ? `<div class="out">${esc(j.output)}</div>` : "");
+  $("o7").innerHTML = `<div class="tests">${j.tests.map(t => `<div class="test" title="${esc(t.name)}"><span class="ic ${t.ok ? "ok" : "bad"}">${t.ok ? "✓" : "✗"}</span><span>${esc(t.name.replace(/^test_/, ""))}</span></div>`).join("")}</div>` +
+    (j.returncode ? `<div class="result err" style="white-space:pre-wrap">${esc(j.output)}</div>` : "");
   status(7, j.returncode === 0 ? "ok" : "bad", `${pass}/${j.tests.length} passés`);
 }); }
 
 async function runAll() {
-  await step1(); await step2(); await step3(); await step4(); await step5();
-  results6.length = 0; for (let i = 0; i < CASES.length; i++) await runCase(i);
-  await step7();
+  const b = $("runall"); b.disabled = true; b.textContent = "En cours…";
+  try {
+    await step1(); await step2(); await step3(); await step5();
+    for (const k in caseRes) delete caseRes[k];
+    status(6, "run", "En cours…"); for (let i = 0; i < CASES.length; i++) await runCase(i);
+    $("mm").value = 4; $("m2").value = 500; await step4();
+    await step7();
+  } finally { b.disabled = false; b.textContent = "▶ Tout lancer"; }
 }
-initSites();
+renderCases(); initSites(); step2();
 </script>
 </body>
 </html>
