@@ -21,6 +21,7 @@
     "tunisia_city_locations": {"provenance":"observed","origin":"GeoNames administrative seats and geoBoundaries simplified ADM1 geometry; see tunisia/README.md"},
     "tunisia_city_relief": {"provenance":"estimated","origin":"Copernicus GLO-90 digital surface model sampled on a 15 × 15 grid at each city; see tunisia/README.md"},
     "tunisia_city_climate": {"provenance":"estimated","origin":"NASA POWER 2025 gridded daily archive, aggregated over the selected dates; see tunisia/README.md"},
+    "agricultural_zone_profiles": {"provenance":"estimated","origin":"ESA WorldCover 2021 crop and landscape classification, Copernicus GLO-90 terrain and NASA POWER 2025 summaries for three published research windows; see field_zones/README.md"},
     "pvgis": {"provenance":"estimated","origin":"EC JRC PVGIS-SARAH3 2023 reference-point profiles in tools/m2m3/data/energy; load comparison is simulated"},
     "bouhertma": {"provenance":"observed","origin":"Archived FieldClimate station CSV; see weather/BOUHERTMA.md for time and coverage limitations"}
   }

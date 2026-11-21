@@ -106,6 +106,24 @@ def test_city_assistant_uses_the_same_public_profile_and_isolates_city_facts():
         }).status_code == 422
 
 
+def test_researched_site_assistant_uses_registered_cover_and_source_links(context):
+    catalog, corpus = context
+    zone = catalog.field_zones["korba-cap-bon"]
+    counts = zone.land_cover.pixel_counts
+
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            return response(call("get_site_data", {"include_solar": False}))
+        return complete()
+
+    request = AssistantRequest(site_id="korba-cap-bon", question="How does this zone compare on farmland and terrain?")
+    answer = run_assistant(request, catalog, corpus, SimpleNamespace(respond=respond), 5)
+    cover = next(fact for fact in answer.facts if fact.source_url == zone.land_cover.source.url)
+    assert f"{100 * counts[40] / sum(counts.values()):.2f}%" in cover.text
+    assert cover.provenance == Provenance.ESTIMATED
+    assert set(zone.missing_inputs) <= set(answer.missing_information)
+
+
 def test_what_if_uses_original_and_reduced_quota_and_never_edits_state(context):
     catalog, corpus = context
     outputs = []

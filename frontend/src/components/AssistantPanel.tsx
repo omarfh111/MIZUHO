@@ -15,6 +15,10 @@ const surveySuggestions = [
   'Which measurements are missing before these parcels can be scheduled?',
   'Does the temperature analysis establish a cause for changes in water use?',
 ];
+const fieldZoneSuggestions = [
+  'What do the local land-cover, elevation, and climate archives show?',
+  'Which field measurements are needed before planning irrigation here?',
+];
 const citySuggestions = [
   'What do the archived climate and elevation estimates show for this city?',
   'Which field measurements are needed to plan irrigation here?',
@@ -172,10 +176,11 @@ export default function AssistantPanel({ site, city, period, mode, solar, simula
         </div>
         : health === 'checking' && <p className="assistant-notice" role="status"><LoaderCircle size={16} /> Checking evidence access…</p>}
       {available && turns.length === 0 && <div className="assistant-welcome">
-          <h3>{city ? `Ask about ${city.name}` : 'Ask about a plan or its evidence'}</h3>
-          <p>{city ? 'Explore archived climate, sampled terrain, and the data needed to plan irrigation.' :
+          <h3>{city || site?.properties.field_zone ? `Ask about ${city?.name ?? site?.properties.label}` : 'Ask about a plan or its evidence'}</h3>
+          <p>{city || site?.properties.field_zone ? 'Explore archived climate, sampled terrain, and the data needed to plan irrigation.' :
             'Explore the assumptions, official sources, or trade-offs behind an irrigation decision.'}</p>
-          <div className="assistant-suggestions">{(city ? citySuggestions : site?.properties.survey_available ? surveySuggestions : suggestions).map((suggestion) =>
+          <div className="assistant-suggestions">{(city ? citySuggestions : site?.properties.field_zone ? fieldZoneSuggestions :
+            site?.properties.survey_available ? surveySuggestions : suggestions).map((suggestion) =>
             <button key={suggestion} type="button" onClick={() => send(suggestion)}>{suggestion}</button>)}</div>
         </div>}
       {turns.map((turn, index) => <article key={index} className="assistant-turn">

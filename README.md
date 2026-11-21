@@ -37,7 +37,7 @@
 | **M1 · Assila survey** | Explore five mapped parcels and dated WaPOR estimates with source metadata. Inspect missing farmer, demand, quota and scheduling data. |
 | **M2/M3 · Energy and telemetry** | Use archived PVGIS profiles, inspect a held-out load forecast and replay virtual sensors with controlled faults. |
 | **M6 · API and irrigation planning** | Load the site and scenarios, compare solar options, and run the M4 simulator and M5 CP-SAT optimizer through FastAPI. |
-| **M7 · National map and 3D dashboard** | Zoom from Tunisia to one of its 24 governorate capitals. Explore local relief and climate, open a nearby surveyed or simulated site when available, and replay the [cinematic introduction](frontend/src/experience/README.md). |
+| **M7 · National map and 3D dashboard** | Zoom from Tunisia to one of its 24 governorate capitals. In **Site map**, compare three researched agricultural zones, the Assila survey, and the Jendouba planning pilot. |
 | **M8 · Evidence assistant** | Search official passages with Qdrant dense retrieval and BM25. Ask about a city's archive or the current site simulation with the same LangGraph agent. |
 
 ## How it works
@@ -181,6 +181,8 @@ flowchart TD
 
 City profiles show the source, coverage, and retrieval date. A city needs verified parcels, water allocation, equipment specifications, and starting conditions before it can be used for operational planning. The built-in planning pilot uses simulated conditions. [National data refresh and sources](data/tunisia/README.md) · [Data manifest](data/manifest.json)
 
+The agricultural selector also includes three georeferenced study windows at Korba, Chebika on the Kairouan plain, and Gafsa–El Ksar. Switch between WorldCover land cover and elevation on each map. The site cards report the original raster pixel counts, local climate summaries and the field inputs needed to plan irrigation. [Zone studies and refresh](data/field_zones/README.md)
+
 ## Run MIZUHO
 
 Use Git, Python **3.12** and Node.js **22.12 or later**. Once dependencies are installed, the local backend and frontend run the maps, optimizer, digital twin, forecast and event demonstrations without credentials or network access. Configure OpenAI and Qdrant in step 2 for conversational answers and indexed retrieval.
@@ -290,6 +292,7 @@ The running backend serves [OpenAPI documentation](http://127.0.0.1:8000/docs).
 | --- | --- |
 | Health and geography | `GET /api/health`, `GET /api/scenarios`, `GET /api/sites`, `GET /api/layers/{site_id}/{layer_id}` |
 | National map and profiles | `GET /api/tunisia`, `GET /api/tunisia/cities/{id}` with optional inclusive `start` and `end` dates |
+| Researched agricultural zones | `GET /api/sites/{site_id}/field-zone` returns land cover, terrain, climate and source metadata |
 | Agricultural survey and weather station | `GET /api/sites/{site_id}/agriculture`, `GET /api/weather/bouhertma?day=2026-05-08` |
 | Archived solar comparison, hourly PV and planning weather | `POST /api/solar/compare-archive`, `POST /api/solar/profile`, `POST /api/weather` |
 | Verified replay and virtual instrumentation | `POST /api/telemetry/replay`, `POST /api/telemetry/project`, `POST /api/telemetry/forecast` |

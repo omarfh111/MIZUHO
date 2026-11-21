@@ -9,6 +9,7 @@ from pydantic import HttpUrl
 from .catalog import Catalog
 from .compare import InputError, compare
 from .evidence import Corpus, search
+from .field_zones import LAND_COVER_LABELS
 from .models import (
     Amount, ApiPlan, AssistantRequest, Citation, CompareRequest, Comparison, DecisionFact,
     EvidenceSearchRequest, GroundedParagraph, PlanningModel, Point, Provenance,
@@ -137,6 +138,33 @@ def get_site_data(turn: Turn, args: SiteArgs) -> dict:
     site_id = turn.request.site_id
     feature = next(feature for feature in turn.catalog.sites.features if feature.properties.site_id == site_id)
     site = feature.properties
+    zone = turn.catalog.field_zones.get(site_id or "")
+    if zone is not None:
+        counts = zone.land_cover.pixel_counts
+        total = sum(counts.values())
+        crop_share = counts.get(40, 0) * 100 / total
+        dominant = max(counts, key=counts.__getitem__)
+        elevation = [sample for sample in zone.relief.elevations if sample is not None]
+        climate = zone.climate
+        facts = [
+            turn.fact(f"{site.label}: {site.description}", Provenance.OBSERVED, source_url=zone.evidence.url),
+            turn.fact(f"{site.label}: {crop_share:.2f}% of valid WorldCover 2021 pixels are cropland; "
+                      f"largest class: {LAND_COVER_LABELS[dominant]}.",
+                      Provenance.ESTIMATED, source_url=zone.land_cover.source.url, remember=True),
+            turn.fact(f"{site.label}: sampled elevation {min(elevation):g} to {max(elevation):g} m.",
+                      Provenance.ESTIMATED, source_url=zone.relief.source.url, remember=True),
+            turn.fact(f"{site.label} NASA POWER archive ({climate.start} to {climate.end}): "
+                      f"{climate.temperature_mean_c:g} °C mean air temperature, {climate.precipitation_mm:g} mm precipitation, "
+                      f"{climate.irradiation_mean_kwh_m2_day:g} kWh/m²/day mean solar irradiation.",
+                      Provenance.ESTIMATED, source_url=climate.source.url, remember=True),
+        ]
+        turn.explanations["zone"] = GroundedParagraph(
+            text="The research describes this site's water management context. The mapped cover and regional climate estimates help frame field questions.",
+            citation_ids=(), fact_ids=tuple(fact.id for fact in facts),
+        )
+        return {"facts": [fact.model_dump(mode="json") for fact in facts],
+                "missing_information": ["The land-cover classification provides no parcel, irrigation or pumping measurements.",
+                                        *zone.missing_inputs]}
     facts = [
         turn.fact(f"{site.label} site: {site.description} Site data status: {site.status.value}.", site.status),
     ]
