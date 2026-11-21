@@ -61,6 +61,12 @@ def test_geographic_layers_and_source_links(client):
     assert client.get("/api/evidence/missing").status_code == 404
     assert client.get("/api/layers/missing/plots").status_code == 404
     assert client.get(f"/api/layers/{site_id}/missing").status_code == 404
+    raster = "/api/layers/TN-32-BALTABOUAWENE-ASSILA/wapor"
+    plain = client.get(raster, headers={"Accept-Encoding": "identity"})
+    compressed = client.get(raster, headers={"Accept-Encoding": "gzip"})
+    assert compressed.headers["content-encoding"] == "gzip"
+    assert int(compressed.headers["content-length"]) < len(plain.content)
+    assert compressed.content == plain.content
 
 
 def test_development_cors_allows_configured_origin(monkeypatch):

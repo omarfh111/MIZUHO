@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import Field, TypeAdapter
 
@@ -52,6 +53,7 @@ def create_app(data_dir: Path = DATA_DIR, *, solver_timeout: float | None = None
     app = FastAPI(title="Mizhuo API", version="1.0.0", lifespan=lifespan)
     app.include_router(assistant_router)
     app.include_router(telemetry_router)
+    app.add_middleware(GZipMiddleware, minimum_size=4096, compresslevel=4)
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "POST"],
                        allow_headers=["Accept", "Accept-Language", "Content-Type"])
 
