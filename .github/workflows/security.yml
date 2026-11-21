@@ -81,16 +81,22 @@ jobs:
         run: |
           manifests=(requirements.txt requirements-dev.txt frontend/package-lock.json)
           scan() {
-            local revision=$1 label=$2 manifest status=0
+            local revision=$1 label=$2 manifest tracked status=0
             local snapshot="$RUNNER_TEMP/dependencies-$label"
+            local lockfiles=()
             mkdir -p "$snapshot/frontend"
-            for manifest in "${manifests[@]}"; do
+            tracked=$(git ls-tree -r --name-only "$revision" -- "${manifests[@]}")
+            if [[ -z "$tracked" ]]; then
+              echo "No supported dependency manifests in $label."
+              : > "$snapshot/advisories.tsv"
+              return
+            fi
+            while IFS= read -r manifest; do
               git show "$revision:$manifest" > "$snapshot/$manifest"
-            done
+              lockfiles+=("--lockfile=$snapshot/$manifest")
+            done <<< "$tracked"
             "$RUNNER_TEMP/osv-scanner" scan source --format=json --all-packages \
-              --lockfile="$snapshot/requirements.txt" \
-              --lockfile="$snapshot/requirements-dev.txt" \
-              --lockfile="$snapshot/frontend/package-lock.json" \
+              "${lockfiles[@]}" \
               --output-file="$snapshot/results.json" || status=$?
             if [[ "$status" -gt 1 ]]; then
               echo "::error::OSV-Scanner failed for $label (exit $status)."

@@ -1,8 +1,13 @@
-fastapi==0.115.12
+fastapi==0.165.0
 httpx==0.28.1
-langgraph==1.0.5
-ortools==9.14.6206
+langgraph==1.2.24
+ortools==9.15.6755
 pydantic==2.11.5
-python-dotenv==1.1.1
+python-dotenv==1.2.4
 tzdata==2025.2
 uvicorn==0.34.3
+
+# Pin patched versions of transitive dependencies used by the solver and LangSmith.
+protobuf==6.33.5
+requests==2.34.2
+httpx2==2.16.2
