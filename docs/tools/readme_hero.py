@@ -1,12 +1,12 @@
-"""Generate docs/readme-hero.svg: the animated README banner.
+"""Generate the animated and static README banners.
 
 Run from the repository root:  python docs/tools/readme_hero.py
 
 The banner is pure SVG + CSS animation, so it plays inside GitHub's image
 renderer (no script). Tunisia is drawn as a floating isometric slab from the
 same simplified outline the cinematic uses; positions are approximate.
-Every animated element's resting style is its final frame, so
-`readme-hero.svg#still` and `prefers-reduced-motion` show a complete still.
+The static SVG uses the same artwork without the animation stylesheet.
+The README selects it through a reduced-motion picture source.
 """
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from pathlib import Path
 
 W, H = 1280, 560
 OUT = Path(__file__).resolve().parents[1] / "readme-hero.svg"
+STILL_OUT = OUT.with_name("readme-hero-still.svg")
 
 TUNISIA = [
     (8.62, 36.94), (8.76, 36.96), (8.98, 37.02), (9.22, 37.23), (9.52, 37.25), (9.85, 37.34),
@@ -84,7 +85,7 @@ def smooth_path(points) -> str:
     return d
 
 
-def build() -> str:
+def build(*, animated: bool = True) -> str:
     rnd = random.Random(2026)
     land = path(TUNISIA, close=True)
     djerba = path(DJERBA, close=True)
@@ -97,14 +98,14 @@ def build() -> str:
     add = out.append
     add(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" role="img" aria-labelledby="title description">')
     add('<title id="title">MIZUHO · Renewable-powered water intelligence for Tunisian agriculture</title>')
-    add('<desc id="description">An animated isometric map of Tunisia: a raindrop falls on the Jendouba pilot, '
-        'light flows down the Medjerda, reservoirs pulse, wind turbines turn and the Tozeur sun glows, '
-        'beside the MIZUHO wordmark and its three modules.</desc>')
+    add('<desc id="description">An isometric map of Tunisia showing the Jendouba pilot, the Medjerda river, '
+        'reservoirs, wind turbines and Tozeur solar power beside the MIZUHO wordmark and its three modules.</desc>')
 
     add("""<style>
   .t { font-family: 'Space Grotesk', 'Segoe UI', Inter, Helvetica, Arial, sans-serif; }
-  .b { font-family: Manrope, 'Segoe UI', Inter, Helvetica, Arial, sans-serif; }
-  @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+  .b { font-family: Manrope, 'Segoe UI', Inter, Helvetica, Arial, sans-serif; }""")
+    if animated:
+        add("""  @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
   @keyframes rise { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
   @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
   @keyframes flow { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
@@ -140,11 +141,10 @@ def build() -> str:
   .rise2 { animation: rise 1.1s cubic-bezier(.2,.8,.2,1) .35s both; }
   .rise3 { animation: rise 1.1s cubic-bezier(.2,.8,.2,1) .6s both; }
   .rise4 { animation: rise 1.1s cubic-bezier(.2,.8,.2,1) .85s both; }
-  /* Still frame: reduced motion, or the #still fragment. Resting styles are the final frame. */
-  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } .loop { display: none; } }
-  #still:target ~ *, #still:target ~ * * { animation: none !important; }
-  #still:target ~ .loop, #still:target ~ * .loop { display: none; }
-</style>""")
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } .loop { display: none; } }""")
+    else:
+        add("  .loop { display: none; }")
+    add("</style>")
 
     # ---------------------------------------------------------------- defs
     add(f"""<defs>
@@ -181,7 +181,6 @@ def build() -> str:
   <clipPath id="landClip"><path d="{land}"/><path d="{djerba}"/></clipPath>
   <clipPath id="wordClip"><text x="68" y="262" class="t" font-size="138" font-weight="700" letter-spacing="-5">MIZUHO</text></clipPath>
 </defs>""")
-    add('<g id="still"/>')
 
     # ------------------------------------------------------- atmosphere
     add(f'<rect width="{W}" height="{H}" fill="url(#sky)"/>')
@@ -323,5 +322,6 @@ def build() -> str:
 
 
 if __name__ == "__main__":
-    OUT.write_text(build(), encoding="utf-8")
-    print(f"wrote {OUT.relative_to(Path.cwd()) if OUT.is_relative_to(Path.cwd()) else OUT} ({OUT.stat().st_size:,} bytes)")
+    for output, animated in ((OUT, True), (STILL_OUT, False)):
+        output.write_text(build(animated=animated), encoding="utf-8")
+        print(f"wrote {output.name} ({output.stat().st_size:,} bytes)")

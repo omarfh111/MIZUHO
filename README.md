@@ -1,8 +1,8 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-reduced-motion: reduce)" srcset="docs/readme-hero.svg#still">
-  <img src="docs/readme-hero.svg" alt="MIZUHO. An animated isometric map of Tunisia where a raindrop falls on the Jendouba pilot, the Medjerda flows, reservoirs pulse and wind and sun power irrigation." width="100%">
+  <source media="(prefers-reduced-motion: reduce)" srcset="docs/readme-hero-still.svg">
+  <img src="docs/readme-hero.svg" alt="MIZUHO. An isometric map of Tunisia showing the Jendouba pilot, the Medjerda river, reservoirs, and renewable energy for irrigation." width="100%">
 </picture>
 
 <h1>MIZUHO</h1>
@@ -283,4 +283,4 @@ With Chrome installed and both servers running, use `npm --prefix frontend run t
 
 GitHub Actions runs the backend and frontend checks alongside CodeQL and Gitleaks. The dependency review job compares OSV advisories when a pull request changes dependency manifests. [CI workflow](.github/workflows/ci.yml) · [Security workflow](.github/workflows/security.yml)
 
-Regenerate the banner from the repository root with `python docs/tools/readme_hero.py`. [Banner source](docs/tools/readme_hero.py)
+Regenerate the animated and static banners from the repository root with `python docs/tools/readme_hero.py`. [Banner source](docs/tools/readme_hero.py)
