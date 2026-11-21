@@ -70,6 +70,7 @@ const glowFragment = /* glsl */ `
     vec2 p = vUv - .5;
     float streak = exp(-sq(p.x * 9.)) * smoothstep(.5, -.2, p.y) * smoothstep(-.5, -.3, p.y);
     gl_FragColor = vec4(uColor * 1.8, streak * uOpacity);
+    gl_FragColor = clamp(gl_FragColor, vec4(0.), vec4(64000.));
   }
 `;
 
@@ -90,6 +91,7 @@ const ringFragment = /* glsl */ `
     float a = ring * (1. - uPhase) * uOpacity * step(r, 1.);
     if (a < .003) discard;
     gl_FragColor = vec4(uColor * 2., a);
+    gl_FragColor = clamp(gl_FragColor, vec4(0.), vec4(64000.));
   }
 `;
 
@@ -187,6 +189,7 @@ const flowFragment = /* glsl */ `
     float d = length(gl_PointCoord - .5);
     float a = smoothstep(.5, 0., d);
     gl_FragColor = vec4(uColor * (1.4 + vSeed), a * a * uOpacity);
+    gl_FragColor = clamp(gl_FragColor, vec4(0.), vec4(64000.));
   }
 `;
 
@@ -266,9 +269,10 @@ const pillarFragment = /* glsl */ `
   uniform float uTime;
   varying vec2 vUv;
   void main() {
-    float fade = pow(1. - vUv.y, 2.4);
+    float fade = pow(max(1. - vUv.y, 0.), 2.4);
     float scan = .7 + .3 * sin(vUv.y * 30. - uTime * 5.);
     gl_FragColor = vec4(uColor * 2.2, fade * scan * uOpacity * .75);
+    gl_FragColor = clamp(gl_FragColor, vec4(0.), vec4(64000.));
   }
 `;
 

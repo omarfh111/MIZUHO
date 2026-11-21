@@ -97,6 +97,7 @@ const streakFragment = /* glsl */ `
     float head = smoothstep(0., .9, vV) * smoothstep(1., .85, vV);
     vec3 col = vec3(.72, .86, .9) + vec3(.6) * uFlash;
     gl_FragColor = vec4(col * 1.3, head * vAlpha * uOpacity);
+    gl_FragColor = clamp(gl_FragColor, vec4(0.), vec4(64000.));
   }
 `;
 
