@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1280 560" role="img" aria-labelledby="title description">
+  <title id="title">MIZUHO · Irrigation intelligence</title>
+  <desc id="description">A mint water channel carries light past cultivated plots and solar panels in a stylized isometric landscape.</desc>
+  <style>
+    #still:target ~ .artwork .motion { display: none; }
+    @media (prefers-reduced-motion: reduce) {
+      .motion { display: none; }
+    }
+  </style>
+  <defs>
+    <linearGradient id="night" x2="1" y2="1">
+      <stop stop-color="#071519"/>
+      <stop offset="1" stop-color="#102824"/>
+    </linearGradient>
+    <radialGradient id="mist">
+      <stop stop-color="#3c927a" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#3c927a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="sunlight">
+      <stop stop-color="#edbd77" stop-opacity=".23"/>
+      <stop offset="1" stop-color="#edbd77" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="wordmark" x1="20" y1="0" x2="565" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f4faf5"/>
+      <stop offset=".5" stop-color="#cefbdb"/>
+      <stop offset="1" stop-color="#85e4c4"/>
+    </linearGradient>
+    <linearGradient id="soil" x2="1" y2="1">
+      <stop stop-color="#2e6049"/>
+      <stop offset=".58" stop-color="#213e39"/>
+      <stop offset="1" stop-color="#172c31"/>
+    </linearGradient>
+    <linearGradient id="rock" x2="0" y2="1">
+      <stop stop-color="#233d38"/>
+      <stop offset="1" stop-color="#101f25"/>
+    </linearGradient>
+    <linearGradient id="flow" x1="0" x2="1" y1="0" y2="1">
+      <stop stop-color="#87f8df"/>
+      <stop offset="1" stop-color="#32b7c3"/>
+    </linearGradient>
+    <linearGradient id="glass" x2="1" y2="1">
+      <stop stop-color="#6ba4b3"/>
+      <stop offset=".37" stop-color="#314f68"/>
+      <stop offset="1" stop-color="#152a47"/>
+    </linearGradient>
+    <pattern id="screen" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#90d9b0" stroke-opacity=".066"/>
+      <circle cx="0" cy="0" r="1" fill="#a3e6bb" fill-opacity=".2"/>
+    </pattern>
+    <pattern id="crop" width="8" height="8" patternUnits="userSpaceOnUse">
+      <path d="M2 0v8" stroke="#cce182" stroke-opacity=".44" stroke-width="2"/>
+      <path d="M6 0v8" stroke="#111f20" stroke-opacity=".33"/>
+    </pattern>
+    <pattern id="crop-gold" width="9" height="9" patternUnits="userSpaceOnUse">
+      <path d="M2 0v9" stroke="#e3bd70" stroke-opacity=".39" stroke-width="2"/>
+    </pattern>
+    <clipPath id="frame">
+      <rect width="1280" height="560" rx="26"/>
+    </clipPath>
+    <clipPath id="land">
+      <rect width="260" height="260" rx="3"/>
+    </clipPath>
+    <path id="river" d="M102-12c7 38-13 54-5 81 6 21 38 31 43 55 6 32-31 34-42 59-12 28 8 55 3 89"/>
+    <path id="canal" d="M141 130c20 9 36 10 57 10h73"/>
+    <g id="panel">
+      <rect x="0" y="0" width="23" height="17" rx="1.8" fill="url(#glass)" stroke="#9ec5c3" stroke-opacity=".68"/>
+      <path d="M7.7 1v15M15.3 1v15M1 6h21M1 11h21" fill="none" stroke="#9dc5d2" stroke-opacity=".47" stroke-width=".65"/>
+      <path d="M1 2h21" stroke="#d5e7d5" stroke-opacity=".55"/>
+    </g>
+    <g id="pin">
+      <circle r="11" fill="#94f2d4" fill-opacity=".08" stroke="#8df4d8" stroke-opacity=".27"/>
+      <circle r="5.2" fill="#0d312f" stroke="#a2fce0" stroke-width="1.5"/>
+      <circle r="1.8" fill="#c5ffe9"/>
+    </g>
+  </defs>
+
+  <g id="still"/>
+  <g class="artwork" clip-path="url(#frame)">
+    <rect width="1280" height="560" fill="url(#night)"/>
+    <ellipse cx="1004" cy="263" rx="590" ry="360" fill="url(#mist)"/>
+    <ellipse cx="1092" cy="74" rx="310" ry="205" fill="url(#sunlight)"/>
+    <rect x="652" width="628" height="560" fill="url(#screen)"/>
+    <g fill="none" stroke="#9ad7b2" stroke-opacity=".12">
+      <path d="M765 102c70-60 201-79 345-45 99 24 153 73 179 140"/>
+      <path d="M754 88c87-73 210-81 348-51 99 22 155 60 190 125"/>
+      <path d="M808 477c113 48 241 46 344-11 61-33 110-85 143-145"/>
+      <path d="M770 487c119 71 274 76 403 0 53-31 100-74 124-111"/>
+    </g>
+    <g fill="none" stroke="#b5e0c9" stroke-opacity=".19">
+      <path d="M37 76V38h38m1130 0h38v38M37 484v38h38m1130 0h38v-38" stroke-width="1.5"/>
+      <path d="M721 124h37m-18-18v37m463 332h35m-17-17v35"/>
+    </g>
+
+    <g transform="translate(81 88)" fill="none">
+      <path d="M18 0C18 0 1 20 1 30a17 17 0 0 0 34 0C35 20 18 0 18 0Z" stroke="#97f0d2" stroke-width="2.5"/>
+      <path d="M11 34a8 8 0 0 0 7 4" stroke="#d8ffeb" stroke-linecap="round" stroke-width="2"/>
+      <circle cx="23" cy="28" r="3.5" fill="#edbd77"/>
+    </g>
+    <g font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+      <text x="134" y="122" fill="#a7ceb8" font-size="24" font-weight="650" letter-spacing="3">JENDOUBA PILOT</text>
+      <text x="72" y="265" fill="url(#wordmark)" font-size="116" font-weight="820" letter-spacing="-5">MIZUHO</text>
+      <text x="81" y="333" fill="#eef8ef" font-size="39" font-weight="570" letter-spacing="-.75">Irrigation intelligence</text>
+      <path d="M83 382H613" stroke="#a4d1b4" stroke-opacity=".26"/>
+      <text x="82" y="439" fill="#a7c8b9" font-size="29" font-weight="480">Water · Land · Sun</text>
+    </g>
+
+    <ellipse cx="1008" cy="423" rx="252" ry="65" fill="#07171a" opacity=".67"/>
+    <g transform="translate(1103 111)" fill="none">
+      <circle r="27" fill="#d79755" fill-opacity=".18" stroke="#edbd77" stroke-opacity=".66"/>
+      <circle r="16" fill="#edbd77" fill-opacity=".12" stroke="#f5cc8b" stroke-opacity=".73" stroke-width="1.5"/>
+      <path d="M0-37v-6m0 80v6M-37 0h-6m80 0h6M-26-26l-5-5m57 57 5 5m-57-5-5 5m57-57 5-5" stroke="#edbd77" stroke-opacity=".58" stroke-linecap="round"/>
+      <circle class="motion" r="20" stroke="#f4cc8c" stroke-opacity=".46" stroke-dasharray="3 10">
+        <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="28s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+
+    <path d="M758 268l244 134 244-134v28l-244 134-244-134z" fill="url(#rock)" stroke="#496956" stroke-opacity=".88"/>
+    <path d="M759 280l243 134 243-134m-243 122v27" fill="none" stroke="#87ad88" stroke-opacity=".22"/>
+    <g transform="matrix(.9375 .5154 -.9375 .5154 1002 134)">
+      <rect width="260" height="260" rx="3" fill="url(#soil)" stroke="#86b99b" stroke-opacity=".8" stroke-width="1.5"/>
+      <g clip-path="url(#land)">
+        <g fill="none" stroke="#b6dec0" stroke-opacity=".18" stroke-width="1">
+          <path d="M-19 38C16 4 47 4 68 22s18 32 40 46 42 4 78-19 62-17 84-5"/>
+          <path d="M-19 51C16 17 47 17 68 35s18 32 40 46 42 4 78-19 62-17 84-5"/>
+          <path d="M-19 64C16 30 47 30 68 48s18 32 40 46 42 4 78-19 62-17 84-5"/>
+          <path d="M169 259c-56-14-83-38-91-59-13-32 62-45 110-38 42 7 75 19 91 35"/>
+          <path d="M157 269c-55-14-83-38-91-59-13-32 62-45 110-38 42 7 75 19 91 35"/>
+          <path d="M145 279c-56-14-83-38-91-59-13-32 62-45 110-38 42 7 75 19 91 35"/>
+          <path d="M133 289c-55-14-83-38-91-59-13-32 62-45 110-38 42 7 75 19 91 35"/>
+        </g>
+        <g stroke="#a6ad73" stroke-opacity=".74">
+          <path d="M12 87h70l8 24-12 20H12z" fill="#586943"/>
+          <path d="M12 87h70l8 24-12 20H12z" fill="url(#crop)"/>
+          <path d="M12 138h62l-8 45H12z" fill="#49584a"/>
+          <path d="M12 138h62l-8 45H12z" fill="url(#crop-gold)"/>
+          <path d="M11 190h53l12 35H11z" fill="#4e7154"/>
+          <path d="M11 190h53l12 35H11z" fill="url(#crop)"/>
+          <path d="M178 152h74v30l-35 6-39-12z" fill="#49634e"/>
+          <path d="M178 152h74v30l-35 6-39-12z" fill="url(#crop-gold)"/>
+        </g>
+        <path d="M35 258v-20h56m65-27h113M193 147V94h76" fill="none" stroke="#a9d2ac" stroke-opacity=".3" stroke-dasharray="5 4"/>
+        <use href="#river" xlink:href="#river" fill="none" stroke="#0d2530" stroke-width="20"/>
+        <use href="#river" xlink:href="#river" fill="none" stroke="#37a3ab" stroke-width="12"/>
+        <use href="#river" xlink:href="#river" fill="none" stroke="url(#flow)" stroke-width="4"/>
+        <use href="#canal" xlink:href="#canal" fill="none" stroke="#15333b" stroke-width="12"/>
+        <use href="#canal" xlink:href="#canal" fill="none" stroke="#73e3cc" stroke-width="4.5"/>
+        <path d="M122 123c-12-12-17-24-8-27 11-4 25 16 30 26 4 8 6 17 1 24s-19-14-23-23z" fill="#59c7c3" fill-opacity=".76"/>
+        <path d="M171 102V46h75v56z" fill="#112526" stroke="#749579" stroke-opacity=".63"/>
+        <use href="#panel" xlink:href="#panel" x="178" y="51"/>
+        <use href="#panel" xlink:href="#panel" x="209" y="51"/>
+        <use href="#panel" xlink:href="#panel" x="178" y="76"/>
+        <use href="#panel" xlink:href="#panel" x="209" y="76"/>
+        <path d="M207 98v12h-26v25" fill="none" stroke="#ecbf7b" stroke-opacity=".78" stroke-width="1.8" stroke-dasharray="3 2"/>
+        <circle class="motion" r="2.8" fill="#ecfffb" stroke="#a1ffea" stroke-width="1.6">
+          <animateMotion dur="7s" repeatCount="indefinite"><mpath href="#river" xlink:href="#river"/></animateMotion>
+        </circle>
+        <circle class="motion" r="2.8" fill="#ecfffb" stroke="#a1ffea" stroke-width="1.6">
+          <animateMotion begin="1.5s" dur="5s" repeatCount="indefinite"><mpath href="#canal" xlink:href="#canal"/></animateMotion>
+        </circle>
+      </g>
+    </g>
+
+    <g>
+      <use href="#pin" xlink:href="#pin" x="1014" y="271"/>
+      <use href="#pin" xlink:href="#pin" x="903" y="247"/>
+      <use href="#pin" xlink:href="#pin" x="1112" y="314"/>
+      <circle class="motion" cx="1014" cy="271" r="13" fill="none" stroke="#a2fce0" stroke-opacity=".45" stroke-width="1.4">
+        <animate attributeName="r" values="8;25;25" dur="3.2s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0;.72;0" dur="3.2s" repeatCount="indefinite"/>
+      </circle>
+    </g>
+    <rect x=".75" y=".75" width="1278.5" height="558.5" rx="25" fill="none" stroke="#89bfa3" stroke-opacity=".56" stroke-width="1.5"/>
+  </g>
+</svg>
