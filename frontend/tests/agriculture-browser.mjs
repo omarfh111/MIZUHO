@@ -17,6 +17,8 @@ try {
     const selector = page.getByRole('combobox', { name: 'Pilot site' });
     if (viewport.width > 1000) {
       await page.route(`**/api/layers/${surveyId}/wapor`, route => route.fulfill({ status: 503 }));
+    } else {
+      await page.route(`**/api/layers/${surveyId}/wapor`, route => route.fulfill({ status: 502 }), { times: 1 });
     }
     await selector.selectOption(surveyId);
     const panel = page.getByRole('region', { name: 'Agricultural survey' });

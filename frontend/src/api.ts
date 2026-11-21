@@ -134,7 +134,11 @@ export async function getLayer(site: string, layer: LayerId, mode: DataMode, sig
     if (layer === 'wapor') throw new Error('No satellite survey for the demonstration site.');
     return demoLayers[layer];
   }
-  const data = await request<Layer>(`layers/${encodeURIComponent(site)}/${layer}`, signal);
+  const path = `layers/${encodeURIComponent(site)}/${layer}`;
+  const data = await request<Layer>(path, signal).catch((error) => {
+    if (signal.aborted || !(error instanceof ApiError) || ![500, 502, 503, 504].includes(error.status)) throw error;
+    return request<Layer>(path, signal);
+  });
   if (data.type !== 'FeatureCollection' || !Array.isArray(data.features)) throw unreadable();
   return { ...data, features: data.features.filter((feature) => feature.geometry && feature.properties) };
 }
