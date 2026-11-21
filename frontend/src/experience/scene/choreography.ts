@@ -64,8 +64,9 @@ export function makeKeys(world: World): Key[] {
     { s: 4, pos: V(v.x + 3.6, 2.6, v.z + 4.2), at: V(v.x + 0.1, v.y, v.z - 0.9), fov: 46, roll: -0.03, shift: 0.14 },
     { s: 4.5, pos: V(v.x + 1.7, 1.15, v.z + 1.7), at: V(v.x - 1.4, v.y + 0.1, v.z - 0.9), fov: 50, roll: -0.05, shift: 0.1 },
     // 5 · Energy: over the solar field, turbines turning on the ridge beyond.
-    { s: 5, pos: V(v.x + (sc.x - v.x) * 0.25 + 0.6, sc.y + 0.95, v.z + (sc.z - v.z) * 0.25 + 0.5), at: V(sc.x + (sc.x - v.x) * 0.4, sc.y + 0.3, sc.z + (sc.z - v.z) * 0.4), fov: 46, roll: 0.03, shift: -0.14 },
-    { s: 5.5, pos: V(v.x + 1.2, 2.4, v.z + 3.8), at: V(sc.x, sc.y + 0.2, sc.z), fov: 44, roll: -0.02, shift: -0.08 },
+    // Across the valley, looking down at the solar field with the ridge turbines beyond.
+    { s: 5, pos: V(v.x - (sc.x - v.x) * 0.55 + 0.4, Math.max(sc.y, v.y) + 2.6, v.z - (sc.z - v.z) * 0.55 + 0.3), at: V(sc.x + (sc.x - v.x) * 0.2, sc.y + 0.1, sc.z + (sc.z - v.z) * 0.2), fov: 42, roll: 0.02, shift: -0.14 },
+    { s: 5.5, pos: V(v.x + 1.2, Math.max(sc.y, v.y) + 3.2, v.z + 3.8), at: V(sc.x, sc.y + 0.1, sc.z), fov: 44, roll: -0.02, shift: -0.08 },
     // 6 · Renewables: rise to see Tunisia's operating wind and solar plants.
     { s: 6, pos: V(16, 150, 52), at: V(-2, 0, -38), fov: 40, roll: 0, shift: 0.14 },
     { s: 6.5, pos: V(4, 138, 46), at: V(-6, 0, -40), fov: 40, roll: 0.02, shift: 0.12 },

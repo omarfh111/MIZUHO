@@ -39,6 +39,12 @@ export function CameraRig({ world, director, hud }: { world: World; director: Di
     const sway = altitude * 0.01;
     pos.addScaledVector(right, pointer.x * altitude * 0.05 + Math.sin(t * 0.37) * sway);
     pos.y += pointer.y * altitude * 0.03 + Math.sin(t * 0.53) * sway * 0.6;
+    // Never dip below the ground: spline overshoot between low keys could sink the lens
+    // under the terrain. Keep a clearance that grows with distance to the subject.
+    const clearance = 0.32 + Math.min(1.2, pos.distanceTo(at) * 0.06);
+    const floor = Math.max(world.heightAt(pos.x, pos.z), world.valley.center.y) + clearance;
+    if (pos.y < floor) pos.y = floor;
+    if (at.y > pos.y - 0.05) at.y = pos.y - 0.05;
     camera.position.copy(pos);
     camera.up.copy(THREE.Object3D.DEFAULT_UP);
     camera.lookAt(at);
