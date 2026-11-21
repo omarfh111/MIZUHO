@@ -7,7 +7,7 @@
 
 <h1>MIZUHO</h1>
 
-<p><em>Renewable-powered water intelligence for Tunisian agriculture.<br>Map the Jendouba pilot, compare irrigation schedules during a power outage, and ask an evidence assistant why.</em></p>
+<p><em>When the grid goes down, how long will water deliveries and essential household electricity last?<br>Explore Tunisian sites, test an outage and replay the consequences hour by hour.</em></p>
 
 [![M6 API and planning](https://img.shields.io/badge/M6-API_%26_CP--SAT_planning-62e3f0?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
 [![M7 3D dashboard](https://img.shields.io/badge/M7-3D_dashboard-c9ef86?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
@@ -262,6 +262,15 @@ Start in **Land & agriculture → Tunisia**, select a city and inspect its clima
 3. With the A/B result current, open **Ask Mizhuo** and ask *Why did grower A receive only 5 m³ in the A/B demo?* The assistant can use M6's current comparison. Ask *What does ANME say about photovoltaic potential in northwest Tunisia?*, open the citation, then ask *Which official source did you just cite?* to check the session follow-up.
 4. Change the water stock to see the result marked stale until recalculated. Select **Day-ahead weather reserve** to see the proposed plan pump **2 m³** before **11:00**, raising on-time delivery from **6 m³** to **8 m³**. With a quota of **5 m³**, the remaining shortfall is **2 m³**. **Day-ahead reserve · Stable profile** requires **0 m³** of early pumping.
 
+### Replay an outage across the farm and the community
+
+1. Open **Irrigation planning** on the Jendouba normal day. Select **Test outage resilience**, choose a coverage target and run the grid. A full day includes 16 combinations of outage start and duration. Open a cell to see the minimum water reserve the solver can verify and the first parcel to miss its deadline. Short pilot scenarios use their remaining time window.
+2. Replay the selected hour in 3D. Switch between fixed turns, fair sharing and urgent-parcel priority. Compare the physical tank level with the virtual meter during a loss or a sensor error. The three-day heat test carries both stock and the unused withdrawal quota forward. The infrastructure comparison keeps the initial stock fixed when increasing tank capacity and accounts separately for backup electricity.
+3. Choose **Community electricity** in the same case. Set the number of homes, their continuous and lighting loads, usable backup energy and island-capable output. The residential circuit has its own supply. A city without irrigation records can run the same household balance from the national atlas. [Household backup assumptions](https://www.energy.gov/cmei/systems/solar-and-resilience-basics)
+4. Repeat the farm experiment at Korba, Chebika or Gafsa after supplying the station assumptions. The regional scenes use the local relief and satellite imagery. Modelled delivery sectors and pipes illustrate the scenario. The Assila survey displays its mapped parcels and remains outside the irrigation optimizer while equipment, quotas and demands are unknown. [Local footprints and provenance](data/field_zones/README.md) · [Weather and planning assumptions](data/zone_planning/README.md)
+
+For a short jury demonstration, choose **Test the limited-pump example** in Jendouba. The simulated station starts with 12 m³, a 65 m³ withdrawal quota and a 2 m³/h pump. At 11:00, the four-hour interruption leaves the least-served plot at **90%** and a **4 m³** total shortfall against timely minimums. A minimum **13 m³** of usable stock at the cut can meet the chosen **80%** target when pumping ahead is permitted. Extending the same interruption to eight hours drops coverage to **70%** with a **12 m³** shortfall. The solver proves the target unreachable in that case. [Reproducible solver checks](tests/test_resilience.py)
+
 ### Replay the M6 API fixture
 
 From the repository root with FastAPI running, send the request from the [versioned A/B fixture](data/fixtures/compare.json).
@@ -299,6 +308,8 @@ The running backend serves [OpenAPI documentation](http://127.0.0.1:8000/docs).
 | Archived solar comparison, hourly PV and planning weather | `POST /api/solar/compare-archive`, `POST /api/solar/profile`, `POST /api/weather` |
 | Verified replay and virtual instrumentation | `POST /api/telemetry/replay`, `POST /api/telemetry/project`, `POST /api/telemetry/forecast` |
 | Irrigation and solar | `POST /api/compare`, `POST /api/solar/compare` |
+| Outage stress test | `POST /api/sites/{site_id}/resilience/grid` runs the coverage matrix. `POST /api/sites/{site_id}/resilience/case` returns the selected outage, candidate schedules, incident readings, heat replays and backup comparison. Both accept the same site planning inputs. |
+| Household electricity | `POST /api/resilience/households` projects hourly demand, energy supplied, unmet load and remaining usable AC energy. The result includes the first shortfall, the energy required for the whole outage and peak island-capable output required. |
 | Sources and retrieval | `GET /api/evidence/{source_id}`, `GET /api/evidence/{source_id}/passages`, `POST /api/evidence/search` |
 | Evidence assistant | `POST /api/assistant/chat`, `GET /api/assistant/health`, `GET /api/assistant/index` |
 
