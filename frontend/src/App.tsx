@@ -69,7 +69,7 @@ export default function App() {
           <span className="brand-mark"><Waves size={24} strokeWidth={2.4} /></span>
           <span>Miz<strong>huo</strong><small>AGRICULTURAL OBSERVATORY</small></span>
         </a>
-        <nav className="main-nav" aria-label="Navigation principale">
+        <nav className="main-nav" aria-label="Main navigation">
           <a href="#map" aria-current={page === 'map' ? 'page' : undefined}><Map size={16} /> Site map</a>
           <a href="#simulation" aria-current={page === 'simulation' ? 'page' : undefined}><Activity size={17} /> Simulation</a>
         </nav>

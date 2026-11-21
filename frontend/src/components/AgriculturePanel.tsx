@@ -9,14 +9,22 @@ export default function AgriculturePanel({ siteId, plotId, onEvidence }: {
 }) {
   const [survey, setSurvey] = useState<AgriculturalSurvey | null>(null);
   const [failed, setFailed] = useState(false);
+  const [attempt, retry] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     getAgriculture(siteId, controller.signal).then(data => {
       if (!controller.signal.aborted) setSurvey(data);
     }).catch(() => { if (!controller.signal.aborted) setFailed(true); });
     return () => controller.abort();
-  }, [siteId]);
-  if (!survey) return <p role="status">{failed ? 'Agricultural survey unavailable.' : 'Loading agricultural survey…'}</p>;
+  }, [siteId, attempt]);
+  if (failed) return <div className="surface page-fallback">
+    <p role="alert">Agricultural survey unavailable.</p>
+    <button type="button" className="button button-secondary" onClick={() => {
+      setFailed(false);
+      retry((value) => value + 1);
+    }}>Retry survey</button>
+  </div>;
+  if (!survey) return <p role="status">Loading agricultural survey…</p>;
   const parcels = plotId ? survey.parcels.filter(p => p.plot_id === plotId) : survey.parcels;
   const selected = plotId ? parcels[0] : undefined;
   return <section className="surface survey-panel" aria-label="Agricultural survey">

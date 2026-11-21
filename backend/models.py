@@ -523,6 +523,7 @@ class AssistantRequest(PlanningModel):
     question: Annotated[str, StringConstraints(min_length=3, max_length=1600, strip_whitespace=True)]
     site_id: Annotated[str, Field(min_length=1, max_length=120)]
     solar_option_id: Annotated[str, Field(min_length=1, max_length=120)] | None = None
+    pvgis_option_id: Literal["ombriere", "toiture"] | None = None
     comparison: CompareRequest | None = None
     telemetry: AssistantTelemetry | None = None
     recent_questions: Annotated[tuple[Annotated[str, StringConstraints(max_length=1600)], ...], Field(max_length=3)] = ()

@@ -14,7 +14,7 @@ from .models import (
 from .providers import Providers, ServiceError
 from .simulator import StateError
 from .solar import compare_option
-from tools.m2m3.mizu_m2m3.solar import simulation_solar_profile
+from tools.m2m3.mizu_m2m3.solar import compare_solar, simulation_solar_profile
 
 
 class ScenarioArgs(PlanningModel):
@@ -103,7 +103,27 @@ def get_site_data(turn: Turn, args: SiteArgs) -> dict:
         if layer_site == site_id:
             facts.append(turn.fact(f"{layer_id.value.title()} layer: {layer.status.value}; "
                                    f"{len(layer.features)} mapped features.", layer.status))
-    if args.include_solar and (solar := turn.catalog.solar.get(site_id)):
+    selected_archive = turn.request.pvgis_option_id
+    solar = turn.catalog.solar.get(site_id)
+    if selected_archive:
+        option_ids = ["ombriere", "toiture"] if args.include_solar else [selected_archive]
+        for option in compare_solar(site_id, option_ids):
+            selected = option["id"] == selected_archive
+            selection = " (selected in the interface)" if selected else ""
+            avoided = option["grid_avoided_kwh"]
+            modeled_load = (
+                f"{avoided:g} kWh of grid energy avoided against simulated load."
+                if avoided is not None else "Grid energy avoided is unavailable for this day."
+            )
+            fact = turn.fact(
+                f"{option['label']}{selection}: {option['capacity_kwp']:g} kWp; "
+                f"{option['production_kwh']:g} kWh estimated production on the archived PVGIS-SARAH3 "
+                f"reference day {option['profile_date']}. {modeled_load}", Provenance.ESTIMATED, remember=True,
+            )
+            facts.append(fact)
+            if selected:
+                turn.requested_facts.add(fact.id)
+    elif args.include_solar and solar:
         for option in solar.options:
             result = compare_option(solar, option, None)
             selection = " (selected in the interface)" if option.id == turn.request.solar_option_id else ""
@@ -113,6 +133,7 @@ def get_site_data(turn: Turn, args: SiteArgs) -> dict:
                 f"Azimuth {option.azimuth_deg}°, tilt {option.tilt_deg}°.",
                 option.provenance, remember=True,
             ))
+    if args.include_solar:
         comparison = turn.request.comparison
         archive_id = comparison.overrides.pvgis_option_id if comparison and comparison.overrides else None
         if archive_id:
@@ -126,11 +147,14 @@ def get_site_data(turn: Turn, args: SiteArgs) -> dict:
     missing = []
     if site.status == Provenance.SIMULATED:
         missing.append("The pilot has no observed borehole levels, pumping test or metered well withdrawals.")
-    if args.include_solar:
+    if args.include_solar or selected_archive:
         missing.append("Site-level measured load and verified annual costs are unavailable. The archived "
                        "PVGIS profiles estimate production at the Jendouba reference coordinates.")
     explanation = "The site and layer records below identify which pilot data are available and how they were obtained."
-    if args.include_solar and solar:
+    if selected_archive:
+        explanation = ("Archived PVGIS estimates describe the reference location and day. "
+                       "Grid savings use simulated pumping demand. A field recommendation requires site measurements.")
+    elif args.include_solar and solar:
         explanation = ("The solar options are compared using their modeled generation and avoided grid energy. "
                        "Those results describe the modeled day. A field recommendation requires site measurements.")
     turn.explanations["site"] = GroundedParagraph(text=explanation, citation_ids=(),
@@ -173,7 +197,7 @@ def scenario_request(turn: Turn, args: ScenarioArgs) -> CompareRequest:
     if turn.request.simulation_pending and args.scenario_id in (None, turn.request.selected_scenario_id):
         turn.gaps.add("Simulation inputs changed. Recalculate the schedules before asking about current results.")
         raise InputError("scenario_id", "The current simulation needs to be recalculated.")
-    scenario_id = args.scenario_id or turn.remembered_scenario_id or turn.request.selected_scenario_id
+    scenario_id = args.scenario_id or turn.request.selected_scenario_id or turn.remembered_scenario_id
     scenario = turn.catalog.scenarios.get(scenario_id or "")
     if scenario is None or scenario.site_id != turn.request.site_id:
         raise InputError("scenario_id", "Choose a scenario at the current site or run a simulation first.")
@@ -351,6 +375,7 @@ def run_tool(turn: Turn, name: str, arguments: str) -> dict:
         return {"error": gap}
     except ValueError:
         return {"error": "Invalid tool arguments or data."}
+    turn.gaps.update(result.get("missing_information", ()))
     if name not in turn.tools_used:
         turn.tools_used.append(name)
     return result

@@ -128,9 +128,11 @@ export default function AssistantPanel({ site, mode, solar, simulation, open, cl
       if (!controller.signal.aborted) setTurns((previous) => [...previous.slice(0, -1), entry]);
       request.current = null;
     };
+    const archive = solar?.source_id === 'pvgis-sarah3-jendouba-2023';
     askAssistant({
-      provider, question: prompt, site_id: site.properties.site_id,
-      solar_option_id: solar?.source_id === 'pvgis-sarah3-jendouba-2023' ? undefined : solar?.id, session_id: sessionId,
+      provider, question: prompt, site_id: site.properties.site_id, session_id: sessionId,
+      solar_option_id: archive ? undefined : solar?.id,
+      pvgis_option_id: archive && (solar.id === 'ombriere' || solar.id === 'toiture') ? solar.id : undefined,
       comparison: simulation?.comparison, selected_scenario_id: simulation?.scenarioId,
       simulation_revision: simulation?.revision, simulation_pending: simulation?.pending,
       telemetry: simulation?.telemetry,

@@ -23,12 +23,15 @@ function Stat({ label, title, reference, unit, icon, tone }: {
 function WeatherDecision({ weather, onEvidence }: { weather: WeatherComparison; onEvidence: Props['onEvidence'] }) {
   const buffer = weather.buffer_on_adverse.metrics;
   const reference = weather.reference_on_adverse.metrics;
+  const noEarlyPumping = weather.remaining_deficit_m3 > 0
+    ? 'No early pumping scheduled · shortfall remains'
+    : 'No early pumping needed';
   return <section className="surface weather-panel" aria-labelledby="weather-title">
     <div className="weather-copy">
       <div className="eyebrow"><CloudSun size={17} /> DAY-AHEAD WEATHER RESERVE</div>
       <h2 id="weather-title">{weather.early_pump_m3 > 0
         ? `Pump ${value(weather.early_pump_m3)} m³ before ${clockHour(weather.before_slot)}`
-        : 'No early pumping needed'}</h2>
+        : noEarlyPumping}</h2>
       <p>{weather.reason ?? 'Both plans use the same adverse weather profile.'}</p>
       <div className="weather-facts"><span>Expected water stock <b>{value(weather.expected_stock_m3)} m³</b></span>
         <span>Remaining quota <b>{value(weather.quota_remaining_m3 ?? buffer?.quota_remaining_m3)} m³</b></span>

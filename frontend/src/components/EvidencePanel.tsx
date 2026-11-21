@@ -1,5 +1,5 @@
 import { BookOpenText, ExternalLink } from 'lucide-react';
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { getEvidence, getPassages, type DataMode } from '../api.ts';
 import { dateLabel } from '../format.ts';
@@ -10,7 +10,7 @@ export function Modal({ title, icon, children, close, wide = false, kind = '' }:
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = dialog.current!;
     element.showModal();
     return () => { element.close(); };

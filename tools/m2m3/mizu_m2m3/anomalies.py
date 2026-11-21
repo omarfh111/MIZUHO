@@ -1,4 +1,5 @@
 import math
+from statistics import mean
 
 import pandas as pd
 
@@ -41,7 +42,8 @@ def analyze_telemetry(series, reference_kwh_per_m3=None, *, initial_stock_m3=Non
                 alerts.append(_record("unexplained_water", site_id, time, time, value, 0, "m³", data.loc[[time]]))
 
         valid = data.pumped_m3.gt(0) & data.grid_available.astype("boolean").fillna(False)
-        ratio = data.consumed_wh.div(data.pumped_m3.where(valid)).div(1000)
+        ratio = data.consumed_wh.div(1000).div(data.pumped_m3.where(valid))
+        ratio = ratio.where(ratio.map(math.isfinite))
         comparable = ratio.notna()
         diagnostics.append({
             "site_id": site_id,
@@ -59,7 +61,7 @@ def analyze_telemetry(series, reference_kwh_per_m3=None, *, initial_stock_m3=Non
             if len(readings) >= 2:
                 alerts.append(_record(
                     "high_pump_energy_intensity", site_id, readings.index[0], readings.index[-1],
-                    readings.mean(), reference_kwh_per_m3, "kWh/m³", data.loc[readings.index],
+                    mean(readings), reference_kwh_per_m3, "kWh/m³", data.loc[readings.index],
                 ))
     alerts.sort(key=lambda alert: (alert["site_id"], alert["period"]["start"], alert["type"]))
     return {"alerts": alerts, "diagnostics": diagnostics}

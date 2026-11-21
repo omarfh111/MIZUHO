@@ -11,11 +11,11 @@ from langsmith import tracing_context
 from .assistant_memory import AssistantMemory, recall
 from .assistant_tools import TOOLS, Turn, run_tool
 from .catalog import Catalog
-from .compare import InputError
+from .compare import InputError, effective_scenario
 from .evidence import Corpus
 from .models import AssistantAnswer, AssistantRequest, GroundedParagraph
 from .providers import Providers, ServiceError
-from .simulator import validate_state
+from tools.m2m3.mizu_m2m3.solar import simulation_solar_profile
 
 MAX_ROUNDS = 4
 MAX_CALLS = 6
@@ -29,7 +29,7 @@ When simulation inputs have changed, ask the user to recalculate before discussi
 Select tools yourself. Use get_agricultural_insights for parcel boundaries, WaPOR water use, temperature
 associations and missing farming inputs. Water use from satellites is distinct from irrigation demand.
 Use explain_decision for allocation reasons, get_simulation_results for actual or
-reduced-quota results, get_site_data for solar and provenance, and search_evidence when external evidence is
+reduced-quota results, get_site_data with include_solar=true for solar profiles and output, and search_evidence when external evidence is
 requested or relied on. For photovoltaic potential search for ANME in Tunisia and cite the relevant verified passage.
 An option selected in the interface is a modeled comparison, not a field-verified recommendation.
 You may call multiple complementary tools. If a hypothetical quota is unspecified, ask for the target quota;
@@ -74,14 +74,16 @@ ANSWER_SCHEMA = object_schema({
     "missing_information": STRINGS,
 })
 SCENARIO_ARGS = object_schema({
-    "scenario_id": {"type": ["string", "null"], "description": "Null uses the current comparison; otherwise a scenario ID from the catalog."},
+    "scenario_id": {"type": ["string", "null"], "description": "Null uses the current comparison or selection. For a different or previously discussed preset, pass its scenario ID."},
     "quota_m3": {"type": ["integer", "null"], "description": "Optional reduced quota in whole cubic meters; null preserves the current quota."},
 })
 ARGUMENT_SCHEMAS = {
     "get_sensor_anomalies": object_schema({}),
     "get_agricultural_insights": object_schema({"plot_id": {"type": ["string", "null"]}}),
     "search_evidence": object_schema({"query": STRING}),
-    "get_site_data": object_schema({"include_solar": {"type": "boolean"}}),
+    "get_site_data": object_schema({"include_solar": {
+        "type": "boolean", "description": "True for solar production, configurations, or grid savings.",
+    }}),
     "get_simulation_results": SCENARIO_ARGS,
     "explain_decision": SCENARIO_ARGS,
 }
@@ -112,15 +114,35 @@ def think(state: GraphState) -> dict:
         "include": ["reasoning.encrypted_content"],
         "text": {"format": {"type": "json_schema", "name": "grounded_answer", "strict": True, "schema": ANSWER_SCHEMA}},
     }, timeout=turn.remaining(16))
-    items = [item for item in data["output"] if isinstance(item, dict)]
-    pending = [
-        item for item in items if item.get("type") == "function_call"
-        and all(isinstance(item.get(field), str) for field in ("call_id", "name", "arguments"))
-    ]
-    text = "".join(
-        part["text"] for item in items if item.get("type") == "message"
-        for part in item.get("content", []) if part.get("type") == "output_text" and isinstance(part.get("text"), str)
-    )
+    service = "NVIDIA response" if turn.request.provider == "nvidia" else "OpenAI Responses"
+    items = data.get("output")
+    if not isinstance(items, list):
+        raise ServiceError(service)
+    pending: list[dict] = []
+    call_ids: set[str] = set()
+    text_parts: list[str] = []
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get("type"), str):
+            raise ServiceError(service)
+        if item["type"] == "function_call":
+            if not all(isinstance(item.get(field), str) and item[field] for field in ("call_id", "name", "arguments")):
+                raise ServiceError(service)
+            if item["call_id"] in call_ids:
+                raise ServiceError(service)
+            pending.append(item)
+            call_ids.add(item["call_id"])
+        elif item["type"] == "message":
+            content = item.get("content")
+            if not isinstance(content, list):
+                raise ServiceError(service)
+            for part in content:
+                if not isinstance(part, dict) or not isinstance(part.get("type"), str):
+                    raise ServiceError(service)
+                if part["type"] == "output_text":
+                    if not isinstance(part.get("text"), str):
+                        raise ServiceError(service)
+                    text_parts.append(part["text"])
+    text = "".join(text_parts)
     answer = {}
     if text and not pending:
         try:
@@ -217,13 +239,13 @@ def finalize(turn: Turn, answer: dict) -> AssistantAnswer:
         for paragraph in paragraphs:
             used.update((key, turn.facts[key]) for key in paragraph.fact_ids)
         used.update(selected_facts)
-        if not cited:
-            cited.update(turn.evidence_matches)
         if not paragraphs and used:
             paragraphs.append(GroundedParagraph(
                 text="These verified results describe the available context. I could not establish a further explanation from them.",
                 citation_ids=(), fact_ids=tuple(used),
             ))
+    if not cited:
+        cited.update(turn.evidence_matches)
     for citation in cited.values():
         paragraphs.append(GroundedParagraph(
             text=f"The verified passage from {citation.organization} covers {citation.section}.",
@@ -263,6 +285,13 @@ def run_assistant(request: AssistantRequest, catalog: Catalog, corpus: Corpus, p
         site = catalog.solar.get(request.site_id)
         if site is None or request.solar_option_id not in {option.id for option in site.options}:
             raise InputError("solar_option_id", "Unknown solar option for this site.")
+    if request.pvgis_option_id is not None:
+        if request.solar_option_id is not None:
+            raise InputError("pvgis_option_id", "Select either the archived or simulated solar profile.")
+        try:
+            simulation_solar_profile(request.site_id, request.pvgis_option_id)
+        except ValueError:
+            raise InputError("pvgis_option_id", "No matching archived solar profile for this site.") from None
     comparison = request.comparison
     if request.telemetry and comparison is None:
         raise InputError("telemetry", "A sensor replay requires an active comparison.")
@@ -276,7 +305,7 @@ def run_assistant(request: AssistantRequest, catalog: Catalog, corpus: Corpus, p
         scenario = catalog.scenarios.get(comparison.scenario_id)
         if scenario is None or scenario.site_id != request.site_id:
             raise InputError(("comparison", "scenario_id"), "The comparison must belong to the current site.")
-        validate_state(scenario, comparison.state)
+        effective_scenario(catalog, comparison)
     turn = Turn(request, catalog, corpus, providers, monotonic() + TURN_TIMEOUT, solver_budget)
     if memory is None or request.session_id is None:
         return answer_turn(turn, [])
@@ -291,6 +320,7 @@ def answer_turn(turn: Turn, prior_answers: list[dict]) -> AssistantAnswer:
     request = turn.request
     context = {
         "site": request.site_id, "selected_solar": request.solar_option_id,
+        "selected_pvgis": request.pvgis_option_id,
         "active_scenario": request.comparison.scenario_id if request.comparison else None,
         "selected_scenario": request.selected_scenario_id,
         "sensor_replay": ({"plan": request.telemetry.plan, "selected_slot": request.telemetry.selected_slot}

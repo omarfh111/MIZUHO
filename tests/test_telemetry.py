@@ -67,6 +67,21 @@ def test_twin_replays_the_actual_m4_ledger(client, plan, allocations):
     assert result["alerts"] == []
 
 
+def test_replanning_and_replay_validate_completed_deliveries_against_overridden_demand(client):
+    state = {"current_slot": 9, "tank_stock_m3": 12, "quota_remaining_m3": 49,
+             "delivered_by_plot_m3": {"A": 16}, "delivered_on_time_by_plot_m3": {"A": 16}}
+    payload = replay_request(client, "normal", state=state, overrides={"demand_by_plot_m3": {"A": 18}})
+    result = replay(client, payload)
+    assert result["frames"][0]["slot"] == 9
+    parcel = next(p for p in result["frames"][-1]["parcels"] if p["plot_id"] == "A")
+    assert parcel["demand_m3"] == parcel["delivered_on_time_m3"] == 18
+
+    invalid = {**payload["comparison"], "overrides": {"demand_by_plot_m3": {"A": 15}}}
+    response = client.post("/api/compare", json=invalid)
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", "overrides", "demand_by_plot_m3", "A"]
+
+
 def test_missing_sensor_and_fictitious_meter_offset_change_only_observations(client):
     payload = replay_request(client)
     original = replay(client, payload)
@@ -136,6 +151,30 @@ def test_energy_anomaly_requires_consecutive_valid_readings(client):
     assert sun["quality"] == "unavailable" and sun["value"] is None
 
 
+@pytest.mark.parametrize("timestamp", ["0001-01-01T00:00:00+01:00", "9999-12-31T23:00:00Z"])
+def test_projection_rejects_utc_hour_boundary_overflow(client, timestamp):
+    state = {"site_id": SITE, "timestamp": timestamp, "simulation_slot": 0, "tank_stock_m3": 0,
+             "pumped_m3": 0, "water_in_m3": 0, "distributed_m3": 0, "consumed_wh": 0, "grid_available": True}
+    response = client.post("/api/telemetry/project", json={"states": [state]})
+    assert response.status_code == 422
+    detail, = response.json()["detail"]
+    assert detail["loc"] == ["body", "states"]
+    assert "UTC datetime range" in detail["msg"]
+
+
+def test_projection_does_not_publish_nonfinite_energy_intensity(client):
+    states = [
+        {"site_id": SITE, "timestamp": f"2026-11-21T0{slot}:00:00+01:00", "simulation_slot": slot,
+         "tank_stock_m3": 0, "pumped_m3": 1e-310, "water_in_m3": 0, "distributed_m3": 0,
+         "consumed_wh": 1e9, "grid_available": True}
+        for slot in range(2)
+    ]
+    response = client.post("/api/telemetry/project", json={"states": states, "reference": 0.5})
+    assert response.status_code == 200, response.text
+    assert response.json()["alerts"] == []
+    assert response.json()["diagnostics"][0]["pump_energy_intensity"] == "insufficient_data"
+
+
 def test_archived_profiles_feed_planning_and_have_traceable_options(client):
     for option, azimuth in (("toiture", 145), ("ombriere", 180)):
         response = client.post("/api/solar/profile", json={"site_id": SITE, "option_id": option})
@@ -167,6 +206,15 @@ def test_demand_forecast_uses_only_archived_history_and_clear_cutoff(client):
     for cutoff in ("2026-10-17T12:00:00+01:00", "2099-01-01T00:00:00+01:00"):
         limited = forecast(cutoff)
         assert limited["status"] == "insufficient_history" and limited["points"] == []
+
+
+@pytest.mark.parametrize("cutoff", [
+    "0001-01-01T00:00:00+01:00", "9999-12-31T19:00:00-05:00", "9999-12-31T23:00:00Z",
+])
+def test_forecast_rejects_cutoffs_outside_utc_or_local_range(client, cutoff):
+    response = client.post("/api/telemetry/forecast", json={"site_id": SITE, "as_of": cutoff})
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", "as_of"]
 
 
 def test_archived_comparison_reports_only_costs_supported_by_simulated_load(client):
