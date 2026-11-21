@@ -203,6 +203,38 @@ tr.click:hover td { background: color-mix(in srgb, var(--plot) 5%, transparent);
 .elim li { font-size: 13px; margin: 4px 0; }
 @media (max-width: 680px) { .fstage { grid-template-columns: minmax(0, 1fr); gap: 2px; } }
 
+/* assistant chat */
+.fab { position: fixed; right: 20px; bottom: 20px; z-index: 1200; border-radius: 99px; padding: 12px 18px; font-size: 15px; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+.chat { position: fixed; right: 20px; bottom: 20px; z-index: 1300; width: 420px; max-width: calc(100vw - 32px); height: min(680px, calc(100vh - 40px));
+  display: none; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.3); overflow: hidden; }
+.chat.open { display: flex; }
+.chat-h { padding: 12px 14px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; background: var(--panel-2); }
+.chat-h .row1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.chat-h b { font-size: 15px; }
+.chat-h select { min-width: 0; font-size: 13px; padding: 4px 6px; }
+.chat-h .st { font-size: 11px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.chat-h .st i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; background: var(--idle); }
+.chat-h .st i.on { background: var(--ok); } .chat-h .st i.off { background: var(--bad); }
+.close { background: transparent; border: 0; color: var(--muted); font-size: 20px; padding: 0 4px; }
+.msgs { flex: 1; overflow-y: auto; padding: 14px; display: grid; gap: 12px; align-content: start; }
+.msg { max-width: 92%; padding: 10px 12px; border-radius: 12px; font-size: 14px; line-height: 1.55; }
+.msg p { margin: 0 0 6px; } .msg p:last-child { margin: 0; }
+.msg.user { justify-self: end; background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 4px; }
+.msg.bot { justify-self: start; background: var(--panel-2); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.msg.bot sup a { color: var(--accent); text-decoration: none; font-weight: 700; }
+.msg .cites { margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--line); font-size: 12px; display: grid; gap: 4px; }
+.msg .cites a { color: var(--accent); }
+.msg .mmeta { margin-top: 6px; font-size: 11px; color: var(--muted); }
+.sugg { margin-top: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--warn); background: var(--warn-bg); font-size: 13px; display: grid; gap: 6px; }
+.sugg .acts { display: flex; gap: 6px; }
+.sugg button { padding: 4px 10px; font-size: 12px; }
+.starters { display: flex; flex-wrap: wrap; gap: 6px; }
+.starters button { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); font-weight: 500; font-size: 12px; padding: 6px 10px; text-align: left; }
+.typing { font-size: 13px; color: var(--muted); }
+.chat-f { border-top: 1px solid var(--line); padding: 10px; display: flex; gap: 8px; }
+.chat-f textarea { flex: 1; font: inherit; font-size: 14px; resize: none; height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); color: var(--ink); }
+@media (max-width: 680px) { .chat { right: 8px; left: 8px; bottom: 8px; width: auto; max-width: none; height: calc(100vh - 16px); } .fab { right: 12px; bottom: 12px; } }
+
 @media (max-width: 960px) {
   .wrap { grid-template-columns: minmax(0, 1fr); }
   nav { position: static; display: flex; overflow-x: auto; gap: 4px; padding-bottom: 4px; scrollbar-width: none; }
@@ -354,6 +386,21 @@ tr.click:hover td { background: color-mix(in srgb, var(--plot) 5%, transparent);
     </section>
   </main>
 </div>
+
+<button class="fab" id="fab" onclick="openChat()">💬 Assistant</button>
+<aside class="chat" id="chat" role="dialog" aria-label="Assistant MIZU NEXUS">
+  <div class="chat-h">
+    <div class="row1"><b>✦ Assistant MIZU NEXUS</b>
+      <span><select id="chatplot" aria-label="Parcelle" onchange="chatPlot=this.value;renderChat()"><option>P-01</option><option>P-02</option><option>P-03</option><option>P-04</option><option>P-05</option></select>
+      <button class="close" onclick="closeChat()" aria-label="Fermer">×</button></span></div>
+    <div class="st" id="chatst">…</div>
+  </div>
+  <div class="msgs" id="msgs" aria-live="polite"></div>
+  <form class="chat-f" onsubmit="event.preventDefault();sendChat()">
+    <textarea id="chatin" placeholder="Votre question ou ce que vous observez…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+    <button type="submit">Envoyer</button>
+  </form>
+</aside>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -709,6 +756,83 @@ async function sendFb(cause, verdict) {
   try { await post("/api/causes/feedback", {plot_id: cplot, cause_id: cause, verdict, note}); await step8(); }
   catch (e) { alert(e.message); }
 }
+
+/* assistant chat */
+const CHATS = {};  // plot_id -> [{role, content, meta}]
+let chatPlot = "P-03", chatBusy = false;
+const STARTERS = ["Pourquoi ma parcelle manque d'eau en été ?", "La chaleur est-elle la cause ?",
+  "Que dois-je vérifier sur le terrain ?", "D'où viennent ces données ?", "Que veut dire « rapport 0,25 » ?"];
+function openChat() {
+  $("chat").classList.add("open"); $("fab").style.display = "none";
+  chatPlot = (typeof cplot !== "undefined" && cplot) || chatPlot; $("chatplot").value = chatPlot;
+  renderChat(); chatStatus(); setTimeout(() => $("chatin").focus(), 50);
+}
+function closeChat() { $("chat").classList.remove("open"); $("fab").style.display = ""; }
+async function chatStatus() {
+  try {
+    const s = await get("/api/assistant/status");
+    const dot = ok => `<i class="${ok ? "on" : "off"}"></i>`;
+    $("chatst").innerHTML = `<span>${dot(s.llm.configured)}LLM ${esc(s.llm.model.split("/").pop())}</span><span>${dot(s.jev.configured)}Jev</span>` +
+      `<span>${dot(s.rag.points > 0)}Qdrant ${esc(s.rag.qdrant.startsWith("local") ? "local" : "cloud")} · ${s.rag.points} extraits</span>`;
+  } catch (e) { $("chatst").textContent = "statut indisponible"; }
+}
+function citeLinks(text, cites) {
+  let h = mdLite(text);
+  return h.replace(/\[S(\d+)\]/g, (m, n) => cites.some(c => c.n === "S" + n) ? `<sup><a href="#cite-${n}" title="Source S${n}">[S${n}]</a></sup>` : m);
+}
+function renderChat() {
+  const msgs = CHATS[chatPlot] || [];
+  let h = "";
+  if (!msgs.length) h += `<div class="msg bot"><p>Bonjour. Je suis l'assistant MIZU NEXUS. J'ai accès aux analyses de la parcelle <b>${esc(chatPlot)}</b> (besoins, effet de la température, causes) et à des documents de référence (FAO, NASA, cahier des charges).</p><p>Posez-moi une question, ou racontez-moi ce que vous observez sur le terrain : je peux en faire un avis pour l'analyse des causes.</p></div>
+    <div class="starters">${STARTERS.map(s => `<button onclick="sendChat(${esc(JSON.stringify(s))})">${esc(s)}</button>`).join("")}</div>`;
+  msgs.forEach((m, i) => {
+    if (m.role === "user") { h += `<div class="msg user">${esc(m.content)}</div>`; return; }
+    const meta = m.meta || {};
+    if (meta.error) { h += `<div class="msg bot"><p class="err">${esc(meta.error)}</p></div>`; return; }
+    const cites = meta.citations || [];
+    h += `<div class="msg bot">${citeLinks(m.content, cites)}`;
+    if (cites.length) h += `<div class="cites">${cites.map(c => { const n = c.n.slice(1);
+      const link = c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.title)}</a>` : `${esc(c.title)} <code>${esc(c.path || "")}</code>`;
+      return `<div id="cite-${n}"><b>[${c.n}]</b> ${link} · ${esc(c.organisation || "")}</div>`; }).join("")}</div>`;
+    const sg = meta.suggested_feedback;
+    if (sg && !meta.fbDone) {
+      const vlab = {confirm: "Confirmer", reject: "Rejeter", unsure: "Je ne sais pas"}[sg.verdict];
+      h += `<div class="sugg"><div>Vous m'avez donné une information sur <b>${esc(sg.cause_label)}</b>. L'enregistrer comme avis « <b>${vlab}</b> » pour l'analyse des causes de ${esc(chatPlot)} ?</div>
+        <div class="acts"><button onclick="saveSugg(${i})">Enregistrer</button><button class="ghost" onclick="dropSugg(${i})">Ignorer</button></div></div>`;
+    } else if (sg && meta.fbDone === "saved") h += `<div class="mmeta">✓ Avis enregistré : ${esc(sg.cause_label)}.</div>`;
+    h += `<div class="mmeta">${meta.check ? (meta.check.ok ? `✓ ${meta.check.numbers} chiffres vérifiés` : `⚠ chiffres absents des analyses : ${esc(meta.check.unknown.join(", "))}`) : ""}
+      ${meta.verification ? (meta.verification.flagged ? ` · <span style="color:var(--bad)">⚠ le vérificateur Jev doute d'une affirmation (risque ${Math.round(meta.verification.risk * 100)} %) : à vérifier</span>`
+        : ` · ✓ relu par Jev (risque ${Math.round(meta.verification.risk * 100)} %${meta.verification.regenerated ? `, réécrite : ${Math.round(meta.verification.first_risk * 100)} % au départ` : ""})`) : ""}
+      · ${meta.retrieved || 0} extraits consultés · généré par IA (${esc((meta.model || "").split("/").pop())})</div></div>`;
+  });
+  if (chatBusy) h += `<div class="typing">L'assistant réfléchit…</div>`;
+  $("msgs").innerHTML = h;
+  $("msgs").scrollTop = $("msgs").scrollHeight;
+}
+async function sendChat(text) {
+  text = (text ?? $("chatin").value).trim();
+  if (!text || chatBusy) return;
+  $("chatin").value = "";
+  const msgs = CHATS[chatPlot] = CHATS[chatPlot] || [];
+  msgs.push({role: "user", content: text});
+  chatBusy = true; renderChat();
+  try {
+    const r = await fetch("/api/assistant/chat", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({plot_id: chatPlot, messages: msgs.map(m => ({role: m.role, content: m.content}))})});
+    const j = await r.json();
+    msgs.push(r.ok ? {role: "assistant", content: j.answer, meta: j} : {role: "assistant", content: "", meta: {error: j.error || "HTTP " + r.status}});
+  } catch (e) { msgs.push({role: "assistant", content: "", meta: {error: e.message}}); }
+  chatBusy = false; renderChat();
+}
+async function saveSugg(i) {
+  const m = CHATS[chatPlot][i], sg = m.meta.suggested_feedback;
+  try {
+    await post("/api/causes/feedback", {plot_id: chatPlot, cause_id: sg.cause_id, verdict: sg.verdict, note: sg.note});
+    m.meta.fbDone = "saved"; renderChat();
+    if (typeof CAUSES !== "undefined" && CAUSES && cplot === chatPlot) step8();
+  } catch (e) { alert(e.message); }
+}
+function dropSugg(i) { CHATS[chatPlot][i].meta.fbDone = "dropped"; renderChat(); }
 
 async function runAll() {
   const b = $("runall"); b.disabled = true; b.textContent = "En cours…";

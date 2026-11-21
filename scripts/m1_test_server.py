@@ -1,4 +1,4 @@
-"""M1 - local test bench (standard library only, separate from the M6 API).
+﻿"""M1 - local test bench (standard library only, separate from the M6 API).
 
 Run from the repo root, then open http://127.0.0.1:8765 :
     .\\.venv\\Scripts\\python.exe scripts\\m1_test_server.py
@@ -20,6 +20,7 @@ from backend import agriculture as agri  # noqa: E402
 from backend import llm  # noqa: E402
 from backend import temperature_effect as tfx  # noqa: E402
 from backend import temperature_explain as texp  # noqa: E402
+from backend import assistant  # noqa: E402
 from backend.causal import funnel  # noqa: E402
 
 UI = ROOT / "tools" / "m1_test_ui" / "index.html"
@@ -78,7 +79,7 @@ def step_validate(body: dict) -> dict:
 
 
 def step_tests() -> dict:
-    r = subprocess.run([sys.executable, "-m", "pytest", "tests/test_agriculture.py", "tests/test_temperature_effect.py", "tests/test_llm_explain.py", "tests/test_causal.py", "-v", "--no-header", "-p", "no:cacheprovider"],
+    r = subprocess.run([sys.executable, "-m", "pytest", "tests/test_agriculture.py", "tests/test_temperature_effect.py", "tests/test_llm_explain.py", "tests/test_causal.py", "tests/test_assistant.py", "-v", "--no-header", "-p", "no:cacheprovider"],
                        cwd=ROOT, capture_output=True, text=True, timeout=120)
     lines = [ln for ln in r.stdout.splitlines() if "::" in ln and ("PASSED" in ln or "FAILED" in ln or "ERROR" in ln)]
     tests = [{"name": ln.split("::")[1].split(" ")[0], "ok": "PASSED" in ln} for ln in lines]
@@ -130,6 +131,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._run(funnel.run, path.rsplit("/", 1)[1], "summer_gap", q.get("agents", "1") != "0")
         if path == "/api/llm":
             return self._run(llm.public_config)
+        if path == "/api/assistant/status":
+            return self._run(assistant.status)
         self._json({"error": "not found"}, 404)
 
     def do_POST(self) -> None:
@@ -142,6 +145,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": str(e), "configured": False}, 503)
             except llm.LLMError as e:
                 return self._json({"error": str(e), "configured": True}, 502)
+        if self.path == "/api/assistant/chat":
+            try:
+                return self._json(assistant.chat(body["plot_id"], body["messages"]))
+            except llm.LLMNotConfigured as e:
+                return self._json({"error": str(e)}, 503)
+            except llm.LLMError as e:
+                return self._json({"error": str(e)}, 502)
+            except Exception as e:
+                return self._json({"error": f"{type(e).__name__}: {e}"}, 400)
         if self.path == "/api/causes/feedback":
             return self._run(lambda b: funnel.add_feedback(b["plot_id"], "summer_gap", b["cause_id"], b["verdict"], b.get("note", "")), body)
         routes = {"/api/convert": step_convert, "/api/coverage": step_coverage, "/api/validate": step_validate}

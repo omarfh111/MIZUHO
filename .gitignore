@@ -9,3 +9,5 @@ node_modules/
 
 # Human feedback collected by the test bench
 data/feedback/
+data/rag/raw/
+data/rag/qdrant_local/

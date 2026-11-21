@@ -1,0 +1,102 @@
+[
+ {
+  "source_id": "fao56-ch1",
+  "title": "FAO-56, chapitre 1 : introduction à l'évapotranspiration",
+  "organisation": "FAO",
+  "license": "FAO copyright, usage non commercial",
+  "url": "https://www.fao.org/3/X0490E/x0490e04.htm",
+  "retrieved_at": "2026-11-21T17:52:31+00:00",
+  "status_code": 200,
+  "file": "data/rag/raw/fao56-ch1.html",
+  "sha256": "5fbf685d9ce49fde886fac68f554c7e62cec8ad1625d2ea71803ea0e06ba1e34",
+  "bytes": 41854
+ },
+ {
+  "source_id": "fao56-ch5",
+  "title": "FAO-56, chapitre 5 : évapotranspiration de la culture (Kc)",
+  "organisation": "FAO",
+  "license": "FAO copyright, usage non commercial",
+  "url": "https://www.fao.org/3/X0490E/x0490e0a.htm",
+  "retrieved_at": "2026-11-21T17:52:32+00:00",
+  "status_code": 200,
+  "file": "data/rag/raw/fao56-ch5.html",
+  "sha256": "2fd4400aa432d1341032a602f2bcf2bb5eff068bac99a5cb9cc09c29875f057a",
+  "bytes": 36717
+ },
+ {
+  "source_id": "fao56-ch2",
+  "title": "FAO-56, chapitre 2 : équation de Penman-Monteith (ET de référence)",
+  "organisation": "FAO",
+  "license": "FAO copyright, usage non commercial",
+  "url": "https://www.fao.org/3/X0490E/x0490e06.htm",
+  "retrieved_at": "2026-11-21T17:52:32+00:00",
+  "status_code": 200,
+  "file": "data/rag/raw/fao56-ch2.html",
+  "sha256": "097e3aa9223ef69cf589549c445083eb78b1549b099459b448f01a5e7337c68b",
+  "bytes": 33762
+ },
+ {
+  "source_id": "fao56-ch8",
+  "title": "FAO-56, chapitre 8 : ETc en conditions de stress hydrique",
+  "organisation": "FAO",
+  "license": "FAO copyright, usage non commercial",
+  "url": "https://www.fao.org/3/X0490E/x0490e0e.htm",
+  "retrieved_at": "2026-11-21T17:52:34+00:00",
+  "status_code": 200,
+  "file": "data/rag/raw/fao56-ch8.html",
+  "sha256": "f7eabb739742734c411a8d31527b709fba004a943e373ed406587017b3be0e98",
+  "bytes": 137909
+ },
+ {
+  "source_id": "wapor-data",
+  "title": "FAO WaPOR : données et produits",
+  "organisation": "FAO",
+  "license": "FAO copyright",
+  "url": "https://www.fao.org/in-action/remote-sensing-for-water-productivity/wapor-data/en",
+  "retrieved_at": "2026-11-21T17:52:34+00:00",
+  "status_code": 200,
+  "file": "data/rag/raw/wapor-data.html",
+  "sha256": "b089b68b9def8e78e2b87843c9f937a3833645afe7c55b4e15b3ba77bc3ddee7",
+  "bytes": 88392
+ },
+ {
+  "source_id": "power-method",
+  "title": "NASA POWER : méthodologie des données",
+  "organisation": "NASA Langley (POWER)",
+  "license": "données publiques NASA",
+  "url": "https://power.larc.nasa.gov/docs/methodology/",
+  "retrieved_at": "2026-11-21T17:52:37+00:00",
+  "status_code": 200,
+  "file": "data/rag/raw/power-method.html",
+  "sha256": "c5f1667310771454416667318d57096ac6ff540950fb8a71030ef31a45a2a665",
+  "bytes": 32860
+ },
+ {
+  "source_id": "m1-data",
+  "title": "M1 : sources, méthode et limites des données",
+  "organisation": "Équipe MIZU NEXUS",
+  "path": "docs/M1_DATA.md",
+  "file": "docs/M1_DATA.md",
+  "exists": true,
+  "sha256": "dcd5f3108caaa94ebe34232ab6aed05257f3e38c6a9b77bf258909861a36c4e2"
+ },
+ {
+  "source_id": "m1-causes",
+  "title": "M1 : entonnoir des causes",
+  "organisation": "Équipe MIZU NEXUS",
+  "path": "docs/M1_CAUSES.md",
+  "file": "docs/M1_CAUSES.md",
+  "exists": true,
+  "sha256": "99e9bbdb1e7e6cca17dbe2e11e7ad00e396219d079729c5325932f6d01d2d37c"
+ },
+ {
+  "source_id": "cdc-v5",
+  "title": "Cahier des charges MIZU NEXUS Tunisie v5",
+  "organisation": "Équipe MIZU NEXUS",
+  "path": "Cahier des charges MIZU NEXUS Tunisie v5.docx",
+  "local_only": true,
+  "file": "Cahier des charges MIZU NEXUS Tunisie v5.docx",
+  "exists": true,
+  "sha256": "9eb8d606c48a931816c386a724ec5f2cd673a2d9042b1119726a8494c6d37acb"
+ }
+]
