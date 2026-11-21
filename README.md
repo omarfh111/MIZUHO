@@ -7,14 +7,14 @@
 
 <h1>MIZUHO</h1>
 
-<p><em>When the grid goes down, how long will water deliveries and essential household electricity last?<br>Explore Tunisian sites, test an outage and replay the consequences hour by hour.</em></p>
+<p><em>An irrigation manager expects a power cut at 11:00. How much water should the group store, and which plots can still receive water on time?</em></p>
 
 [![M6 API and planning](https://img.shields.io/badge/M6-API_%26_CP--SAT_planning-62e3f0?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
 [![M7 3D dashboard](https://img.shields.io/badge/M7-3D_dashboard-c9ef86?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
 [![M8 Evidence assistant](https://img.shields.io/badge/M8-Evidence_assistant-f7ce76?style=for-the-badge&labelColor=0b1f1c)](#how-it-works)
 [![Jendouba pilot](https://img.shields.io/badge/%F0%9F%93%8D_Pilot-Jendouba%2C_Tunisia-eef6ef?style=for-the-badge&labelColor=0b1f1c)](#reproduce-the-pilot)
 
-[![CI on main](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml?query=branch%3Amain)
+[![CI on the agricultural zones demo branch](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml/badge.svg?branch=codex%2Fagricultural-zones)](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml?query=branch%3Acodex%2Fagricultural-zones)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?style=flat&logo=fastapi&logoColor=white)
 ![OR-Tools](https://img.shields.io/badge/OR--Tools-CP--SAT-4285F4?style=flat&logo=google&logoColor=white)
@@ -192,7 +192,7 @@ Use Git, Python **3.12** and Node.js **22.12 or later**. Once dependencies are i
 Run these commands from PowerShell. On macOS or Linux, use `.venv/bin/python` wherever the commands show `.\.venv\Scripts\python.exe`.
 
 ```powershell
-git clone --branch main https://github.com/omarfh111/MIZUHO.git
+git clone --branch codex/agricultural-zones --single-branch https://github.com/omarfh111/MIZUHO.git
 cd MIZUHO
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
@@ -269,7 +269,18 @@ Start in **Land & agriculture → Tunisia**, select a city and inspect its clima
 3. Choose **Community electricity** in the same case. Set the number of homes, their continuous and lighting loads, usable backup energy and island-capable output. The residential circuit has its own supply. A city without irrigation records can run the same household balance from the national atlas. [Household backup assumptions](https://www.energy.gov/cmei/systems/solar-and-resilience-basics)
 4. Repeat the farm experiment at Korba, Chebika or Gafsa after supplying the station assumptions. The regional scenes use the local relief and satellite imagery. Modelled delivery sectors and pipes illustrate the scenario. The Assila survey displays its mapped parcels and remains outside the irrigation optimizer while equipment, quotas and demands are unknown. [Local footprints and provenance](data/field_zones/README.md) · [Weather and planning assumptions](data/zone_planning/README.md)
 
-For a short jury demonstration, choose **Test the limited-pump example** in Jendouba. The simulated station starts with 12 m³, a 65 m³ withdrawal quota and a 2 m³/h pump. At 11:00, the four-hour interruption leaves the least-served plot at **90%** and a **4 m³** total shortfall against timely minimums. A minimum **13 m³** of usable stock at the cut can meet the chosen **80%** target when pumping ahead is permitted. Extending the same interruption to eight hours drops coverage to **70%** with a **12 m³** shortfall. The solver proves the target unreachable in that case. [Reproducible solver checks](tests/test_resilience.py)
+### How long can the irrigation group hold out?
+
+Open **Irrigation planning** in Jendouba, choose **Test the limited-pump example** and select **Run outage grid**. The simulated station starts the day with 12 m³ in storage, a 65 m³ withdrawal quota and a 2 m³/h pump. Open the **11:00, 4 h** cell. The daily totals show the trade-off the manager faces.
+
+| Sharing rule | Delivered on time | Water withdrawn | Grid electricity | Least-served plot's minimum covered on time |
+| --- | ---: | ---: | ---: | ---: |
+| Fixed turns | 18 m³ | 6 m³ | 3 kWh | 0% |
+| Fair sharing | 46 m³ | 36 m³ | 18 kWh | 90% |
+
+The fair plan delivers an additional **28 m³ on time** by withdrawing **30 m³ more water** and consuming **15 kWh more grid electricity**. The group needs at least **13 m³ already in the tank when the outage starts** to meet the selected 80% coverage target. Return to the grid and open **11:00, 8 h**. The best coverage drops to **70%**, the total shortfall against timely minimums rises from **4 to 12 m³**, and the 80% target becomes unreachable under these assumptions. [Solver regression](tests/test_resilience.py) · [Browser walkthrough](frontend/tests/outage-browser.mjs)
+
+These are simulated operating results. A water group can check them against a dated outage using its opening stock, delivery and electricity meter readings, and the manager's original schedule. [Field validation protocol](docs/v5-capability-audit.md#how-a-water-group-could-validate-the-pilot)
 
 ### Replay the M6 API fixture
 

@@ -38,3 +38,15 @@ The complete backend test suite on the audited `main` checkout passed all 120 te
 1. Submit the [versioned A/B fixture](../data/fixtures/compare.json) to `POST /api/compare`. The local audited API returned **10/0 m³** for A/B in the fixed schedule and **5/5 m³** in the optimized schedule. The same 10 m³ of stock and zero remaining withdrawal quota yield minimum coverage of 0% and 50% respectively.
 2. Run `python -m pytest -q tests/test_api.py -k day_ahead_acceptance_cases`. In the adverse example the engine advances 2 m³ and delivers 8 m³ on time versus 6 m³ under the nominal plan replayed on that same adverse day. The stable profile requires zero early pumping. The tighter 5 m³ quota leaves 2 m³ unserved.
 3. Query `GET /api/assistant/index` on a configured instance. During this audit the local main service returned `available` with seven matching indexed passages. This checks the Qdrant index. A separate [browser walkthrough](../frontend/tests/m8-browser.mjs) exercises generation and source links.
+
+## How a water group could validate the pilot
+
+The next field test would ask one irrigation manager whether knowing the required reserve changes when they start the pump or which parcel they serve first. It would run alongside normal operation, with the manager retaining control of equipment. A test on an archived day can establish whether the simulator reproduces that day. Estimating the impact of adopting a different plan requires subsequent observations.
+
+| Step | Evidence to collect or compare |
+| --- | --- |
+| Record the day | Use anonymous parcel IDs. Record the outage notice time, actual interruption, opening tank stock in m³, permitted withdrawals in m³, delivery windows and minima, and installed pump limits. Preserve timestamps, units, missing readings and meter precision. |
+| Check the simulator | Replay the actions actually taken. Compare predicted tank stock and delivered volume with dated meter readings. Agree with the manager on acceptable discrepancies before looking at the results. Mark any outcome that lacks a measurement as unverified. |
+| Compare decisions | Give the existing rotation, the manager’s usual rule for advance filling, and the optimizer the same starting stock, quota, equipment and information available at decision time. Record the assumed operating rule and when each plan would pump or deliver. |
+| Report the trade-off | For each plan, show water delivered by the agreed deadlines in m³, the least-served parcel’s coverage of its minimum, withdrawals in m³, and grid and backup energy separately in kWh. Distinguish metered outcomes for the operating plan from simulated alternatives. Estimate operating cost only when a dated tariff or fuel cost is available. |
+| Check usefulness | Ask which action the manager would change, at what time, and why. With permission, retain an anonymized response and the inputs needed to replay the decision. Record a decision to keep the original schedule as a valid outcome. |
