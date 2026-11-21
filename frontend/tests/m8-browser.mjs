@@ -49,6 +49,8 @@ try {
   const session = allocation.request().postDataJSON().session_id;
   assert.match(session, /^[a-f\d-]{36}$/);
   await visible(panel.getByText(/Plot A \(EXP-01\): 5 m³ by its deadline/).first());
+  await visible(panel.locator('.assistant-paragraph > p').filter({ hasText: /coverage|fairness/i }).first());
+  await visible(panel.getByText('MIZUHO · Simulated', { exact: true }).first());
 
   await panel.getByRole('textbox', { name: 'Your question' }).fill(
     'What does ANME say about photovoltaic potential in northwest Tunisia?',
@@ -59,7 +61,9 @@ try {
   assert.equal(solar.status(), 200);
   assert.equal(solar.request().postDataJSON().session_id, session);
   const citation = panel.locator('details').filter({ hasText: /ANME · Solar PV potential in Tunisia/ }).first();
-  await citation.locator('summary').click({ timeout: 50000 });
+  await visible(panel.locator('.assistant-paragraph > p').filter({ hasText: /verified passage from ANME/ }));
+  await visible(citation.getByText('Publisher excerpt', { exact: true }));
+  await visible(citation.getByText('MIZUHO assessment:', { exact: true }));
   const link = citation.getByRole('link', { name: 'Read the source' });
   assert.equal(await link.getAttribute('href'), 'https://anme.tn/en/content/solar-photovoltaic');
   await visible(citation.getByText('1,450 kWh per kilowatt-peak', { exact: false }));
@@ -79,6 +83,7 @@ try {
   assert.equal(followUp.status(), 200);
   assert.equal(followUp.request().postDataJSON().session_id, session);
   assert.ok((await followUp.json()).citations.some((source) => source.source_id === 'solar'));
+  await visible(panel.getByRole('article').last().locator('.assistant-paragraph > p').filter({ hasText: /from ANME/ }));
 
   await page.keyboard.press('Escape');
   await visible(page.getByText(/Simulated plan approved/));

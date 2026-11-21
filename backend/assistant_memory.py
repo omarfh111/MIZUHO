@@ -112,7 +112,7 @@ def recall(turn: Turn, previous: dict) -> list[dict]:
             facts[prior.id] = turn.fact(prior.text, prior.provenance, remember=True)
         if citations or facts:
             answers.append({
-                "citations": [item.model_dump(mode="json") for item in citations.values()],
+                "citations": [item.model_dump(mode="json", exclude={"limitation"}) for item in citations.values()],
                 "facts": [item.model_dump(mode="json") for item in facts.values()],
                 "references": [
                     {"citation_ids": [key for key in reference["citation_ids"] if key in citations],

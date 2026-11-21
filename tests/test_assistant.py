@@ -141,6 +141,35 @@ def test_verified_citation_survives_rejected_numerical_prose(context):
     assert not answer.missing_information
 
 
+def test_official_attribution_and_application_facts_are_separated(context):
+    catalog, corpus = context
+    solar, = corpus.for_source("solar")
+
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            return response(call("get_site_data", {"include_solar": True}),
+                            call("search_evidence", {"query": "ANME solar yield"}, "publisher"))
+        site = json.loads(body["input"][-2]["output"])
+        official = json.loads(body["input"][-1]["output"])["verified_passages"][0]
+        assert official["excerpt"] == solar.excerpt and "limitation" not in official
+        canopy = next(fact for fact in site["facts"] if "Solar canopy" in fact["text"])
+        return complete([{"text": "ANME says the canopy is synthetic and needs a site survey.",
+                          "fact_ids": [canopy["id"]], "citation_ids": [solar.id]}])
+
+    provider = SimpleNamespace(
+        respond=respond, embeddings=lambda *args, **kwargs: [[0.0] * DIMENSIONS],
+        qdrant=lambda *args, **kwargs: {"points": [{"id": solar.id, "payload": corpus.chunks[solar.id].payload}]},
+    )
+    request = AssistantRequest(site_id="jendouba-pilote", question="What can I conclude from ANME and the pilot model?")
+    answer = run_assistant(request, catalog, corpus, provider, 5)
+    model, source = answer.paragraphs
+    assert "modeled generation and avoided grid energy" in model.text
+    assert model.fact_ids and not model.citation_ids
+    assert source.citation_ids == (solar.id,) and not source.fact_ids
+    assert "from ANME" in source.text and "synthetic" not in source.text
+    assert answer.citations == (solar,)
+
+
 def test_explicitly_requested_allocation_is_preserved_when_prose_is_rejected(context):
     catalog, corpus = context
 
@@ -231,6 +260,9 @@ def memory_chat(context):
                 return complete([{
                     "text": "Here is the earlier verified context.",
                     "fact_ids": [item["id"] for item in prior["facts"]],
+                    "citation_ids": [],
+                }, {
+                    "text": "The official excerpt is below.", "fact_ids": [],
                     "citation_ids": [item["id"] for item in prior["citations"]],
                 }])
             return complete()
@@ -241,8 +273,9 @@ def memory_chat(context):
             facts = json.loads(messages[-2]["output"])["facts"]
             plot = next(item for item in facts if item["text"].startswith("Plot A "))
             inputs = next(item for item in facts if "starting stock" in item["text"])
-            return complete([{"text": "The plan and the official excerpt were reviewed.",
-                              "fact_ids": [plot["id"], inputs["id"]], "citation_ids": [citation.id]}])
+            return complete([{"text": "The optimizer protected minimum coverage during the outage.",
+                              "fact_ids": [plot["id"], inputs["id"]], "citation_ids": []},
+                             {"text": "The official excerpt is below.", "fact_ids": [], "citation_ids": [citation.id]}])
         return paragraphs_from_tool(body)
 
     def factory(data_dir, catalog, budget):
@@ -283,9 +316,12 @@ def test_session_reuses_verified_citations_facts_and_scenario_without_replaying_
     for key in ("text", "provenance"):
         assert second.json()["facts"][0][key] == first.json()["facts"][0][key]
     assert second.json()["paragraphs"][0]["fact_ids"] == [second.json()["facts"][0]["id"]]
+    assert second.json()["paragraphs"][1]["citation_ids"] == [second.json()["citations"][0]["id"]]
+    assert "from ANME" in second.json()["paragraphs"][1]["text"]
     assert second.json()["tools_used"] == []
     assert prompts[-1]["previous_scenario"] == "mini"
     assert marker not in json.dumps(prompts[-1])
+    assert "limitation" not in prompts[-1]["prior_answers"][0]["citations"][0]
     recalculate = chat("Run the same scenario again.", session)
     assert recalculate.status_code == 200
     assert recalculate.json()["tools_used"] == ["get_simulation_results"]
@@ -324,6 +360,7 @@ def test_stale_simulation_clears_facts_even_if_the_next_request_fails(memory_cha
     answer = chat("Which figure and source did you just give me?", session, **initial).json()
     assert answer["facts"] == []
     assert answer["citations"][0]["organization"] == "ANME"
+    assert answer["paragraphs"][0]["citation_ids"] == [answer["citations"][0]["id"]]
 
 
 def test_changing_comparison_inputs_invalidates_memory_without_a_revision(memory_chat, context):
