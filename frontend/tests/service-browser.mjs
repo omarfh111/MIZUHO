@@ -115,11 +115,17 @@ try {
     });
     await page.goto(url.href);
     await stockOnly(page);
-    if (width > 400) await rotation(page);
+    if (width > 400) {
+      await rotation(page);
+    } else {
+      await page.getByRole('combobox', { name: 'Agricultural site' }).selectOption('TN-32-BALTABOUAWENE-ASSILA');
+      await page.getByRole('heading', { name: 'Planning inputs unavailable' }).waitFor();
+      assert.equal(await page.getByRole('button', { name: 'Calculate schedules' }).count(), 0);
+    }
     await fieldDay(page);
     assert.equal(recordSent, false, 'An anonymous field record was sent over the network');
     assert.deepEqual(errors, []);
     await page.close();
   }
-  console.log('Chrome passed no-outage service commitments, constrained operator replay and private field-day audit on desktop and mobile.');
+  console.log('Chrome passed no-outage commitments, constrained operator replay and private field-day audit at Jendouba and survey-only Assila.');
 } finally { await browser.close(); }

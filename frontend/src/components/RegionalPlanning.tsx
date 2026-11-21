@@ -9,6 +9,7 @@ import RegionalDemandEstimator from './RegionalDemandEstimator.tsx';
 import OutageLab, { OutageEntry } from './OutageLab.tsx';
 import CommitmentRegister from './CommitmentRegister.tsx';
 import OperatorRotation from './OperatorRotation.tsx';
+import StoredWaterOnly from './StoredWaterOnly.tsx';
 import './field-zone.css';
 
 const RegionalSiteScene = lazy(() => import('./RegionalSiteScene.tsx'));
@@ -298,6 +299,11 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
         onDiscard={sector => { if (demandBasis[sector]) edit(`demand_${sector}_m3`, ''); }} /> :
         <p className="muted small">A verified daily reference ET₀ and rainfall pair is unavailable. Enter sector demands below.</p>}
       <form onSubmit={solve}>
+        <StoredWaterOnly onApply={() => {
+          invalidate();
+          setDraft(current => ({ ...current, withdrawal_limit_m3: '0' }));
+          setOutages([]);
+        }} />
         {groups.map(group => <fieldset key={group.title}><legend>{group.title}</legend><div className="region-inputs">
           {group.fields.map(({ key, title, unit, min = 0, max = 100000, step = '1' }) =>
             <div key={key}><label className="field"><span>{title} ({unit})</span><input type="number" required min={min}

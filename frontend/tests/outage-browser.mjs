@@ -87,13 +87,14 @@ async function checkLateComparison(page, site, regional) {
 }
 
 try {
-  for (const [site,width] of [['jendouba-pilote', 1380], ['korba-cap-bon', 390]]) {
+  for (const [site,width] of [['jendouba-pilote', 1380], ['korba-cap-bon', 390],
+    ['kairouan-chebika', 1280], ['gafsa-oasis', 390]]) {
     url.searchParams.set('site', site);
     const page = await browser.newPage({ viewport: { width, height: 860 }, reducedMotion: 'reduce' });
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(url.href);
-    const regional = width === 390;
+    const regional = site !== 'jendouba-pilote';
     await checkOperatorRotation(page, site, regional);
     if (regional) {
       await page.getByRole('button', { name: 'Test outage resilience' }).click();
@@ -118,6 +119,7 @@ try {
     const grid = await waiting(await Promise.all([response(page,'grid'),
       page.getByRole('button', { name: regional ? 'Run outage grid' : 'Retry calculation' }).click()]));
     const gridView = page.getByRole('region', { name: 'Outage coverage grid' });
+    assert.equal(grid.site_id, site);
     assert.equal(grid.cells.length, regional ? 4 : 16);
     if (!regional) {
       const hour11 = grid.cells.filter(cell => cell.start === 11);
@@ -128,6 +130,12 @@ try {
     assert.equal(await gridView.locator('.outage-cell').count(), grid.cells.length);
     const cell = gridView.getByRole('button', { name: /^11:00, 4 h,/ });
     const detail = await waiting(await Promise.all([response(page,'case'), cell.click()]));
+    assert.equal(detail.site_id, site);
+    const selectedCell = grid.cells.find(item => item.start === detail.start && item.duration === detail.duration);
+    assert.ok(selectedCell);
+    if (detail.rules.fair.status === 'OPTIMAL' && selectedCell.status === 'OPTIMAL') {
+      assert.equal(detail.rules.fair.metrics.worst_coverage_bp, selectedCell.coverage_bp);
+    }
     const review = page.getByRole('region', { name: 'Selected outage case' });
     const comparison = review.getByRole('table', { name: 'Daily results by sharing rule' });
     await comparison.waitFor();
@@ -144,6 +152,7 @@ try {
     const replay = review.getByRole('region', { name: 'Selected outage replay' });
     const tab = name => review.getByRole('group', { name: 'Explore this interruption' }).getByRole('button', { name, exact: true });
     await replay.locator('canvas').waitFor();
+    if (regional) assert.equal(await replay.locator('[data-site-scene]').getAttribute('data-site-scene'), site);
     const raw = detail.rules.fair.actions.find(a => a.slot === detail.start);
     const readings = replay.locator('dl[aria-label="Physical results for this hour"]');
     const read = (name, n) => readings.getByText(name, { exact: true }).locator('..').getByText(`${amount(n)} m³`, { exact: true }).waitFor();
@@ -223,6 +232,6 @@ try {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
     assert.deepEqual(errors, []);
     await page.close();
+    console.log(`${site} passed operator rotation, outage grid, sector deliveries, matched incidents, heat, backup and household replay.`);
   }
-  console.log('Desktop and mobile passed site-specific outage matrices, physical and sensor replays, sharing, heat carryover, backup, household continuity and invalidation.');
 } finally { await browser.close(); }

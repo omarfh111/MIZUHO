@@ -6,6 +6,7 @@ import { ApiError, compare, type DataMode, type FieldErrors } from '../api.ts';
 import { hour, percent, value } from '../format.ts';
 import { defaultOperating, parseOperating, type OperatingInputs } from '../operating.ts';
 import OperatingEditor from './OperatingEditor.tsx';
+import StoredWaterOnly from './StoredWaterOnly.tsx';
 import OutageLab, { OutageEntry } from './OutageLab.tsx';
 import { useExperience } from '../experience/index.ts';
 import type { AssistantSimulationContext, CompareRequest, Comparison, Plan, Scenario, SolarOption } from '../types.ts';
@@ -275,13 +276,9 @@ export default function Simulation({ site, visible, scenarios, mode, solar, onCl
         <Field id="restart-cap" label="Restart power cap" unit="kW" input={inputs.restartCap}
           error={fieldError('restart_grid_cap_w')} change={(restartCap) => update({ restartCap })} />
       </div>
-      {mode === 'live' && scenario.id === 'normal' && <div className="stock-only-example">
-        <div><strong>What if no more water can be withdrawn today?</strong>
-          <p>Keep the starting stock and parcel commitments. Set withdrawals to zero and run the day with grid service available.</p></div>
-        <button type="button" className="button button-secondary" onClick={() => update({
-          quota: '0', outages: [], operating: { ...inputs.operating, event: 'none' },
-        })}>Use stored water only</button>
-      </div>}
+      {mode === 'live' && scenario.state.current_slot === 0 && !inputs.weather && <StoredWaterOnly onApply={() => update({
+        quota: '0', outages: [], operating: { ...inputs.operating, event: 'none' },
+      })} />}
       <div className="outage-block">
         <div className="outage-heading"><span><Radio size={16} /> Outage hours</span>
           <small>Calculation starts · {hour(scenario.state.current_slot)}</small>
