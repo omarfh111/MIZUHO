@@ -16,6 +16,8 @@ user message
        + number check         every number must appear in the context or the passages
 ```
 
+Answers are formatted: the page renders a safe Markdown subset (titles, lists, tables, bold) and colour tags `{vert:…}`, `{orange:…}`, `{rouge:…}`, `{gris:…}`, `{bleu:…}`. Cause comparisons come as one table whose status is copied from `statut_des_causes` in the context (retenue / terrain / écartée), so the model cannot move a cause to the wrong lane.
+
 When the intent is field information or an opinion on a cause (confidence ≥ 0.5), the page proposes « Enregistrer comme avis ». Nothing is stored until the user clicks; the funnel is then recomputed.
 
 ## Documents

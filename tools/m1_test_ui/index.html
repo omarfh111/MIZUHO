@@ -137,6 +137,29 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
 /* LLM explanation */
 .llm { margin-top: 12px; padding: 14px 16px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); background: linear-gradient(180deg, var(--accent-soft), var(--panel-2) 70%); }
 .llm-h { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+/* AI text formatting */
+.md-h { margin: 10px 0 2px; font-size: 14px; color: var(--accent); }
+.md-l { margin: 6px 0 0; padding-left: 20px; }
+.md-l li { margin: 2px 0; }
+.msg { min-width: 0; overflow-wrap: anywhere; }
+.msg.bot:has(.md-tw) { width: 96%; max-width: 96%; }
+.md-t th:first-child, .md-t td:first-child { min-width: 110px; overflow-wrap: normal; }
+.md-tw { overflow-x: auto; margin: 8px 0 2px; border: 1px solid var(--line); border-radius: 8px; }
+.md-t { border-collapse: collapse; width: 100%; font-size: 13px; }
+.md-t th { background: var(--accent-soft); text-align: left; font-weight: 700; }
+.md-t th, .md-t td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.md-t tr:last-child td { border-bottom: 0; }
+.md-t td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.md-hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
+.md-note { margin: 8px 0 0; padding: 6px 10px; border-left: 3px solid var(--warn); background: var(--warn-bg); border-radius: 4px; }
+.mk { padding: 0 4px; border-radius: 4px; font-weight: 600; }
+.mk-vert { color: var(--ok); background: var(--ok-bg); }
+.mk-rouge { color: var(--bad); background: var(--bad-bg); }
+.mk-orange { color: var(--warn); background: var(--warn-bg); }
+.mk-bleu { color: var(--accent); background: var(--accent-soft); }
+.mk-gris { color: var(--idle); background: var(--idle-bg); }
+.msg.bot p { margin: 6px 0 0; }
+.msg.bot p:first-child, .msg.bot > .md-h:first-child { margin-top: 0; }
 .llm-text p { margin: 8px 0 0; font-size: 15px; line-height: 1.6; }
 .llm-text p:first-child { margin-top: 2px; }
 .llm-meta { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
@@ -205,7 +228,7 @@ tr.click:hover td { background: color-mix(in srgb, var(--plot) 5%, transparent);
 
 /* assistant chat */
 .fab { position: fixed; right: 20px; bottom: 20px; z-index: 1200; border-radius: 99px; padding: 12px 18px; font-size: 15px; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
-.chat { position: fixed; right: 20px; bottom: 20px; z-index: 1300; width: 420px; max-width: calc(100vw - 32px); height: min(680px, calc(100vh - 40px));
+.chat { position: fixed; right: 20px; bottom: 20px; z-index: 1300; width: 480px; max-width: calc(100vw - 32px); height: min(680px, calc(100vh - 40px));
   display: none; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.3); overflow: hidden; }
 .chat.open { display: flex; }
 .chat-h { padding: 12px 14px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; background: var(--panel-2); }
@@ -612,8 +635,51 @@ async function step7() { await guard(7, "o7", async () => {
 
 /* LLM explanation */
 let EXPL = null;
+/* Safe Markdown subset for AI text: escape first, then add tags.
+   Blocks: ### titles, - lists, 1. lists, | tables |, > notes. Inline: **bold**, *italic*, `code`,
+   {vert:…} {rouge:…} {orange:…} {bleu:…} colour tags. */
+function mdInline(s) {
+  return s
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+    .replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g, "$1<i>$2</i>")
+    .replace(/\{(vert|rouge|orange|bleu|gris):\s*([^{}]+?)\}/g, (m, c, x) => `<span class="mk mk-${c}">${x}</span>`);
+}
 function mdLite(t) {
-  return t.split(/\n{2,}/).map(par => "<p>" + esc(par.trim()).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\n/g, "<br>") + "</p>").join("");
+  const lines = esc(String(t || "").replace(/\r/g, "")).split("\n");
+  const cells = l => l.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(c => c.trim());
+  const isNum = c => /^[-+−~≈]?\s*\d/.test(c.replace(/<[^>]+>/g, ""));
+  const out = [];
+  let para = [];
+  const flush = () => { if (para.length) out.push("<p>" + para.map(mdInline).join("<br>") + "</p>"); para = []; };
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (/^\s*\|.*\|\s*$/.test(l) && i + 1 < lines.length && /^\s*\|?\s*:?-{2,}/.test(lines[i + 1])) {
+      flush();
+      const head = cells(l); i += 2;
+      const rows = [];
+      while (i < lines.length && /^\s*\|/.test(lines[i])) rows.push(cells(lines[i++]));
+      i--;
+      out.push(`<div class="md-tw"><table class="md-t"><thead><tr>${head.map(c => `<th>${mdInline(c)}</th>`).join("")}</tr></thead><tbody>` +
+        rows.map(r => "<tr>" + r.map(c => `<td${isNum(c) ? ' class="num"' : ""}>${mdInline(c)}</td>`).join("") + "</tr>").join("") + "</tbody></table></div>");
+    } else if (/^\s*#{1,4}\s+/.test(l)) {
+      flush(); out.push(`<h4 class="md-h">${mdInline(l.replace(/^\s*#{1,4}\s+/, ""))}</h4>`);
+    } else if (/^\s*([-*•]|\d+[.)])\s+/.test(l)) {
+      flush();
+      const ordered = /^\s*\d/.test(l), items = [];
+      while (i < lines.length && /^\s*([-*•]|\d+[.)])\s+/.test(lines[i])) items.push(lines[i++].replace(/^\s*([-*•]|\d+[.)])\s+/, ""));
+      i--;
+      const tag = ordered ? "ol" : "ul";
+      out.push(`<${tag} class="md-l">${items.map(x => `<li>${mdInline(x)}</li>`).join("")}</${tag}>`);
+    } else if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(l)) {
+      flush(); out.push('<hr class="md-hr">');
+    } else if (/^\s*&gt;\s?/.test(l)) {
+      flush(); out.push(`<div class="md-note">${mdInline(l.replace(/^\s*&gt;\s?/, ""))}</div>`);
+    } else if (!l.trim()) flush();
+    else para.push(l);
+  }
+  flush();
+  return out.join("");
 }
 function llmHtml() {
   const head = (label, extra = "") => `<div class="llm-h"><span class="chip c-run">✦ ${label}</span>${extra}</div>`;

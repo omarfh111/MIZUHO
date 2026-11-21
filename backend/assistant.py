@@ -34,7 +34,20 @@ SYSTEM = (
     "Ne recopie pas le texte de « critique » mot pour mot.\n"
     "- Pas de mots anglais (écris « pente », pas « slope » ; « eau », pas « water »).\n"
     "- Ne fais aucun calcul ni aucune comparaison absents de CONTEXTE (pas de « un tiers », « deux fois plus »…).\n"
-    "- 160 mots au maximum, paragraphes courts, mets en gras avec **...** l'essentiel."
+    "- 180 mots au maximum (hors tableau), paragraphes courts.\n"
+    "Mise en forme (Markdown, la page l'affiche) :\n"
+    "- Mets en gras avec **...** les chiffres clés et la conclusion.\n"
+    "- Pour comparer plusieurs causes, parcelles ou périodes, fais un petit tableau Markdown "
+    "(| Élément | Valeur | Période |), 5 lignes au maximum, chiffres repris tels quels avec leur unité.\n"
+    "- Pour des étapes ou des conseils, utilise une liste à puces « - ».\n"
+    "- Tu peux colorer un mot court : {vert:retenue} pour ce qui est confirmé ou favorable, "
+    "{rouge:écartée} pour un manque ou un risque, {orange:à vérifier sur le terrain} pour un doute, {gris:écartée} pour ce qui est exclu. "
+    "Pas plus de trois couleurs par réponse. Pas d'émoji, pas de ligne « --- ».\n"
+    "- Pour comparer les causes, préfère un seul tableau | Cause | Statut | Raison courte | avec le statut coloré "
+    "({vert:retenue}, {orange:terrain}, {gris:écartée}) plutôt qu'une longue liste. "
+    "Le statut de chaque cause est celui de « statut_des_causes », recopié sans le changer.\n"
+    "- Écris les probabilités exactement comme dans CONTEXTE (par exemple 0,98), ne les convertis pas en pourcentage.\n"
+    "- Pour une question simple, une réponse courte sans tableau suffit."
 )
 
 INTENTS = {
@@ -77,6 +90,10 @@ def context(plot_id: str) -> dict:
                                   for f in json.loads((funnel.ROOT / "data" / "plots.geojson").read_text(encoding="utf-8"))["features"]
                                   if f["properties"]["plot_id"] == plot_id), {}),
         "entonnoir": [f"{s['agent']} : {s['kept']} ({s['note']})" for s in r["stages"]],
+        "statut_des_causes": [{"cause": c["label"],
+                               "statut": "retenue" if c["id"] in r["final"] else "terrain" if c["lane"] == "field" else "écartée"}
+                              for c in r["causes"]
+                              if c["id"] in r["final"] or c["lane"] == "field" or c["stage_out"]],
         "causes_retenues": [{"cause": by_id[i]["label"], "probabilite": round(by_id[i]["p"], 2), "preuve": by_id[i]["data"]["why"]}
                             for i in r["final"]],
         "a_verifier_sur_le_terrain": [{"cause": c["label"], "donnees_necessaires": c["data"]["missing"]}

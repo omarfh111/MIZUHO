@@ -40,6 +40,10 @@ def test_context_has_the_analyses_not_the_series():
     ctx = assistant.context("P-03")
     assert ctx["parcelle"] == "P-03" and ctx["causes_retenues"]
     assert "series" not in str(ctx)
+    statut = {s["cause"]: s["statut"] for s in ctx["statut_des_causes"]}
+    assert all(statut[c["cause"]] == "retenue" for c in ctx["causes_retenues"])
+    assert all(statut[c["cause"]] == "terrain" for c in ctx["a_verifier_sur_le_terrain"])
+    assert all(statut[c["cause"]] == "écartée" for c in ctx["causes_ecartees"])
 
 
 def test_question_is_answered_with_citations(monkeypatch):
