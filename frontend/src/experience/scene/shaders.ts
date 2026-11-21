@@ -79,7 +79,7 @@ export const mapFragment = /* glsl */ `
     vec4 tex = texture2D(uLand, vUv);
     float land = smoothstep(.42, .58, tex.r);
     float shelf = texture2D(uLand, vUv, 5.5).r;
-    float river = smoothstep(.15, .75, tex.b);
+    float river = smoothstep(.35, .85, tex.b);
     vec2 ll = vec2(vWorld.x / 24. + 9.6, -vWorld.z / 24. + 34.);
     float lon = ll.x;
     float lat = ll.y;
@@ -94,7 +94,7 @@ export const mapFragment = /* glsl */ `
     float h0 = fbm(q);
     float hx = fbm(q + vec2(e, 0.));
     float hz = fbm(q + vec2(0., e));
-    vec3 n = normalize(vNormal + vec3(h0 - hx, 0., h0 - hz) * (2.2 * near + .6) * land);
+    vec3 n = normalize(vNormal + vec3(h0 - hx, 0., h0 - hz) * (1.1 * near + .5) * land);
 
     /* ---- biomes, north to south ---- */
     vec3 desert = srgb(vec3(.8, .62, .39));
@@ -113,7 +113,8 @@ export const mapFragment = /* glsl */ `
 
     // Tell farmland: a warped patchwork of fields with darker hedgerows.
     float farm = smoothstep(35.15, 35.8, lat) * (1. - smoothstep(1.1, 1.7, vWorld.y)) * near;
-    vec2 g = rot2(ll * 70., .35 + warp * .4) + vec2(fbm(ll * 9.) * 2.);
+    // Gentle, independent warp per axis: a shared warp shears the grid into wood-grain stripes.
+    vec2 g = rot2(ll * 70., .35) + (vec2(fbm(ll * 4.), fbm(ll * 4. + 7.3)) - .5) * .6;
     vec2 cell = floor(g);
     float pick = hash12(cell);
     vec3 crop = pick < .3 ? srgb(vec3(.74, .64, .38)) : pick < .55 ? srgb(vec3(.33, .46, .2)) : pick < .8 ? srgb(vec3(.45, .35, .23)) : srgb(vec3(.56, .52, .34));
@@ -149,7 +150,7 @@ export const mapFragment = /* glsl */ `
     landCol *= 1. - wet * .3;
     landCol += srgb(vec3(.5, .62, .66)) * pow(max(dot(reflect(-uSunDir, n), viewDir), 0.), 18.) * wet * .5;
     float contour = contourLine(vWorld.y * 7.);
-    landCol += uAccent * contour * .04 * smoothstep(.05, .3, vWorld.y) * (1. - smoothstep(30., 140., vViewDist));
+    landCol += uAccent * contour * .035 * smoothstep(.05, .3, vWorld.y) * smoothstep(25., 60., vViewDist) * (1. - smoothstep(90., 200., vViewDist));
 
     /* ---- sea ---- */
     vec2 flow = vWorld.xz * .35 + vec2(uTime * .04, -uTime * .025);
@@ -172,7 +173,8 @@ export const mapFragment = /* glsl */ `
     col += uAccent * graticule * mix(.05, .015, land);
     float coast = 1. - smoothstep(0., fwidth(tex.r) * 1.6 + .002, abs(tex.r - .5));
     col += uAccent * coast * .9;
-    col = mix(col, srgb(vec3(.45, .93, 1.)) * 1.9, river * .9);
+    // Up close the valley's own river ribbon takes over; the map line would smear at grazing angles.
+    col = mix(col, srgb(vec3(.45, .93, 1.)) * 1.4, river * .85 * smoothstep(6., 40., vViewDist));
 
     /* ---- radial reveal ---- */
     float dist = length(vWorld.xz - uRevealOrigin.xz);
@@ -225,7 +227,7 @@ export const valleyFragment = /* glsl */ `
   void main() {
     vec2 q = vWorld.xz * 9.;
     float h0 = fbm(q);
-    vec3 n = normalize(vNormal + vec3(h0 - fbm(q + vec2(.1, 0.)), 0., h0 - fbm(q + vec2(0., .1))) * 1.4 * (1. - smoothstep(2., 14., vViewDist)));
+    vec3 n = normalize(vNormal + vec3(h0 - fbm(q + vec2(.1, 0.)), 0., h0 - fbm(q + vec2(0., .1))) * .55 * (1. - smoothstep(2., 10., vViewDist)));
     float slope = 1. - n.y;
     float moisture = fbm(vWorld.xz * 1.3);
     vec3 soil = srgb(vec3(.36, .3, .2));
@@ -241,7 +243,6 @@ export const valleyFragment = /* glsl */ `
     float diffuse = max(dot(n, uSunDir), 0.);
     float shadow = cloudShadow(vWorld.xz, uTime) * uCloudShadow;
     vec3 col = base * (srgb(vec3(.24, .33, .38)) * (.5 + .5 * n.y) + uSunColor * diffuse * 1.45 * (1. - shadow * .5));
-    col += uAccent * contourLine(vWorld.y * 28.) * .01;
     col += srgb(vec3(.4, .85, .9)) * wet * pow(max(dot(reflect(-uSunDir, n), normalize(cameraPosition - vWorld)), 0.), 24.) * .8;
     col += uAccent * exp(-sq((wd - .6) / .02)) * uWetAmount * .7;
     // Digital twin: the finale overlays a measured grid and contour lines.
@@ -312,7 +313,7 @@ export const waterFragment = /* glsl */ `
     col = mix(col, uSkyColor, fresnel * .7);
     vec3 h = normalize(uSunDir + viewDir);
     col += uSunColor * pow(max(dot(n, h), 0.), 160.) * 4.;
-    col += srgb(vec3(.55, .95, 1.)) * pow(1. - depth, 6.) * .5;
+    col += srgb(vec3(.55, .95, 1.)) * pow(max(1. - depth, 0.), 6.) * .5;
     float alpha = fill * (.55 + .45 * depth) * clamp(edge * 1.5, 0., 1.);
     if (alpha < .002) discard;
     gl_FragColor = vec4(applyFog(col, vViewDist), alpha);
@@ -524,6 +525,7 @@ export const particleFragment = /* glsl */ `
     a *= a;
     vec3 col = mix(uColorA, uColorB, step(.7, vSeed));
     gl_FragColor = vec4(col * 1.6, a * vTwinkle * uOpacity);
+    gl_FragColor = clamp(gl_FragColor, vec4(0.), vec4(64000.));
   }
 `;
 
@@ -584,9 +586,10 @@ export const beaconFragment = /* glsl */ `
   uniform float uTime;
   varying vec2 vUv;
   void main() {
-    float fade = pow(1. - vUv.y, 2.2);
+    float fade = pow(max(1. - vUv.y, 0.), 2.2);
     float scan = .7 + .3 * sin(vUv.y * 40. - uTime * 6.);
     gl_FragColor = vec4(uColor * 2.2, fade * scan * uOpacity * .7);
+    gl_FragColor = clamp(gl_FragColor, vec4(0.), vec4(64000.));
   }
 `;
 
