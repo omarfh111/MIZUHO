@@ -1,6 +1,6 @@
 # MIZUHO cinematic entrance
 
-A ~3 s opening followed by a scrubbable 3D film: one raindrop's journey across Tunisia, from cloud to crop. It ends by revealing the dashboard (M7). Everything lives in this folder and is mounted through one wrapper.
+A ~3 s opening followed by a scrubbable 3D film: one raindrop's journey across Tunisia, from cloud to crop, powered by the sun and the wind. It ends by revealing the dashboard (M7). Everything lives in this folder and is mounted through one wrapper.
 
 ## Integrating with M7
 
@@ -36,14 +36,15 @@ npm i @react-three/fiber@^9.8.2 @react-three/drei@^10.7.9 @react-three/postproce
 
 | Time | Chapter | Device |
 | --- | --- | --- |
-| Opening | MIZUHO | The wordmark fills with water as real loading progresses; a drop forms under the final letter and falls into the 3D sky |
+| Opening | MIZUHO | Water mist in the brand's water, land and sun colours condenses into the wordmark as loading really progresses, then spirals into the falling drop |
 | 0 | Every drop counts | The camera rides the falling drop through a cloud deck as Tunisia unfolds below |
 | 1 | Rain falls in the north | Rain streaks over the northern governorates only |
 | 2 | One river carries it | Flow particles travel down the Medjerda, with real dams and towns labelled |
 | 3 | Dams hold the year | Light pillars and pulses at five real reservoirs; the drop lands in Bou Heurtma |
 | 4 | Canals bring it home | The Jendouba valley assembles; canals fill, plots grow; the cursor waters the soil |
-| 5 | The sun runs the pumps | A light sweep crosses the solar array beside the pumping station |
-| 6 | MIZUHO | A digital-twin grid settles on the valley; "Enter the observatory" |
+| 5 | Sun and wind power the pumps | A utility-scale solar field and wind turbines on both ridges; amber power flows along cables to the pumping station |
+| 6 | Clean energy for every drop | The camera rises over Tunisia's operating renewable plants: the Sidi Daoud and Bizerte wind farms and the Tozeur solar plant |
+| 7 | MIZUHO | A dive back to the valley; a digital-twin grid settles; "Enter the observatory" |
 
 - **Input.** The film autoplays until the visitor scrolls, swipes, uses the arrow, Page or Space keys, or clicks the chapter rail. From then on, scene time follows input through a critically damped spring, which behaves the same at any frame rate. Scrolling past the last chapter enters the dashboard. Esc skips at any point.
 - **Direction.** The whole film is a pure function of scene time (`core/director.ts`, `scene/choreography.ts`), so scrubbing backwards is exact. Each chapter frames its subject on the side opposite its copy.
