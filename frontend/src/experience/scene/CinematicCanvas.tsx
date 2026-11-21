@@ -1,12 +1,14 @@
 import { PerformanceMonitor } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
-import { Bloom, EffectComposer, Noise, ToneMapping, Vignette } from '@react-three/postprocessing';
+import {
+  Bloom, BrightnessContrast, ChromaticAberration, EffectComposer, HueSaturation, Noise, ToneMapping, Vignette,
+} from '@react-three/postprocessing';
 import { BlendFunction, ToneMappingMode } from 'postprocessing';
 import { useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import type { Quality, Tier } from '../core/capabilities.ts';
 import type { Director } from '../core/director.ts';
-import { Clouds, Particles, Sky } from './Atmosphere.tsx';
+import { CloudVeil, Clouds, Particles, Sky } from './Atmosphere.tsx';
 import { CameraRig, type RigHandle } from './CameraRig.tsx';
 import { makeDropPath } from './choreography.ts';
 import { Labels } from './Labels.tsx';
@@ -63,6 +65,7 @@ export default function CinematicCanvas({ world, director, quality, hud, labelLa
   const [dpr, setDpr] = useState(quality.dpr[1]);
   const [post, setPost] = useState(quality.postprocessing);
   const revealOrigin = world.valley.reservoir.center;
+  const aberration = useMemo(() => new THREE.Vector2(0.0009, 0.0006), []);
   const dropPath = useMemo(() => makeDropPath(world), [world]);
   const v = world.valley.center;
   const valleyMotes = useMemo(() => ({
@@ -99,6 +102,7 @@ export default function CinematicCanvas({ world, director, quality, hud, labelLa
       <Labels world={world} director={director} layer={labelLayer} />
       <Clouds director={director} path={dropPath} />
       <HeroDrop world={world} director={director} />
+      <CloudVeil director={director} />
       <Storm world={world} director={director} streaks={quality.particles * 3} />
       <RiverFlow world={world} director={director} count={Math.round(quality.particles * 0.7)} />
       <DamPulses world={world} director={director} />
@@ -122,10 +126,18 @@ export default function CinematicCanvas({ world, director, quality, hud, labelLa
       <Warmup onReady={onReady} />
       {post ? (
         <EffectComposer multisampling={quality.dpr[1] > 1.5 ? 4 : 0} enableNormalPass={false}>
-          <Bloom mipmapBlur luminanceThreshold={0.82} luminanceSmoothing={0.2} intensity={0.85} radius={0.72} />
-          <Vignette offset={0.28} darkness={0.72} />
-          <Noise premultiply blendFunction={BlendFunction.SOFT_LIGHT} opacity={0.32} />
-          <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+          <Bloom mipmapBlur luminanceThreshold={0.78} luminanceSmoothing={0.22} intensity={0.95} radius={0.75} />
+          <ChromaticAberration
+            offset={aberration}
+            radialModulation
+            modulationOffset={0.35}
+            blendFunction={BlendFunction.NORMAL}
+          />
+          <ToneMapping mode={ToneMappingMode.AGX} />
+          <HueSaturation saturation={0.08} />
+          <BrightnessContrast contrast={0.08} />
+          <Vignette offset={0.26} darkness={0.7} />
+          <Noise premultiply blendFunction={BlendFunction.SOFT_LIGHT} opacity={0.28} />
         </EffectComposer>
       ) : <></>}
     </Canvas>
