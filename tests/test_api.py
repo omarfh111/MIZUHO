@@ -57,7 +57,8 @@ def test_geographic_layers_and_source_links(client):
         assert len(result["features"]) == count
         assert client.get(f"/api/evidence/{result['source_id']}").status_code == 200
     evidence = client.get("/api/evidence/wapor").json()
-    assert evidence["organization"] == "FAO" and evidence["date"] == "2025"
+    assert evidence["organization"] == "FAO" and evidence["date"] == "2026-04-03"
+    assert client.get("/api/evidence/wapor/passages").json()[0]["date"] == evidence["date"]
     assert client.get("/api/evidence/missing").status_code == 404
     assert client.get("/api/layers/missing/plots").status_code == 404
     assert client.get(f"/api/layers/{site_id}/missing").status_code == 404

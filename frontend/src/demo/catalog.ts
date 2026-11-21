@@ -73,7 +73,7 @@ export const demoEvidence: Record<string, Evidence> = {
     limitation: 'The irrigation group, plots and equipment are fictional. The coordinates locate the demo.',
   },
   wapor: {
-    title: 'WaPOR trial in Jendouba · daily ETa at 10 m resolution', organization: 'FAO', date: '2025', page: null,
+    title: 'WaPOR trial in Jendouba · daily ETa at 10 m resolution', organization: 'FAO', date: '2026-04-03', page: null,
     url: 'https://www.fao.org/in-action/remote-sensing-for-water-productivity/news-and-events/news/news-detail/testing-daily-10-m-wapor-data-for-improved-irrigation-in-jendouba--tunisia/en',
     limitation: 'The plots and indicators are simulated. ETa measures evapotranspiration. Well withdrawals require meter readings.',
   },
