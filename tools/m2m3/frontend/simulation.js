@@ -1,3 +1,5 @@
+import { explanationPanel } from './explanation.js';
+
 const byId = id => document.getElementById(id);
 const stage = byId('sim-stage');
 const play = byId('sim-play');
@@ -28,6 +30,11 @@ let seed = 21;
 let scenario = 'routine';
 let solarSelection = { option_id: 'toiture', day: '2023-06-21' };
 const selectedSite = () => source.value === 'simulated' ? simulatedSite : connectedSite;
+const explanation = byId('sim-explanation');
+explanation.append(explanationPanel(() => {
+  const reading = snapshot?.records.at(-1);
+  return { id: snapshot?.explanation_id, context: reading ? `${snapshot.label} ${time.format(new Date(reading.timestamp))}` : '' };
+}));
 
 function intensity(row) {
   return row?.grid_available && row.pumped_m3 > 0 && row.consumed_wh != null ? row.consumed_wh / 1000 / row.pumped_m3 : null;
@@ -145,6 +152,7 @@ function renderTimeline(alerts, hasReadings) {
 
 function render(data) {
   snapshot = data;
+  explanation.hidden = !data?.explanation_id;
   const records = data?.records ?? [];
   const row = records.at(-1);
   const simulated = source.value === 'simulated';
@@ -239,7 +247,8 @@ async function refresh(target) {
   request = controller;
   try {
     const response = await fetch('/api/simulation', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: source.value, site_id: selectedSite(), hour: target, fault_queues: faultQueues, seed, scenario, solar_selection: solarSelection }), signal: controller.signal });
+      body: JSON.stringify({ mode: source.value, site_id: selectedSite(), hour: target, fault_queues: faultQueues, seed, scenario,
+        solar_selection: solarSelection, include_explanation: true }), signal: controller.signal });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error);
     if (controller.signal.aborted) return;
@@ -314,7 +323,8 @@ for (const button of faultButtons) button.addEventListener('click', () => {
 
 byId('sim-export').addEventListener('click', () => {
   if (!snapshot?.measurements) return;
-  const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+  const { explanation_id, ...result } = snapshot;
+  const blob = new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const link = element('a');
   link.href = url;

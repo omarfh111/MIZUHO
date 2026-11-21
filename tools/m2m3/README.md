@@ -16,7 +16,7 @@ $python = ".\.venv\Scripts\python.exe"
 & $python -m mizu_energy forecast --site jendouba-pilote --telemetry data/telemetry/sample.csv --as-of 2026-11-20T18:00:00+01:00
 & $python -m mizu_energy anomalies --telemetry data/telemetry/sample.csv --reference-kwh-per-m3 0.5
 & $python -m mizu_energy weather --input data/weather/jplus1_demo.json --pair jplus1-demo
-& $python -m pytest -q
+& $python -m pytest -q tests
 ```
 
 On macOS or Linux, use `.venv/bin/python` in place of `& $python`. All four commands print JSON. Invalid input exits with status 2 and a message on standard error. A forecast with too little history reports `insufficient_history`. Anomaly diagnostics report `insufficient_data` when a reference or comparable readings are missing.
@@ -44,6 +44,20 @@ For multiple connected stations, include a `references` object of validated ener
 See [the M2/M3 IoT integration notes](M2-M3-IOT.md) for the virtual sensor contract, fault replay, and applying a PVGIS profile to the simulation.
 
 See [the team integration guide](INTEGRATION.md) for runnable HTTP examples and the field mapping to the M4 and M6 models.
+
+### Metric explanations with NVIDIA (optional)
+
+After a calculation, click **Explain metrics** to get an explanation and the supporting backend evidence. The local explanation works offline. The LLM can add a short qualitative interpretation while the app displays its numbers from the calculation output.
+
+Put your [NVIDIA Build API key](https://build.nvidia.com/nvidia/nemotron-3.5-lightning-30b-a3b) in the local `.env` next to `requirements.txt`. On a fresh checkout, copy `.env.example` to `.env` first. These settings use the [OpenAI-compatible NVIDIA chat endpoint](https://build.nvidia.com/nvidia/nemotron-3.5-lightning-30b-a3b/apireference):
+
+```dotenv
+NVIDIA_API_KEY=
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+NVIDIA_MODEL=nvidia/nemotron-3.5-lightning-30b-a3b
+```
+
+The key stays on the Python server and `.env` is ignored by Git. A model request is sent only when you click **Explain metrics**. It includes a qualitative summary and references to calculated facts. The backend supplies the exact numbers shown in the evidence panel. Raw CSV files and meter rows stay local. If the endpoint is unavailable or the reply fails validation, the workbench displays the local explanation.
 
 ## PV comparison inputs
 

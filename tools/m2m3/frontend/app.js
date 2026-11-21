@@ -1,4 +1,5 @@
 import { simulation } from './simulation.js';
+import { explanationPanel } from './explanation.js';
 
 const pages = {
   simulation: ['Station network', 'Compare stations under the same replay conditions and investigate alerts.'],
@@ -219,7 +220,13 @@ const renderers = { solar: renderSolar, forecast: renderForecast, anomalies: ren
 function showResult(view) {
   observer?.disconnect();
   resultArea.replaceChildren();
-  if (saved.has(view)) resultArea.append(...renderers[view](saved.get(view)));
+  if (saved.has(view)) {
+    const result = saved.get(view);
+    resultArea.append(...renderers[view](result));
+    if (result.explanation_id && !dirty.has(view)) {
+      resultArea.append(explanationPanel(() => ({ id: result.explanation_id })));
+    }
+  }
   download.hidden = !saved.has(view) || dirty.has(view);
 }
 
@@ -267,7 +274,8 @@ async function run(view) {
   try {
     const payload = await makePayload(view, form);
     const response = await fetch(`/api/${view}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: controller.signal,
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, include_explanation: true }), signal: controller.signal,
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Calculation failed.');
@@ -322,6 +330,7 @@ for (const [view, form] of Object.entries(forms)) {
   form.addEventListener('input', () => {
     cancel();
     dirty.add(view);
+    resultArea.querySelector('.explanation-panel')?.remove();
     download.hidden = true;
     showStatus(saved.has(view) ? 'Inputs changed. Run the calculation to refresh the results.' : '', 'notice');
   });
@@ -394,7 +403,8 @@ forms.weather.elements.profiles.addEventListener('change', async event => {
   }
 });
 download.addEventListener('click', () => {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(saved.get(active), null, 2)], { type: 'application/json' }));
+  const { explanation_id, ...result } = saved.get(active);
+  const url = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' }));
   const link = document.createElement('a');
   link.href = url;
   link.download = `mizu-${active}.json`;

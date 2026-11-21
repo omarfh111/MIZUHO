@@ -95,6 +95,9 @@ dl div { display: flex; justify-content: space-between; gap: 12px; font-size: .8
 dt { color: var(--muted); }
 dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 .full-card { margin-top: 15px; }
+.explain-source { color: var(--green); font-weight: 650; font-size: .88rem; margin: 12px 0 4px; }
+.explain-facts { margin: 9px 0 0; padding-left: 22px; }
+.explain-facts li + li { margin-top: 4px; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: .88rem; margin-top: 8px; }
 th, td { text-align: left; border-bottom: 1px solid var(--line); padding: 7px 8px; white-space: nowrap; }

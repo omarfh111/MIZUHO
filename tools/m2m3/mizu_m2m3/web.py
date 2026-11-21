@@ -9,6 +9,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfoNotFoundError
 
 from .anomalies import analyze_telemetry
+from .explain import EXPLAINABLE, explain_result, remember_result
 from .inputs import DATA
 from .sensors import project_telemetry
 from .simulation import connected_snapshot, demo_network_snapshot
@@ -29,6 +30,7 @@ ASSETS = {
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
     "/simulation.js": ("simulation.js", "text/javascript; charset=utf-8"),
+    "/explanation.js": ("explanation.js", "text/javascript; charset=utf-8"),
 }
 
 
@@ -133,7 +135,8 @@ def _project_sensors(payload):
 
 
 OPERATIONS = {"solar": _solar, "forecast": _forecast, "anomalies": _anomalies, "weather": _weather,
-              "simulation": _simulation, "solar/profile": _solar_profile, "telemetry/project": _project_sensors}
+              "simulation": _simulation, "solar/profile": _solar_profile, "telemetry/project": _project_sensors,
+              "explain": lambda payload: explain_result(payload.get("explanation_id"))}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -161,7 +164,8 @@ class Handler(BaseHTTPRequestHandler):
         self._reply(200, content_type, (FRONTEND / filename).read_bytes())
 
     def do_POST(self):
-        operation = OPERATIONS.get(self.path.removeprefix("/api/")) if self.path.startswith("/api/") else None
+        name = self.path.removeprefix("/api/") if self.path.startswith("/api/") else ""
+        operation = OPERATIONS.get(name)
         if operation is None:
             self._json(404, {"error": "Calculation not found."})
             return
@@ -176,7 +180,10 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(size))
             if not isinstance(payload, dict):
                 raise ValueError("Expected a JSON object.")
-            self._json(200, operation(payload))
+            result = operation(payload)
+            if name in EXPLAINABLE and payload.get("include_explanation") is True:
+                result = {**result, "explanation_id": remember_result(name, result)}
+            self._json(200, result)
         except (ValueError, TypeError, KeyError, ZoneInfoNotFoundError) as error:
             self._json(422, {"error": str(error)})
         except OSError:
