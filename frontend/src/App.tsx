@@ -107,11 +107,11 @@ export default function App() {
       </div>}
       {catalog && !site && <div className="surface page-fallback"><p>No site data available.</p></div>}
       {catalog && site && page === 'map' && <SiteMap key={siteId} site={site} sites={catalog.sites.features} scenario={scenarios[0]}
-        mode={catalog.mode} selectedOption={solar} onSelectSite={(id) => { setSiteId(id); setSolar(null); }}
+        mode={catalog.mode} selectedOption={solar} onSelectSite={(id) => { setSiteId(id); setSolar(null); setAssistantSimulation(undefined); }}
         onCompare={setSolarIds} onEvidence={setSource} onSimulate={() => navigate('simulation')} />}
       {catalog && site && visitedSimulation && <div hidden={page !== 'simulation'}>
         {scenarios.length ? <Suspense fallback={<div className="surface page-fallback" role="status">Loading the simulator…</div>}>
-          <Simulation key={siteId} scenarios={scenarios} mode={catalog.mode} solar={solar} onClearSolar={() => setSolar(null)} onEvidence={setSource}
+          <Simulation key={siteId} site={site} visible={page === 'simulation'} scenarios={scenarios} mode={catalog.mode} solar={solar} onClearSolar={() => setSolar(null)} onEvidence={setSource}
             onAssistantContext={setAssistantSimulation} />
         </Suspense> : <div className="surface page-fallback"><p>No scenarios are available for this site.</p></div>}
       </div>}

@@ -40,7 +40,7 @@ const polygons = [
   [[-17, 23], [5, 18], [11, 30], [-11, 34]],
 ];
 
-export const demoLayers: Record<LayerId, Layer> = {
+export const demoLayers: Record<Exclude<LayerId, 'wapor'>, Layer> = {
   plots: {
     type: 'FeatureCollection', date: demoDate, status: 'simulated', source_id: 'wapor',
     features: polygons.map((points, index) => feature(polygon(points), {

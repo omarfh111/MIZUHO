@@ -49,5 +49,5 @@
     ]
   },
   {"source_id": "jendouba-borehole", "section": "Local measurements", "unavailable_reason": "No observed water level, pumping test or metered withdrawals are available for a pilot borehole."},
-  {"source_id": "site-pvgis", "section": "Local photovoltaic evidence", "unavailable_reason": "No verified PVGIS export, measured site load, or annual costs are available for the demo options."}
+  {"source_id": "site-pvgis", "section": "Local photovoltaic evidence", "unavailable_reason": "Measured site loads, installation surveys and annual costs for the demo options are unavailable. The archived PVGIS reference profiles are modeled estimates."}
 ]

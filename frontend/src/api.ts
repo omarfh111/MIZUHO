@@ -1,4 +1,5 @@
 import type { FeatureCollection, Geometry, Position } from 'geojson';
+import type { Replay, ReplayBody } from './twin.ts';
 import { demoEvidence, demoLayers, demoScenarios, demoSiteId, demoSites, demoSolar } from './demo/catalog.ts';
 import { demoCompare } from './demo/planner.ts';
 import type { AssistantAnswer, AssistantHealth, AssistantRequest, Citation, CompareRequest, Comparison, Evidence, Layer, LayerId, Plan, Scenario, SiteProperties, Sites, SolarOption, SolarRequest } from './types.ts';
@@ -48,8 +49,24 @@ async function request<T>(path: string, signal: AbortSignal, body?: unknown, tim
   return payload as T;
 }
 
+export function getReplay(body: ReplayBody, signal: AbortSignal): Promise<Replay> {
+  return request('telemetry/replay', signal, body);
+}
+
+export function getForecast(siteId: string, signal: AbortSignal) {
+  return request<{
+    status: 'ok' | 'insufficient_history'; points: { timestamp: string; load_kw: number }[];
+    test: { regression_mae_kw: number; same_hour_last_week_mae_kw: number; hours: number } | null;
+  }>('telemetry/forecast', signal, { site_id: siteId, as_of: '2026-11-20T18:00:00+01:00' });
+}
+
 function unreadable() {
   return new ApiError('The API response could not be read.', 502);
+}
+
+export function getRadiationDay(day: string, signal: AbortSignal) {
+  return request<{ source_url: string; observations: { reported_at: string; radiation_w_m2: number }[] }>(
+    `weather/bouhertma?day=${encodeURIComponent(day)}`, signal);
 }
 
 function centerOf(geometry: Geometry): Position | undefined {
@@ -108,9 +125,20 @@ export async function getCatalog(signal: AbortSignal): Promise<Catalog> {
   }
 }
 
+export function getAgriculture(site: string, signal: AbortSignal): Promise<import('./types.ts').AgriculturalSurvey> {
+  return request(`sites/${encodeURIComponent(site)}/agriculture`, signal);
+}
+
 export async function getLayer(site: string, layer: LayerId, mode: DataMode, signal: AbortSignal): Promise<Layer> {
-  if (mode === 'demo' && site === demoSiteId) return demoLayers[layer];
-  const data = await request<Layer>(`layers/${encodeURIComponent(site)}/${layer}`, signal);
+  if (mode === 'demo' && site === demoSiteId) {
+    if (layer === 'wapor') throw new Error('No satellite survey for the demonstration site.');
+    return demoLayers[layer];
+  }
+  const path = `layers/${encodeURIComponent(site)}/${layer}`;
+  const data = await request<Layer>(path, signal).catch((error) => {
+    if (signal.aborted || !(error instanceof ApiError) || ![500, 502, 503, 504].includes(error.status)) throw error;
+    return request<Layer>(path, signal);
+  });
   if (data.type !== 'FeatureCollection' || !Array.isArray(data.features)) throw unreadable();
   return { ...data, features: data.features.filter((feature) => feature.geometry && feature.properties) };
 }
@@ -132,6 +160,12 @@ export async function solarCompare(input: SolarRequest, mode: DataMode, signal: 
   const options = Array.isArray(response) ? response : response.options;
   if (!Array.isArray(options)) throw unreadable();
   return options;
+}
+
+export async function archiveSolarCompare(input: SolarRequest, signal: AbortSignal): Promise<SolarOption[]> {
+  const archive = await request<{ day: string; options: (SolarOption & { compass_azimuth_deg: number })[] }>('solar/compare-archive', signal, input);
+  return archive.options.map((option) => ({ ...option, azimuth_deg: option.compass_azimuth_deg,
+    period: archive.day + ' · PVGIS potential, simulated load', autonomy_hours: 0 }));
 }
 
 function isPlan(plan?: Plan) {

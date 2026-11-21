@@ -1,6 +1,6 @@
 import { ArrowRight, BookOpenText, CheckCircle2, Circle, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { solarCompare, type DataMode } from '../api.ts';
+import { archiveSolarCompare, solarCompare, type DataMode } from '../api.ts';
 import { provenanceLabel, value } from '../format.ts';
 import type { SolarOption } from '../types.ts';
 import { Modal } from './EvidencePanel.tsx';
@@ -35,9 +35,11 @@ export default function SolarComparison({ site, options, mode, selectedOption, c
   const [error, setError] = useState('');
   const [priceError, setPriceError] = useState('');
   const [compared, setCompared] = useState(options.slice(0, 2));
+  const [archive, setArchive] = useState(selectedOption?.source_id === 'pvgis-sarah3-jendouba-2023');
   useEffect(() => {
     const controller = new AbortController();
-    solarCompare({ site_id: site, option_ids: compared, price_tnd_per_kwh: appliedPrice }, mode, controller.signal)
+    const body = { site_id: site, option_ids: compared, price_tnd_per_kwh: appliedPrice };
+    (archive ? archiveSolarCompare(body, controller.signal) : solarCompare(body, mode, controller.signal))
       .then((result) => {
         if (controller.signal.aborted) return;
         setResults(result);
@@ -46,7 +48,7 @@ export default function SolarComparison({ site, options, mode, selectedOption, c
       .catch((failure) => { if (!controller.signal.aborted) setError(failure.message); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [site, compared, mode, appliedPrice, refresh]);
+  }, [site, compared, mode, appliedPrice, refresh, archive]);
 
   const max = Math.max(1000, ...(results?.flatMap(({ profile_wh }) => profile_wh ?? []) ?? []));
   const selection = results?.find(({ id }) => id === selected);
@@ -65,6 +67,10 @@ export default function SolarComparison({ site, options, mode, selectedOption, c
 
   return <Modal title="Compare solar options" icon={<Sun size={22} />} close={close} wide>
     <p className="modal-intro">Compare solar generation and grid use for the same pumping demand.</p>
+    {mode === 'live' && <label className="field"><span>Production source</span><select value={archive ? 'archive' : 'scenario'}
+      onChange={(e) => { setArchive(e.target.value === 'archive'); setLoading(true); setError(''); setResults(null); }}>
+      <option value="scenario">Pilot scenario · simulated profiles</option><option value="archive">PVGIS archive · 21 June 2023</option>
+    </select></label>}
     {options.length > 2 && <div className="solar-option-controls">
       {compared.map((option, index) => <label className="field" key={index}>
         <span>Configuration {index + 1}</span>

@@ -6,8 +6,9 @@ import type { Geometry, Position } from 'geojson';
 import type { Layer, LayerId, LayerProperties, Site } from '../types.ts';
 import { buildTerrain, disposeScene, elevation, trace, worldPoint } from './terrain.ts';
 import type { MapControls } from './mapControls.ts';
+import type { TwinFrame } from '../twin.ts';
 
-const layerColors: Record<LayerId, string> = { plots: '#c9ef86', solar: '#f7ce76', anomalies: '#f29285', wind: '#a9b9f4' };
+const layerColors: Record<LayerId, string> = { plots: '#c9ef86', solar: '#f7ce76', anomalies: '#f29285', wind: '#a9b9f4', wapor: '#3bc9c1' };
 const tankPosition = new THREE.Vector3(-34, elevation(-34, 7) + 2.5, 7);
 type Project = (position: Position, lift: number) => THREE.Vector3;
 
@@ -43,9 +44,14 @@ interface Marker {
   properties?: LayerProperties;
 }
 
-function describeMarkers(project: Project, layers: Partial<Record<LayerId, Layer>>, siteLabel: string, demo: boolean): Marker[] {
+function describeMarkers(project: Project, layers: Partial<Record<LayerId, Layer>>, siteLabel: string, demo: boolean, operational: boolean): Marker[] {
   const markers: Marker[] = [{ id: 'site', position: demo ? tankPosition : new THREE.Vector3(0, 1.4, 0), label: siteLabel }];
+  if (operational && demo) {
+    markers.push({ id: 'pump', position: new THREE.Vector3(-36, elevation(-36, 0) + 3, -1), label: 'Pump', properties: { equipment: 'pump' } },
+      { id: 'grid', position: new THREE.Vector3(-47, elevation(-47, -13) + 2, -13), label: 'Grid', properties: { equipment: 'grid' } });
+  }
   for (const [id, layer] of Object.entries(layers) as [LayerId, Layer][]) {
+    if (id === 'wapor') continue;
     layer.features.forEach(({ geometry, properties }, index) => {
       const points = geometry.type === 'Point' ? [geometry.coordinates] : rings(geometry)[0]?.slice(0, -1) ?? [];
       if (!points.length) return;
@@ -66,6 +72,29 @@ function revealLayers(
   active: LayerProperties | null, markers: Marker[], demo: boolean,
 ) {
   for (const [id, layer] of Object.entries(layers) as [LayerId, Layer][]) {
+    if (id === 'wapor') {
+      const positions: number[] = [];
+      const colors: number[] = [];
+      const low = new THREE.Color('#835d34'), high = new THREE.Color('#3bc9c1');
+      const color = new THREE.Color();
+      for (const { geometry, properties } of layer.features) {
+        const ring = rings(geometry)[0];
+        if (ring?.length !== 5 || properties.eta_mm_day == null) continue;
+        color.lerpColors(low, high, THREE.MathUtils.clamp(properties.eta_mm_day / 6, 0, 1));
+        const corners = ring.slice(0, 4).map((point) => project(point, .04));
+        for (const i of [0, 1, 2, 0, 2, 3]) {
+          positions.push(corners[i].x, corners[i].y, corners[i].z);
+          colors.push(color.r, color.g, color.b);
+        }
+      }
+      const grid = new THREE.BufferGeometry();
+      grid.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      grid.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      scene.add(new THREE.Mesh(grid, new THREE.MeshBasicMaterial({
+        vertexColors: true, transparent: true, opacity: .75, depthWrite: false, side: THREE.DoubleSide,
+      })));
+      continue;
+    }
     layer.features.forEach(({ geometry, properties }) => {
       for (const edge of rings(geometry)) {
         if (edge.length < 4) continue;
@@ -113,14 +142,14 @@ function revealLayers(
   }
   if (!demo) return [];
   const plots = markers.filter(({ layer }) => layer === 'plots');
-  const links = plots.map(({ position }) => {
+  const links = plots.map(({ position, properties }) => {
     const points = [
       [-34, 7], [-30, 11], [-28, 14], [position.x - 3, 14], [position.x, position.z],
     ].map(([x, z]) => new THREE.Vector3(x, elevation(x, z) + .26, z));
     const link = trace(points, '#69d8be', .105);
     const pulse = new THREE.Mesh(new THREE.SphereGeometry(.30, 8, 8), new THREE.MeshBasicMaterial({ color: '#b9fff1' }));
     scene.add(link.mesh, pulse);
-    return { ...link, pulse };
+    return { ...link, pulse, plotId: properties?.plot_id };
   });
   return links;
 }
@@ -133,17 +162,21 @@ interface Props {
   controls: React.RefObject<MapControls | null>;
   onUnavailable: () => void;
   demo: boolean;
+  snapshot?: TwinFrame;
 }
 
-export default function TerrainMap({ site, layers, active, select, controls, onUnavailable, demo }: Props) {
+export default function TerrainMap({ site, layers, active, select, controls, onUnavailable, demo, snapshot }: Props) {
+  const current = useRef(snapshot);
+  current.current = snapshot;
+  const operational = Boolean(snapshot);
   const view = useRef<HTMLDivElement>(null);
   const markerRefs = useRef(new Map<string, HTMLButtonElement>());
   const setup = useRef<{ scene: THREE.Scene; render: () => void } | null>(null);
   const markersRef = useRef<Marker[]>([]);
   const updateLinks = useRef<(now: number) => void>(() => {});
   const project = useMemo(() => projection(site, layers, demo), [site, layers, demo]);
-  const markers = useMemo(() => describeMarkers(project, layers, site.properties.label, demo),
-    [project, layers, site.properties.label, demo]);
+  const markers = useMemo(() => describeMarkers(project, layers, site.properties.label, demo, operational),
+    [project, layers, site.properties.label, demo, operational]);
 
   useEffect(() => {
     const mount = view.current!;
@@ -189,7 +222,9 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
     scene.add(new THREE.HemisphereLight('#d3ecd7', '#35483e', 2.05));
     const sun = new THREE.DirectionalLight('#ffeac4', 2.15);
     sun.position.set(-66, 110, -29);
-    scene.add(sun, demo ? buildTerrain() : new THREE.GridHelper(96, 24, '#54705e', '#344d41'));
+    scene.add(sun, demo ? buildTerrain(operational) : new THREE.GridHelper(96, 24, '#54705e', '#344d41'));
+    const water = scene.getObjectByName('reservoir-fill');
+    const lamp = scene.getObjectByName('pump-indicator') as THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial> | undefined;
     const lost = (event: Event) => {
       event.preventDefault();
       onUnavailable();
@@ -239,7 +274,13 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
     intersection.observe(mount);
     const animate = (time: number) => {
       if (visible) {
-        if (!reduced.matches) updateLinks.current(time);
+        updateLinks.current(reduced.matches ? 0 : time);
+        const snapshot = current.current;
+        if (water && lamp && snapshot) {
+          const level = snapshot.tank_capacity_m3 ? snapshot.tank_stock_m3 / snapshot.tank_capacity_m3 : 0;
+          water.scale.y = reduced.matches ? level : THREE.MathUtils.lerp(water.scale.y, level, .15);
+          lamp.material.color.setHex(snapshot.pump_m3 > 0 ? 0x96ffc6 : 0x546760);
+        }
         render();
       }
       frame = window.requestAnimationFrame(animate);
@@ -259,7 +300,7 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
       controls.current = null;
       setup.current = null;
     };
-  }, [controls, onUnavailable, demo]);
+  }, [controls, onUnavailable, demo, operational]);
 
   useEffect(() => {
     if (!setup.current) return;
@@ -277,8 +318,12 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
     links.forEach(({ curve, pulse }) => { pulse.position.copy(curve.getPoint(.35)); });
     const scene = setup.current.scene;
     scene.add(layerScene);
-    updateLinks.current = (time) => links.forEach(({ curve, pulse }, index) => {
-      pulse.position.copy(curve.getPoint((time / 4400 + index * .24) % 1));
+    updateLinks.current = (time) => links.forEach(({ curve, pulse, mesh, plotId }, index) => {
+      const snapshot = current.current;
+      const parcel = snapshot?.parcels.find((entry) => entry.plot_id === plotId);
+      pulse.visible = !snapshot || Boolean(parcel?.delivered_m3);
+      mesh.material.color.setHex(pulse.visible ? 0x69d8be : 0x638276);
+      if (pulse.visible) curve.getPoint((time / 4400 + index * .24) % 1, pulse.position);
     });
     setup.current.render();
     return () => {
@@ -293,13 +338,14 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
     <div className="terrain-markers">
       {markers.map((marker) => {
         const selected = marker.properties ? marker.properties === active : active === null;
-        const Icon = marker.layer === 'solar' ? Zap : marker.layer === 'anomalies' ? TriangleAlert : marker.layer ? MapPin : Droplets;
+        const Icon = marker.layer === 'solar' || marker.id === 'grid' ? Zap : marker.layer === 'anomalies' ? TriangleAlert : marker.layer ? MapPin : Droplets;
         return <button key={marker.id} type="button" className={`terrain-marker marker-${marker.layer ?? 'site'}`}
-          aria-label={marker.layer ? marker.label : `Site ${marker.label}`} aria-pressed={selected}
+          aria-label={marker.properties ? marker.label : `Site ${marker.label}`} aria-pressed={selected}
           title={marker.label} onClick={() => select(marker.properties ?? null)}
           ref={(element) => { if (element) markerRefs.current.set(marker.id, element); else markerRefs.current.delete(marker.id); }}>
           {marker.layer === 'plots' && marker.properties?.plot_id ? marker.properties.plot_id : <Icon size={14} />}
-          {!marker.layer && <span>{demo ? 'Reservoir' : 'Site'}</span>}
+          {!marker.layer && <span>{marker.id === 'grid' ? (snapshot?.grid_available ? 'Grid on' : 'Grid off') :
+            marker.id === 'pump' ? (snapshot?.pump_m3 ? 'Pumping' : 'Stopped') : demo ? 'Reservoir' : 'Site'}</span>}
         </button>;
       })}
     </div>

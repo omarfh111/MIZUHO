@@ -58,6 +58,10 @@ function Timeline({ scenario, input, reference, proposed, weather }: {
   scenario: Scenario; input: CompareRequest; reference: Plan; proposed: Plan; weather: boolean;
 }) {
   const outage = new Set(input.outage_slots);
+  const event = input.incident;
+  if (event?.kind === 'unexpected_outage') {
+    for (let slot = event.start_slot; slot < event.start_slot + event.duration_slots; slot++) outage.add(slot);
+  }
   const firstOutage = scenario.slots.find(({ slot }) => outage.has(slot) && slot >= input.state.current_slot)?.slot;
   const first = firstOutage ?? scenario.slots.find(({ slot }) => slot >= input.state.current_slot)?.slot ?? 0;
   const [focused, setFocused] = useState<number | null>(null);
@@ -65,12 +69,16 @@ function Timeline({ scenario, input, reference, proposed, weather }: {
   const selected = focused ?? first;
   const slotCap = scenario.slots.find(({ slot }) => slot === selected)?.grid_cap_w;
   const restartCap = !outage.has(selected) && outage.has(selected - 1) && slotCap !== undefined
-    ? Math.min(slotCap, input.restart_grid_cap_w ?? slotCap) : undefined;
+    ? Math.min(slotCap, input.restart_grid_cap_w ?? slotCap, input.overrides?.grid_cap_w ?? slotCap) : undefined;
   const rows = [
-    { title: weather ? 'Nominal plan' : 'Fixed schedule', plan: reference, kind: 'reference' },
-    { title: weather ? 'With reserve' : 'Proposed plan', plan: proposed, kind: 'proposed' },
+    { title: weather ? 'Nominal plan' : event ? 'Previous schedule' : 'Fixed schedule', plan: reference, kind: 'reference' },
+    { title: weather ? 'With reserve' : event ? 'Recovery plan' : 'Proposed plan', plan: proposed, kind: 'proposed' },
   ];
-  const stateFor = (slot: number) => outage.has(slot) ? 'Outage' : outage.has(slot - 1) ? 'Grid restored' : 'Grid available';
+  const stateFor = (slot: number) => {
+    const grid = outage.has(slot) ? 'Outage' : outage.has(slot - 1) ? 'Grid restored' : 'Grid available';
+    return event?.kind === 'pump_shutdown' && slot >= event.start_slot && slot < event.start_slot + event.duration_slots
+      ? `${grid} · pump shutdown` : grid;
+  };
   useEffect(() => {
     const element = scroller.current!;
     const target = element.querySelector<HTMLButtonElement>('.focused-hour');
@@ -82,7 +90,7 @@ function Timeline({ scenario, input, reference, proposed, weather }: {
       <div className="title-with-icon"><div className="section-icon"><Clock3 size={18} /></div><div>
         <h2 id="planning-title">Schedule comparison</h2><p className="muted small">Hourly slots · Tunis time</p></div></div>
       <div className="planning-legend">
-        <span><Zap size={13} /> Pumping</span><span><Droplets size={13} /> Irrigation</span><span><TriangleAlert size={13} /> Coupure</span>
+        <span><Zap size={13} /> Pumping</span><span><Droplets size={13} /> Irrigation</span><span><TriangleAlert size={13} /> Outage</span>
       </div>
     </div>
     <div className="timeline-scroll" ref={scroller} tabIndex={0} aria-label="Scrollable hourly schedule">
@@ -187,6 +195,16 @@ export default function Planning({ comparison, input, scenario, stale, onEvidenc
   const proposed = weather?.buffer_on_adverse ?? comparison.optimized;
   const metrics = proposed.metrics;
   const baseline = reference.metrics;
+  const unserved = (plan: Plan) => {
+    if (!plan.plot_results) return undefined;
+    let missing = 0;
+    for (const row of plan.plot_results) {
+      const demand = row.demand_m3 ?? scenario.plots.find((p) => p.plot_id === row.plot_id)?.demand_m3;
+      if (demand === undefined) return undefined;
+      missing += Math.max(0, demand - row.delivered_m3);
+    }
+    return missing;
+  };
   const warnings = [...new Map([...reference.warnings, ...proposed.warnings].map((warning) => [warningKey(warning), warning])).values()];
   return <div className={`results ${stale ? 'results-stale' : ''}`}>
     <section className="overview-stats plan-stats" aria-label="Performance comparison">
@@ -198,12 +216,27 @@ export default function Planning({ comparison, input, scenario, stale, onEvidenc
         icon={<Zap size={19} />} tone="gold" />
       <Stat label="Peak hourly grid demand" title={kilo(metrics?.peak_grid_w)} reference={kilo(baseline?.peak_grid_w)} unit="kW"
         icon={<ChartNoAxesCombined size={19} />} tone="periwinkle" />
+      <Stat label="Delivered on time" title={value(metrics?.delivered_on_time_m3)} reference={value(baseline?.delivered_on_time_m3)}
+        unit="m³" icon={<Droplets size={19} />} tone="teal" />
+      <Stat label="Unserved demand" title={value(unserved(proposed))} reference={value(unserved(reference))}
+        unit="m³" icon={<Activity size={19} />} tone="gold" />
     </section>
     {weather && <WeatherDecision weather={weather} onEvidence={onEvidence} />}
+    {comparison.incident_checkpoint && <section className="surface weather-panel">
+      <h2>Recovery from {input.incident?.kind === 'pump_shutdown' ? 'pump shutdown' : 'unexpected outage'}</h2>
+      <p>Actions before {hour(comparison.incident_checkpoint.current_slot)} were completed under the original plan.
+        Both alternatives resume with {value(comparison.incident_checkpoint.tank_stock_m3)} m³ in the tank
+        and {value(comparison.incident_checkpoint.quota_remaining_m3)} m³ of withdrawal quota.</p>
+    </section>}
     <Timeline scenario={scenario} input={input} reference={reference} proposed={proposed} weather={Boolean(weather)} />
     <Equity scenario={scenario} reference={reference} proposed={proposed} />
     <section className="surface energy-panel" aria-labelledby="energy-title">
       <h2 id="energy-title"><Zap size={18} /> Pumping and diagnostics</h2>
+      {metrics && <p className="muted small">The planner prioritizes the lowest on-time coverage, then reduces
+        minimum shortfalls and maximizes deliveries before comparing peak grid demand, grid energy and withdrawals.
+        {' '}{input.overrides && 'This comparison includes your operating assumptions. '}
+        {scenario.provenance === 'simulated' && <button type="button" className="text-button" onClick={() => onEvidence('demo-site')}>
+          <BookOpenText size={14} /> Simulated site assumptions</button>}</p>}
       <div className="energy-facts">
         <span>Pumping energy <b>{kilo(metrics?.pump_wh)} kWh</b> <small>Baseline {kilo(baseline?.pump_wh)} kWh</small></span>
         <span>Final water stock <b>{value(metrics?.tank_stock_m3)} m³</b></span>

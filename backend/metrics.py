@@ -12,7 +12,8 @@ def summarize_plots(
         coverage = min(10_000, timely * 10_000 // plot.minimum_m3) if plot.minimum_m3 else None
         reason = "shortfall" if deficit else "late_or_partial" if total < plot.demand_m3 else "covered"
         if deficit:
-            windows = sum(state.current_slot <= slot <= plot.deadline_slot for slot in plot.allowed_slots)
+            windows = sum(state.current_slot <= slot <= plot.deadline_slot and scenario.slots[slot].gravity_available
+                          for slot in plot.allowed_slots)
             starting_volume = state.delivered_on_time_by_plot_m3.get(plot.plot_id, 0)
             if windows == 0:
                 reason = "no_timely_slot"

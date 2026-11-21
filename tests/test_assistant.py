@@ -52,6 +52,7 @@ def test_langgraph_uses_real_m6_for_farmer_a(context):
         turns.append(body)
         assert {item["name"] for item in body["tools"]} == {
             "search_evidence", "get_site_data", "get_simulation_results", "explain_decision",
+            "get_agricultural_insights", "get_sensor_anomalies",
         }
         if len(turns) == 1:
             return response(call("explain_decision", {"scenario_id": "mini", "quota_m3": None}))
@@ -60,6 +61,7 @@ def test_langgraph_uses_real_m6_for_farmer_a(context):
     request = AssistantRequest(site_id="jendouba-pilote", question="Why did farmer A receive only 5 m³?")
     answer = run_assistant(request, catalog, corpus, SimpleNamespace(respond=respond), 5)
     assert len(turns) == 2 and answer.tools_used == ("explain_decision",)
+    assert "maximizes the worst priority coverage" in answer.paragraphs[0].text
     assert any("Plot A (EXP-01): 5 m³" in item.text for item in answer.facts)
     assert any("minimum coverage 50%" in item.text for item in answer.facts)
     assert {item.provenance for item in answer.facts} == {Provenance.SIMULATED}

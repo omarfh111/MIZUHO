@@ -61,6 +61,12 @@ def test_geographic_layers_and_source_links(client):
     assert client.get("/api/evidence/missing").status_code == 404
     assert client.get("/api/layers/missing/plots").status_code == 404
     assert client.get(f"/api/layers/{site_id}/missing").status_code == 404
+    raster = "/api/layers/TN-32-BALTABOUAWENE-ASSILA/wapor"
+    plain = client.get(raster, headers={"Accept-Encoding": "identity"})
+    compressed = client.get(raster, headers={"Accept-Encoding": "gzip"})
+    assert compressed.headers["content-encoding"] == "gzip"
+    assert int(compressed.headers["content-length"]) < len(plain.content)
+    assert compressed.content == plain.content
 
 
 def test_development_cors_allows_configured_origin(monkeypatch):
@@ -72,6 +78,17 @@ def test_development_cors_allows_configured_origin(monkeypatch):
         disallowed = connection.options("/api/compare", headers={**headers, "Origin": "https://example.com"})
         assert disallowed.status_code == 400
         assert "access-control-allow-origin" not in disallowed.headers
+
+
+def test_station_observations_and_replanning_endpoints(client):
+    weather = client.get("/api/weather/bouhertma", params={"day": "2026-05-08"})
+    assert weather.status_code == 200
+    assert weather.json()["unit"] == "W/m²" and len(weather.json()["observations"]) == 24
+    assert client.get("/api/weather/bouhertma", params={"day": "unavailable"}).status_code == 422
+    result = post_compare(client, compare_request("mini", incident={"kind": "pump_shutdown", "start_slot": 2, "duration_slots": 1}))
+    assert result["incident_checkpoint"]["tank_stock_m3"] == 5
+    response = client.post("/api/compare", json=compare_request("mini", overrides={"demand_by_plot_m3": {"A": 1}}))
+    assert response.status_code == 422 and response.json()["detail"][0]["loc"] == ["body", "overrides", "demand_by_plot_m3", "A"]
 
 
 def test_v5_miniature_shares_water_during_an_outage(client):

@@ -1,0 +1,40 @@
+{
+  "jendouba-pilote": {
+    "timezone": "Africa/Tunis",
+    "demo_day": "2023-06-21",
+    "options": {
+      "toiture": {
+        "label": "Pump station rooftop",
+        "latitude": 36.50,
+        "longitude": 8.78,
+        "capacity_kwp": 10,
+        "tilt_deg": 15,
+        "azimuth_deg": -35,
+        "losses_pct": 14,
+        "mounting": "building-integrated",
+        "series_year": 2023,
+        "period": "2023 (UTC)",
+        "provenance": "estimated",
+        "source_id": "pvgis-sarah3-jendouba-2023",
+        "source_url": "https://re.jrc.ec.europa.eu/api/v5_3/seriescalc?lat=36.50&lon=8.78&startyear=2023&endyear=2023&pvcalculation=1&peakpower=10&loss=14&outputformat=json&raddatabase=PVGIS-SARAH3&angle=15&aspect=-35&mountingplace=building",
+        "source_file": "pvgis/toiture.json"
+      },
+      "ombriere": {
+        "label": "Solar canopy",
+        "latitude": 36.50,
+        "longitude": 8.78,
+        "capacity_kwp": 10,
+        "tilt_deg": 30,
+        "azimuth_deg": 0,
+        "losses_pct": 14,
+        "mounting": "free-standing",
+        "series_year": 2023,
+        "period": "2023 (UTC)",
+        "provenance": "estimated",
+        "source_id": "pvgis-sarah3-jendouba-2023",
+        "source_url": "https://re.jrc.ec.europa.eu/api/v5_3/seriescalc?lat=36.50&lon=8.78&startyear=2023&endyear=2023&pvcalculation=1&peakpower=10&loss=14&outputformat=json&raddatabase=PVGIS-SARAH3&angle=30&aspect=0&mountingplace=free",
+        "source_file": "pvgis/ombriere.json"
+      }
+    }
+  }
+}

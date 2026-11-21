@@ -1,0 +1,11 @@
+.survey-panel { margin-block: 1.25rem; padding: clamp(1rem, 2.5vw, 2rem); }
+.survey-panel header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
+.survey-panel h2, .survey-panel p { margin: .4rem 0; }
+.survey-panel p { line-height: 1.6; }
+.survey-panel small { display: block; margin-top: .7rem; }
+.survey-scroll { overflow-x: auto; margin: 1rem 0; }
+.survey-panel table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.survey-panel td, .survey-panel th { padding: .55rem .7rem; text-align: right; white-space: nowrap; border-bottom: 1px solid #66847755; }
+.survey-panel th:first-child { padding-left: 0; text-align: left; }
+.survey-panel a { color: inherit; }
+.wapor-gradient { display: inline-block; width: 2rem; height: .4rem; background: linear-gradient(90deg, #835d34, #3bc9c1); }
