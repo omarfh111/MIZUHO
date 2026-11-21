@@ -43,7 +43,7 @@ Never write numbers, numerals, percentages, quantities or ordinal words in prose
 the returned fact IDs containing the exact figures; the application renders those values. Explain the decision
 qualitatively, taking care to distinguish simulated from measured inputs, and verified from proven-optimal plans.
 For missing evidence, list which observation or input is needed instead of making an unsupported claim.
-Return empty paragraphs when uncertain and identify the missing information. Do not cite unrelated passages.
+When uncertain, state what cannot be verified and identify the missing information. Do not cite unrelated passages.
 """
 
 NUMERIC = re.compile(
@@ -179,6 +179,7 @@ def verified_ids(values: object, registered: dict) -> tuple[str, ...] | None:
 def finalize(turn: Turn, answer: dict) -> AssistantAnswer:
     paragraphs = []
     cited, used = {}, {}
+    selected_facts = {}
     entries = answer.get("paragraphs")
     if isinstance(entries, list):
         for entry in entries[:6]:
@@ -190,6 +191,7 @@ def finalize(turn: Turn, answer: dict) -> AssistantAnswer:
             if references is None or facts is None or not (references or facts):
                 continue
             cited.update((key, turn.citations[key]) for key in references)
+            selected_facts.update((key, turn.facts[key]) for key in facts)
             if not text:
                 continue
             paragraphs.append(GroundedParagraph(text=text, citation_ids=references, fact_ids=facts))
@@ -198,8 +200,28 @@ def finalize(turn: Turn, answer: dict) -> AssistantAnswer:
     gaps = sorted(turn.gaps)
     if isinstance(missing, list):
         gaps.extend(text for value in missing[:6] if (text := clean_text(value, 320)))
-    if not paragraphs and not cited and not gaps:
-        gaps.append("There was not enough verified information to produce a grounded explanation.")
+    if not paragraphs:
+        paragraphs.extend(turn.explanations.values())
+        for paragraph in paragraphs:
+            used.update((key, turn.facts[key]) for key in paragraph.fact_ids)
+        used.update(selected_facts)
+        if not cited and not paragraphs:
+            cited.update(turn.evidence_matches)
+        if cited:
+            paragraphs.append(GroundedParagraph(
+                text="The verified passage below provides source context for this question.",
+                citation_ids=tuple(cited), fact_ids=(),
+            ))
+        if not paragraphs and used:
+            paragraphs.append(GroundedParagraph(
+                text="These are the verified results I can share for this question. The available context does not establish a further explanation.",
+                citation_ids=(), fact_ids=tuple(used),
+            ))
+        if not paragraphs:
+            paragraphs.append(GroundedParagraph(
+                text=gaps[0] if gaps else "I don't have enough verified evidence or simulation results to answer this question.",
+                citation_ids=(), fact_ids=(),
+            ))
     for key, fact in turn.facts.items():
         if key in turn.requested_facts:
             used.setdefault(key, fact)
@@ -257,8 +279,14 @@ def answer_turn(turn: Turn, prior_answers: list[dict]) -> AssistantAnswer:
         "question": request.question.strip(),
     }
     with tracing_context(enabled=False):
-        result = GRAPH.invoke({
-            "turn": turn, "messages": [{"role": "user", "content": json.dumps(context, ensure_ascii=False)}],
-            "pending": [], "rounds": 0, "answer": {},
-        }, config={"recursion_limit": 2 * MAX_ROUNDS + 2})
+        try:
+            result = GRAPH.invoke({
+                "turn": turn, "messages": [{"role": "user", "content": json.dumps(context, ensure_ascii=False)}],
+                "pending": [], "rounds": 0, "answer": {},
+            }, config={"recursion_limit": 2 * MAX_ROUNDS + 2})
+        except ServiceError as error:
+            if not (turn.explanations or turn.evidence_matches):
+                raise
+            turn.gaps.add(f"{error.service} could not complete the response. The answer uses the verified results already retrieved.")
+            return finalize(turn, {})
     return finalize(turn, result["answer"])

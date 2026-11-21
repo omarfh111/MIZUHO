@@ -79,9 +79,11 @@ def test_what_if_uses_original_and_reduced_quota_and_never_edits_state(context):
     scenario = catalog.scenarios["jplus1"]
     original = scenario.state.model_dump_json()
     request = AssistantRequest(site_id="jendouba-pilote", question="What if the weather scenario quota is reduced to 5 m³?")
-    run_assistant(request, catalog, corpus, SimpleNamespace(respond=respond), 5)
+    answer = run_assistant(request, catalog, corpus, SimpleNamespace(respond=respond), 5)
     assert any("Proposed schedule: 6 m³ delivered" in item for item in outputs)
     assert any("before the quota reduction: 8 m³" in item for item in outputs)
+    assert "lower withdrawal quota" in answer.paragraphs[0].text
+    assert any("2 m³ minimum delivery shortfall" in fact.text for fact in answer.facts)
     assert scenario.state.model_dump_json() == original
 
 
@@ -133,7 +135,8 @@ def test_verified_citation_survives_rejected_numerical_prose(context):
         {"text": "ANME measured 9000 kWh at the pilot.", "citation_ids": [solar.id], "fact_ids": []},
         {"text": "FAO counted 800 farms.", "citation_ids": [wapor.id, "invented"], "fact_ids": []},
     ]})
-    assert not answer.paragraphs
+    assert answer.paragraphs[0].citation_ids == (solar.id,)
+    assert "9000" not in answer.paragraphs[0].text
     assert answer.citations == (solar,)
     assert not answer.missing_information
 
@@ -148,9 +151,44 @@ def test_explicitly_requested_allocation_is_preserved_when_prose_is_rejected(con
 
     request = AssistantRequest(site_id="jendouba-pilote", question="Why did grower A receive only 5 m³?")
     answer = run_assistant(request, catalog, corpus, SimpleNamespace(respond=respond), 5)
-    assert not answer.paragraphs
-    assert len(answer.facts) == 1
-    assert "Plot A (EXP-01): 5 m³" in answer.facts[0].text
+    assert "maximizes the worst priority coverage" in answer.paragraphs[0].text
+    assert "available withdrawal quota" in answer.paragraphs[0].text
+    assert "999" not in answer.model_dump_json()
+    assert any("Plot A (EXP-01): 5 m³" in fact.text for fact in answer.facts)
+
+
+def test_provider_failure_after_calculation_keeps_verified_explanation(context):
+    catalog, corpus = context
+
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            return response(call("get_simulation_results", {"scenario_id": "jplus1", "quota_m3": 5}))
+        raise ServiceError("OpenAI Responses")
+
+    request = AssistantRequest(site_id="jendouba-pilote", question="What if the quota is reduced to 5 m³?")
+    answer = run_assistant(request, catalog, corpus, SimpleNamespace(respond=respond), 5)
+    assert "lower withdrawal quota" in answer.paragraphs[0].text
+    assert any("2 m³ minimum delivery shortfall" in fact.text for fact in answer.facts)
+    assert "OpenAI Responses could not complete" in answer.missing_information[0]
+
+
+def test_retrieval_failure_explains_unavailability_without_inventing_citations(context):
+    catalog, corpus = context
+
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            return response(call("search_evidence", {"query": "ANME regional solar potential"}))
+        return complete()
+
+    def unavailable(*args, **kwargs):
+        raise ServiceError("Qdrant")
+
+    request = AssistantRequest(site_id="jendouba-pilote", question="What does ANME report?")
+    provider = SimpleNamespace(respond=respond, qdrant=unavailable,
+                               embeddings=lambda *args, **kwargs: [[0.0] * DIMENSIONS])
+    answer = run_assistant(request, catalog, corpus, provider, 5)
+    assert "Qdrant is unavailable" in answer.paragraphs[0].text
+    assert not answer.citations and not answer.facts
 
 
 def test_agent_budget_bounds_tools(context):

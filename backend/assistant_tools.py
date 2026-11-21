@@ -9,7 +9,7 @@ from .compare import InputError, compare
 from .evidence import Corpus, search
 from .models import (
     Amount, ApiPlan, AssistantRequest, Citation, CompareRequest, Comparison, DecisionFact,
-    EvidenceSearchRequest, PlanningModel, Point, Provenance,
+    EvidenceSearchRequest, GroundedParagraph, PlanningModel, Point, Provenance,
 )
 from .providers import Providers, ServiceError
 from .simulator import StateError
@@ -40,6 +40,8 @@ class Turn:
     tools_used: list[str] = field(default_factory=list)
     requested_facts: set[str] = field(default_factory=set)
     memory_facts: set[str] = field(default_factory=set)
+    explanations: dict[str, GroundedParagraph] = field(default_factory=dict)
+    evidence_matches: dict[str, Citation] = field(default_factory=dict)
     remembered_scenario_id: str | None = None
     discussed_scenario_id: str | None = None
 
@@ -70,6 +72,10 @@ def search_evidence(turn: Turn, args: EvidenceSearchRequest) -> dict:
     results = search(turn.corpus, turn.providers, args.query, timeout=turn.remaining(7))
     for result in results:
         turn.citations[result.id] = result
+    if results:
+        turn.evidence_matches[results[0].id] = results[0]
+    else:
+        turn.gaps.add("The evidence search found no matching verified passage.")
     return {
         "verified_passages": [result.model_dump(mode="json") for result in results],
         "unavailable_sources": turn.corpus.unavailable,
@@ -107,6 +113,12 @@ def get_site_data(turn: Turn, args: SiteArgs) -> dict:
         missing.append("The pilot has no observed borehole levels, pumping test or metered well withdrawals.")
     if args.include_solar:
         missing.append("Site-level measured load, PVGIS output, and verified annual costs are unavailable.")
+    explanation = "The site and layer records below identify which pilot data are available and how they were obtained."
+    if args.include_solar and solar:
+        explanation = ("The solar options are compared using their modeled generation and avoided grid energy. "
+                       "Those results describe the modeled day. A field recommendation requires site measurements.")
+    turn.explanations["site"] = GroundedParagraph(text=explanation, citation_ids=(),
+                                                   fact_ids=tuple(fact.id for fact in facts))
     return {"facts": [fact.model_dump(mode="json") for fact in facts], "missing_information": missing}
 
 
@@ -164,10 +176,16 @@ def planning_facts(turn: Turn, args: ScenarioArgs, *, explain: bool) -> dict:
         *summarize_plan(turn, "Fixed schedule" if not weather else "Weather reference", fixed, provenance),
         *summarize_plan(turn, "Proposed schedule", proposed, provenance),
     ]
+    supporting = facts.copy()
+    explanation = "The figures below compare the reference and proposed schedules under the same inputs."
     if request != original:
         initial = turn.calculate(original)
         initial_plan = initial.weather_comparison.buffer_on_adverse if initial.weather_comparison else initial.optimized
-        facts.extend(summarize_plan(turn, "Proposed schedule before the quota reduction", initial_plan, provenance))
+        before = summarize_plan(turn, "Proposed schedule before the quota reduction", initial_plan, provenance)
+        facts.extend(before)
+        supporting.extend(before)
+        explanation = ("The schedules below show the effect of rerunning the model with a lower withdrawal quota. "
+                       "The original comparison and approved plan remain separate from this hypothetical case.")
     requested_plots = {match.upper() for match in re.findall(
         r"\b(?:farmer|grower|plot)\s+([a-z0-9_-]{1,20})\b", turn.request.question, re.IGNORECASE,
     )}
@@ -179,24 +197,35 @@ def planning_facts(turn: Turn, args: ScenarioArgs, *, explain: bool) -> dict:
         facts.append(allocation)
         if requested_plots.intersection({plot.plot_id.upper(), plot.farmer_id.upper()}):
             turn.requested_facts.add(allocation.id)
+            supporting.append(allocation)
     if weather:
         facts.append(turn.fact(f"Weather reserve: {weather.early_pump_m3} m³ pumped before hour {weather.before_slot}; "
                                f"{weather.remaining_deficit_m3} m³ minimum delivery shortfall under adverse conditions.",
                                weather.provenance, remember=True))
+        supporting.append(facts[-1])
+        if weather.remaining_deficit_m3:
+            explanation += " The reserve leaves some minimum demand unmet under adverse conditions."
+        elif weather.early_pump_m3:
+            explanation += " Pumping before the risk window protects minimum deliveries under the adverse profile."
     if explain:
         rule = ("Weather planning protects minimum coverage under both profiles before minimizing early pumping."
                 if weather else
                 "The solver maximizes the worst priority coverage before weighted shortfall and delivered water, "
                 "then minimizes grid peak, grid energy, and water withdrawals.")
         facts.append(turn.fact(rule, provenance, remember=True))
+        explanation += f" {rule}"
         if request.outage_slots:
             facts.append(turn.fact("Grid-tied pumping is unavailable during outages. Gravity-fed delivery can continue "
                                    "while water remains in the reservoir.", provenance, remember=True))
+            explanation += f" {facts[-1].text}"
         if proposed.metrics and proposed.metrics.quota_remaining_m3 == 0:
             facts.append(turn.fact("The proposed plan exhausts the available withdrawal quota.", provenance, remember=True))
+            explanation += f" {facts[-1].text}"
         for warning in proposed.warnings:
             if warning.type not in {"efficiency", "insufficient"}:
                 facts.append(turn.fact(warning.message, provenance, remember=True))
+    turn.explanations["planning"] = GroundedParagraph(text=explanation, citation_ids=(),
+                                                       fact_ids=tuple(fact.id for fact in supporting))
     return {
         "verification": proposed.status,
         "facts": [fact.model_dump(mode="json") for fact in facts],
