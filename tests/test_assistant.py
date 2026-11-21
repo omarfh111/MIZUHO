@@ -24,7 +24,7 @@ def context():
 
 
 def response(*items):
-    return {"output": items}
+    return {"output": list(items)}
 
 
 def call(name, arguments, identifier="call_1"):
@@ -201,6 +201,44 @@ def test_provider_failure_after_calculation_keeps_verified_explanation(context):
     assert "lower withdrawal quota" in answer.paragraphs[0].text
     assert any("2 m³ minimum delivery shortfall" in fact.text for fact in answer.facts)
     assert "OpenAI Responses could not complete" in answer.missing_information[0]
+    assert any("Field measurements are needed" in gap for gap in answer.missing_information)
+
+
+def test_malformed_completion_after_calculation_keeps_verified_explanation(context):
+    catalog, corpus = context
+
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            return response(call("explain_decision", {"scenario_id": "mini", "quota_m3": None}))
+        return response({"type": "message", "content": None})
+
+    request = AssistantRequest(site_id="jendouba-pilote", question="Why did grower A receive only 5 m³?")
+    answer = run_assistant(request, catalog, corpus, SimpleNamespace(respond=respond), 5)
+    assert any("Plot A (EXP-01): 5 m³" in fact.text for fact in answer.facts)
+    assert any("OpenAI Responses could not complete" in gap for gap in answer.missing_information)
+
+
+def test_retrieved_evidence_survives_an_answer_with_app_facts_only(context):
+    catalog, corpus = context
+    solar, = corpus.for_source("solar")
+
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            return response(call("get_site_data", {"include_solar": True}),
+                            call("search_evidence", {"query": "ANME solar yield"}, "publisher"))
+        facts = json.loads(body["input"][-2]["output"])["facts"]
+        return complete([{"text": "The canopy comparison uses a modeled profile.",
+                          "fact_ids": [facts[-1]["id"]], "citation_ids": []}])
+
+    provider = SimpleNamespace(
+        respond=respond, embeddings=lambda *args, **kwargs: [[0.0] * DIMENSIONS],
+        qdrant=lambda *args, **kwargs: {"points": [{"id": solar.id, "payload": corpus.chunks[solar.id].payload}]},
+    )
+    request = AssistantRequest(site_id="jendouba-pilote", question="What can I conclude from ANME and the pilot model?")
+    answer = run_assistant(request, catalog, corpus, provider, 5)
+    model, source = answer.paragraphs
+    assert model.fact_ids and not model.citation_ids
+    assert source.citation_ids == (solar.id,) and not source.fact_ids
 
 
 def test_retrieval_failure_explains_unavailability_without_inventing_citations(context):
@@ -383,6 +421,76 @@ def test_changing_comparison_inputs_invalidates_memory_without_a_revision(memory
     assert answer.json()["citations"][0]["organization"] == "ANME"
     assert prompts[-1]["active_scenario"] == "mini"
     assert prompts[-1]["previous_scenario"] is None
+
+
+def test_null_scenario_uses_the_current_selection_before_an_alternate_preset(memory_chat):
+    _, chat, prompts = memory_chat
+    session = uuid4()
+    assert chat("Please seed the conversation.", session, selected_scenario_id="jplus1").status_code == 200
+    response = chat("Run the same scenario again.", session, selected_scenario_id="jplus1")
+    assert response.status_code == 200
+    assert prompts[-1]["previous_scenario"] == "mini"
+    assert any("Proposed schedule: 8 m³ delivered" in fact["text"] for fact in response.json()["facts"])
+
+
+@pytest.mark.parametrize("output", [
+    [{"type": "message", "content": [None]}],
+    [{"type": "function_call", "name": "get_site_data", "call_id": "call_1"}],
+    [{"type": "function_call", "name": "get_site_data", "call_id": "call_1", "arguments": "{}"}] * 2,
+])
+def test_invalid_provider_payload_fails_cleanly_and_releases_chat_capacity(output):
+    def respond(body, *, timeout):
+        return complete() if "Retry" in body["input"][0]["content"] else response(*output)
+
+    def factory(data_dir, catalog, budget):
+        return AssistantRuntime(catalog, load_corpus(data_dir, catalog.evidence),
+                                SimpleNamespace(respond=respond, close=lambda: None), budget)
+
+    with TestClient(create_app(assistant_factory=factory), raise_server_exceptions=False) as client:
+        body = {"site_id": "jendouba-pilote", "question": "What evidence do we have?", "session_id": str(uuid4())}
+        for _ in range(3):
+            failure = client.post("/api/assistant/chat", json=body)
+            assert failure.status_code == 503
+            assert failure.json() == {"detail": "OpenAI Responses could not complete the request."}
+        assert client.post("/api/assistant/chat", json={**body, "question": "Retry evidence."}).status_code == 200
+
+
+def test_selected_archive_uses_pvgis_output_before_plan_calculation():
+    prompts = []
+
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            prompts.append(json.loads(body["input"][0]["content"]))
+            return response(call("get_site_data", {"include_solar": True}))
+        return complete()
+
+    def factory(data_dir, catalog, budget):
+        return AssistantRuntime(catalog, load_corpus(data_dir, catalog.evidence),
+                                SimpleNamespace(respond=respond, close=lambda: None), budget)
+
+    with TestClient(create_app(assistant_factory=factory)) as client:
+        expected = client.post("/api/solar/compare-archive", json={
+            "site_id": "jendouba-pilote", "option_ids": ["ombriere", "toiture"],
+        })
+        assert expected.status_code == 200
+        archive = expected.json()["options"][0]
+        body = {"site_id": "jendouba-pilote", "question": "What does the selected PVGIS canopy produce?",
+                "session_id": str(uuid4()), "pvgis_option_id": "ombriere",
+                "selected_scenario_id": "mini", "simulation_pending": True}
+        result = client.post("/api/assistant/chat", json=body)
+        assert result.status_code == 200
+        facts = result.json()["facts"]
+        assert any(fact["provenance"] == "estimated"
+                   and f"{archive['production_kwh']:g} kWh estimated production" in fact["text"]
+                   and "Solar canopy (selected" in fact["text"] for fact in facts)
+        assert not any("on the modeled day" in fact["text"] for fact in facts)
+
+        active = {key: value for key, value in body.items() if key != "pvgis_option_id"}
+        result = client.post("/api/assistant/chat", json={**active, "solar_option_id": "ombriere"})
+        assert result.status_code == 200
+        assert prompts[-1]["prior_answers"] == []
+        assert any("on the modeled day" in fact["text"] for fact in result.json()["facts"])
+        assert client.post("/api/assistant/chat", json={**body, "solar_option_id": "ombriere"}).status_code == 422
 
 
 def test_chat_api_validates_inputs_and_handles_provider_failure():

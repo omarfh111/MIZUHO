@@ -132,6 +132,35 @@ try {
     const answer = await (await pending).json();
     assert.ok(answer.tools_used.includes('get_agricultural_insights'));
     assert.ok(answer.facts.some((f) => f.provenance === 'estimated' && /P-01.*FAO WaPOR AETI/.test(f.text)));
+    await page.keyboard.press('Escape');
+    await page.getByRole('combobox', { name: 'Pilot site' }).selectOption('jendouba-pilote');
+    await page.getByRole('button', { name: 'Compare solar options' }).click();
+    const comparison = page.getByRole('dialog', { name: 'Compare solar options' });
+    const archivePending = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/solar/compare-archive');
+    await comparison.getByLabel('Production source').selectOption('archive');
+    const archiveResponse = await archivePending;
+    assert.equal(archiveResponse.status(), 200);
+    const canopy = (await archiveResponse.json()).options.find(option => option.id === 'ombriere');
+    await comparison.getByRole('button', { name: /Solar canopy/ }).click();
+    await comparison.getByRole('button', { name: 'Use in simulation' }).click();
+    await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
+    await panel.getByLabel('Answer model').selectOption(provider);
+    await panel.getByRole('textbox', { name: 'Your question' }).fill(
+      'How much does the selected archived PVGIS solar canopy generate on its reference day?',
+    );
+    const pvPending = waitForChat(page);
+    await panel.getByRole('button', { name: 'Send question' }).click();
+    const pvResponse = await pvPending;
+    assert.equal(pvResponse.status(), 200);
+    const pvRequest = pvResponse.request().postDataJSON();
+    assert.equal(pvRequest.pvgis_option_id, 'ombriere');
+    assert.equal(pvRequest.solar_option_id, undefined);
+    assert.equal(pvRequest.comparison, undefined);
+    const pvAnswer = await pvResponse.json();
+    assert.ok(pvAnswer.tools_used.includes('get_site_data'));
+    assert.ok(pvAnswer.facts.some(fact => fact.provenance === 'estimated' &&
+      fact.text.includes('Solar canopy (selected in the interface)') &&
+      fact.text.includes(`${canopy.production_kwh} kWh estimated production`)));
   }
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
   mobile.on('pageerror', (error) => errors.push(error.message));
@@ -143,6 +172,7 @@ try {
   await visible(mobile.getByText('The assistant needs a connected evidence service.', { exact: false }));
   assert.deepEqual(errors, []);
   console.log('Chrome passed live allocation, ANME citation, session continuity, stale history, approval, and mobile offline fallback.');
+  if (provider === 'nvidia') console.log('Chrome passed live Nemotron explanations for Assila WaPOR, the replay anomaly, and staged PVGIS.');
 } finally {
   await browser.close();
 }

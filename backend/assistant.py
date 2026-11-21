@@ -16,6 +16,7 @@ from .evidence import Corpus
 from .models import AssistantAnswer, AssistantRequest, GroundedParagraph
 from .providers import Providers, ServiceError
 from .simulator import validate_state
+from tools.m2m3.mizu_m2m3.solar import simulation_solar_profile
 
 MAX_ROUNDS = 4
 MAX_CALLS = 6
@@ -74,7 +75,7 @@ ANSWER_SCHEMA = object_schema({
     "missing_information": STRINGS,
 })
 SCENARIO_ARGS = object_schema({
-    "scenario_id": {"type": ["string", "null"], "description": "Null uses the current comparison; otherwise a scenario ID from the catalog."},
+    "scenario_id": {"type": ["string", "null"], "description": "Null uses the current comparison or selection. For a different or previously discussed preset, pass its scenario ID."},
     "quota_m3": {"type": ["integer", "null"], "description": "Optional reduced quota in whole cubic meters; null preserves the current quota."},
 })
 ARGUMENT_SCHEMAS = {
@@ -112,15 +113,35 @@ def think(state: GraphState) -> dict:
         "include": ["reasoning.encrypted_content"],
         "text": {"format": {"type": "json_schema", "name": "grounded_answer", "strict": True, "schema": ANSWER_SCHEMA}},
     }, timeout=turn.remaining(16))
-    items = [item for item in data["output"] if isinstance(item, dict)]
-    pending = [
-        item for item in items if item.get("type") == "function_call"
-        and all(isinstance(item.get(field), str) for field in ("call_id", "name", "arguments"))
-    ]
-    text = "".join(
-        part["text"] for item in items if item.get("type") == "message"
-        for part in item.get("content", []) if part.get("type") == "output_text" and isinstance(part.get("text"), str)
-    )
+    service = "NVIDIA response" if turn.request.provider == "nvidia" else "OpenAI Responses"
+    items = data.get("output")
+    if not isinstance(items, list):
+        raise ServiceError(service)
+    pending: list[dict] = []
+    call_ids: set[str] = set()
+    text_parts: list[str] = []
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get("type"), str):
+            raise ServiceError(service)
+        if item["type"] == "function_call":
+            if not all(isinstance(item.get(field), str) and item[field] for field in ("call_id", "name", "arguments")):
+                raise ServiceError(service)
+            if item["call_id"] in call_ids:
+                raise ServiceError(service)
+            pending.append(item)
+            call_ids.add(item["call_id"])
+        elif item["type"] == "message":
+            content = item.get("content")
+            if not isinstance(content, list):
+                raise ServiceError(service)
+            for part in content:
+                if not isinstance(part, dict) or not isinstance(part.get("type"), str):
+                    raise ServiceError(service)
+                if part["type"] == "output_text":
+                    if not isinstance(part.get("text"), str):
+                        raise ServiceError(service)
+                    text_parts.append(part["text"])
+    text = "".join(text_parts)
     answer = {}
     if text and not pending:
         try:
@@ -217,13 +238,13 @@ def finalize(turn: Turn, answer: dict) -> AssistantAnswer:
         for paragraph in paragraphs:
             used.update((key, turn.facts[key]) for key in paragraph.fact_ids)
         used.update(selected_facts)
-        if not cited:
-            cited.update(turn.evidence_matches)
         if not paragraphs and used:
             paragraphs.append(GroundedParagraph(
                 text="These verified results describe the available context. I could not establish a further explanation from them.",
                 citation_ids=(), fact_ids=tuple(used),
             ))
+    if not cited:
+        cited.update(turn.evidence_matches)
     for citation in cited.values():
         paragraphs.append(GroundedParagraph(
             text=f"The verified passage from {citation.organization} covers {citation.section}.",
@@ -263,6 +284,13 @@ def run_assistant(request: AssistantRequest, catalog: Catalog, corpus: Corpus, p
         site = catalog.solar.get(request.site_id)
         if site is None or request.solar_option_id not in {option.id for option in site.options}:
             raise InputError("solar_option_id", "Unknown solar option for this site.")
+    if request.pvgis_option_id is not None:
+        if request.solar_option_id is not None:
+            raise InputError("pvgis_option_id", "Select either the archived or simulated solar profile.")
+        try:
+            simulation_solar_profile(request.site_id, request.pvgis_option_id)
+        except ValueError:
+            raise InputError("pvgis_option_id", "No matching archived solar profile for this site.") from None
     comparison = request.comparison
     if request.telemetry and comparison is None:
         raise InputError("telemetry", "A sensor replay requires an active comparison.")
@@ -291,6 +319,7 @@ def answer_turn(turn: Turn, prior_answers: list[dict]) -> AssistantAnswer:
     request = turn.request
     context = {
         "site": request.site_id, "selected_solar": request.solar_option_id,
+        "selected_pvgis": request.pvgis_option_id,
         "active_scenario": request.comparison.scenario_id if request.comparison else None,
         "selected_scenario": request.selected_scenario_id,
         "sensor_replay": ({"plan": request.telemetry.plan, "selected_slot": request.telemetry.selected_slot}

@@ -270,6 +270,7 @@ export interface AssistantRequest {
   question: string;
   site_id: string;
   solar_option_id?: string;
+  pvgis_option_id?: 'ombriere' | 'toiture';
   comparison?: CompareRequest;
   recent_questions?: string[];
   session_id?: string;
