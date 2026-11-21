@@ -10,7 +10,8 @@ import { Clouds, Particles, Sky } from './Atmosphere.tsx';
 import { CameraRig, type RigHandle } from './CameraRig.tsx';
 import { makeDropPath } from './choreography.ts';
 import { Labels } from './Labels.tsx';
-import { DamPulses, HeroDrop, Rain, RiverFlow } from './StoryLayers.tsx';
+import { Storm } from './Storm.tsx';
+import { DamPulses, HeroDrop, RiverFlow } from './StoryLayers.tsx';
 import { Terrain } from './Terrain.tsx';
 import { FOG_COLOR } from './uniforms.ts';
 import { Valley } from './Valley.tsx';
@@ -98,7 +99,7 @@ export default function CinematicCanvas({ world, director, quality, hud, labelLa
       <Labels world={world} director={director} layer={labelLayer} />
       <Clouds director={director} path={dropPath} />
       <HeroDrop world={world} director={director} />
-      <Rain director={director} count={quality.particles * 2} />
+      <Storm world={world} director={director} streaks={quality.particles * 3} />
       <RiverFlow world={world} director={director} count={Math.round(quality.particles * 0.7)} />
       <DamPulses world={world} director={director} />
       <Particles
