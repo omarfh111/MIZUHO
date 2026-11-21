@@ -11,9 +11,10 @@ import type { Director } from '../core/director.ts';
 import { CloudVeil, Clouds, Particles, Sky } from './Atmosphere.tsx';
 import { CameraRig, type RigHandle } from './CameraRig.tsx';
 import { makeDropPath } from './choreography.ts';
+import { Energy, SceneLights } from './Energy.tsx';
 import { Labels } from './Labels.tsx';
 import { Storm } from './Storm.tsx';
-import { DamPulses, HeroDrop, RiverFlow } from './StoryLayers.tsx';
+import { DamPulses, HeroDrop, RenewableSites, RiverFlow } from './StoryLayers.tsx';
 import { Terrain } from './Terrain.tsx';
 import { FOG_COLOR } from './uniforms.ts';
 import { Valley } from './Valley.tsx';
@@ -63,7 +64,8 @@ export interface CinematicCanvasProps {
 
 export default function CinematicCanvas({ world, director, quality, hud, labelLayer, onReady, onContextLost }: CinematicCanvasProps) {
   const [dpr, setDpr] = useState(quality.dpr[1]);
-  const [post, setPost] = useState(quality.postprocessing);
+  // `?mxpost=0` disables post-processing, for performance triage on weak devices.
+  const [post, setPost] = useState(() => quality.postprocessing && new URLSearchParams(window.location.search).get('mxpost') !== '0');
   const revealOrigin = world.valley.reservoir.center;
   const aberration = useMemo(() => new THREE.Vector2(0.0009, 0.0006), []);
   const dropPath = useMemo(() => makeDropPath(world), [world]);
@@ -98,7 +100,9 @@ export default function CinematicCanvas({ world, director, quality, hud, labelLa
       />
       <Sky />
       <Terrain world={world} director={director} revealOrigin={revealOrigin} />
+      <SceneLights />
       <Valley valley={world.valley} director={director} />
+      <Energy valley={world.valley} director={director} />
       <Labels world={world} director={director} layer={labelLayer} />
       <Clouds director={director} path={dropPath} />
       <HeroDrop world={world} director={director} />
@@ -106,6 +110,7 @@ export default function CinematicCanvas({ world, director, quality, hud, labelLa
       <Storm world={world} director={director} streaks={quality.particles * 3} />
       <RiverFlow world={world} director={director} count={Math.round(quality.particles * 0.7)} />
       <DamPulses world={world} director={director} />
+      <RenewableSites world={world} director={director} />
       <Particles
         count={Math.round(quality.particles * 0.6)}
         {...valleyMotes}
