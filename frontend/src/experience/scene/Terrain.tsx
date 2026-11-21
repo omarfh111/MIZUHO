@@ -27,6 +27,8 @@ export function Terrain({ world, director, revealOrigin }: Props) {
       uValleyCenter: { value: valley.center },
       uValleyRadius: { value: VALLEY_RADIUS },
       uValley: { value: 0 },
+      uRain: { value: 0 },
+      uCloudShadow: { value: 1 },
     },
   }), [world, valley, revealOrigin]);
 
@@ -44,6 +46,7 @@ export function Terrain({ world, director, revealOrigin }: Props) {
       uTwin: { value: 0 },
       uWet: { value: new THREE.Vector3() },
       uWetAmount: { value: 0 },
+      uCloudShadow: { value: 1 },
     },
   }), [valley]);
   const camera = useThree((s) => s.camera);
@@ -72,6 +75,11 @@ export function Terrain({ world, director, revealOrigin }: Props) {
       if (probe.ray.ray.intersectPlane(probe.plane, probe.hit)) (u.uWet.value as THREE.Vector3).lerp(probe.hit, 1 - Math.exp(-delta * 10));
     }
     u.uTwin.value = director.twin;
+    mapMaterial.uniforms.uRain.value = director.rain;
+    // Cloud shadows deepen under the storm and soften to a light dapple in the valley.
+    const shadows = 0.55 + director.rain * 0.45 - director.valley * 0.25;
+    mapMaterial.uniforms.uCloudShadow.value = shadows;
+    u.uCloudShadow.value = shadows * 0.8;
     mapMaterial.uniforms.uReveal.value = director.mapReveal;
     mapMaterial.uniforms.uValley.value = director.valley;
     valleyMaterial.uniforms.uReveal.value = director.valley;
