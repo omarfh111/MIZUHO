@@ -51,6 +51,19 @@ try {
     }
     await themes.getByRole('link', { name: 'Land & agriculture' }).click();
     await page.getByRole('button', { name: 'View Tozeur', exact: true }).click();
+    const civic = page.locator('.civic-continuity:visible');
+    await civic.locator('summary').first().click();
+    await civic.getByRole('button', { name: 'Load example circuit' }).click();
+    const solve = civic.getByRole('button', { name: 'Calculate household continuity' });
+    await page.route('**/api/resilience/households', route => route.fulfill({ status: 503 }), { times: 1 });
+    await solve.click();
+    await civic.getByRole('alert').waitFor();
+    await solve.click();
+    await civic.getByRole('heading', { name: 'First shortfall after 2 h 0 min' }).waitFor();
+    await civic.getByLabel('Island-capable output limit (W)', { exact: true }).fill('0');
+    assert.equal(await civic.getByRole('region', { name: 'Simulated household continuity' }).count(), 0);
+    await solve.click();
+    await civic.getByRole('heading', { name: 'First shortfall after 0 h 0 min' }).waitFor();
     await themes.getByRole('link', { name: 'Irrigation planning' }).click();
     await page.getByRole('heading', { name: 'Choose a field site' }).waitFor();
     assert.equal(await picker.inputValue(), '');
@@ -60,7 +73,7 @@ try {
     assert.deepEqual(errors, []);
     await page.close();
   }
-  console.log('Passed three-theme navigation, station and solar provenance, deep links, and site isolation on desktop and mobile.');
+  console.log('Passed three-theme navigation, station and solar provenance, household backup, deep links, and site isolation on desktop and mobile.');
 } finally {
   await browser.close();
 }

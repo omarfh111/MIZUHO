@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState }
 import type { FeatureCollection, MultiPolygon, Polygon, Position } from 'geojson';
 import { getTunisia, getTunisiaCity } from '../api.ts';
 import { useExperience } from '../experience/index.ts';
+import CivicContinuity from './CivicContinuity.tsx';
 import type { TunisiaCatalog, TunisiaCity, TunisiaCityAnalysis, TunisiaClimate, TunisiaPeriod, TunisiaSource } from '../types.ts';
 import './tunisia-explorer.css';
 
@@ -408,6 +409,7 @@ function CityAnalysis({ city, analysis, retry, sites, selectedPeriod, onPeriodCh
         </button>)}
       </div>}
     </section>
+    <CivicContinuity city={city.name} />
   </section>;
 }
 
@@ -456,7 +458,7 @@ export default function TunisiaExplorer({ selectedCityId, onCityResolved, onCity
     <header className="tn-heading">
       <div className="tn-kicker"><MapPin size={15} aria-hidden="true" /> National observatory</div>
       <h1><em>Explore</em> Tunisia</h1>
-      <p>Select a city to inspect its terrain, historical climate, and available field sites.</p>
+      <p>Select a city to explore its terrain, find nearby field sites or test household electricity during an outage.</p>
     </header>
     {!catalog && <div className="tn-unavailable" role="status">Loading Tunisia’s boundaries and cities…</div>}
     {catalog?.error && <div className="tn-unavailable" role="alert">

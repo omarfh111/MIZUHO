@@ -1,5 +1,6 @@
 import type { FeatureCollection, Geometry, Position } from 'geojson';
 import type { Replay, ReplayBody } from './twin.ts';
+import type { CaseSettings, OutageCase, OutageGrid, StressPlan } from './resilience.ts';
 import type { FieldZone, RegionalDemandBasis, RegionalDemandEstimate, RegionalPlanningContext, RegionPlanRequest,
   RegionalPlanningResult, TunisiaCatalog, TunisiaCityAnalysis, TunisiaPeriod } from './types.ts';
 import { demoEvidence, demoLayers, demoScenarios, demoSiteId, demoSites, demoSolar } from './demo/catalog.ts';
@@ -53,6 +54,34 @@ async function request<T>(path: string, signal: AbortSignal, body?: unknown, tim
 
 export function getReplay(body: ReplayBody, signal: AbortSignal): Promise<Replay> {
   return request('telemetry/replay', signal, body);
+}
+
+export function getOutageGrid(siteId: string, plan: StressPlan, target: number, signal: AbortSignal,
+  starts?: number[], durations?: number[]) {
+  return request<OutageGrid>(`sites/${encodeURIComponent(siteId)}/resilience/grid`, signal,
+    { plan, target_percent: target, starts, durations }, 120000);
+}
+
+export function getOutageCase(siteId: string, plan: StressPlan, target: number, start: number, duration: number,
+  settings: CaseSettings, signal: AbortSignal) {
+  return request<OutageCase>(`sites/${encodeURIComponent(siteId)}/resilience/case`, signal,
+    { plan, target_percent: target, start, duration, ...settings }, 120000);
+}
+
+export interface HouseholdInputs {
+  start_hour: number; duration_hours: number; households: number; essential_w_per_home: number;
+  lighting_w_per_home: number; lights_from_hour: number; lights_until_hour: number;
+  available_ac_wh: number; island_output_w: number;
+}
+
+export interface HouseholdResult {
+  provenance: 'simulated'; demand_wh: number; supplied_wh: number; unserved_wh: number;
+  minimum_island_output_w: number; first_shortfall_after_minutes: number | null;
+  hours: { day_offset: number; hour: number; demand_wh: number; supplied_wh: number; unserved_wh: number; remaining_ac_wh: number }[];
+}
+
+export function runHouseholdContinuity(inputs: HouseholdInputs, signal: AbortSignal) {
+  return request<HouseholdResult>('resilience/households', signal, inputs);
 }
 
 export function getForecast(siteId: string, signal: AbortSignal) {

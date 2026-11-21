@@ -52,12 +52,25 @@ try {
     const map = page.getByRole('region', { name: 'Agricultural zone map' });
     const relief = map.locator('figure[data-relief-mode="3d"]');
     await relief.locator('canvas').waitFor();
-    assert.equal(await relief.getAttribute('data-surface'), 'land-cover');
+    assert.equal(await relief.getAttribute('data-surface'), 'satellite');
+    await relief.getByText('Proposed station', { exact: true }).waitFor();
+    const composite = await map.getByRole('link', { name: 'Sentinel-2 · 2021 composite' }).getAttribute('href');
+    const source = new URL(composite);
+    assert.equal(source.searchParams.get('LAYERS'), 'esa-worldcover-s2rgbnir-10m-2021-v2_tcc');
+    const [w, s, e, n] = expected.relief.bounds;
+    assert.deepEqual(source.searchParams.get('BBOX').split(',').map(Number), [s, w, n, e]);
     const canvas = await relief.locator('canvas').elementHandle();
+    await relief.getByRole('button', { name: 'Inspect station' }).click();
+    assert.equal(await relief.getAttribute('data-model-view'), 'station');
+    await relief.getByRole('group', { name: 'Station inspection' }).waitFor();
+    assert.equal(await relief.locator('[data-marker="station"]').isVisible(), false);
+    await relief.getByRole('button', { name: 'Show entire site' }).click();
+    assert.equal(await relief.getAttribute('data-model-view'), 'area');
     await map.getByRole('button', { name: 'Elevation', exact: true }).click();
     assert.equal(await relief.getAttribute('data-surface'), 'elevation');
     assert.equal(await canvas.evaluate(element => element.isConnected), true);
     await map.getByRole('button', { name: 'Land cover', exact: true }).click();
+    assert.equal(await relief.getAttribute('data-surface'), 'land-cover');
     await relief.getByRole('button', { name: 'North-up view' }).click();
     const surface = relief.locator('canvas');
     const size = await surface.boundingBox();
@@ -139,9 +152,14 @@ try {
     const slider = model.getByRole('slider', { name: 'Regional simulation hour' });
     await slider.press('ArrowRight');
     const slot = Number(await slider.inputValue());
+    const regionalRenderer = await model.locator('canvas').elementHandle();
     for (const [p, title] of [['optimized', 'Optimized plan'], ['baseline', 'Fixed turn']]) {
       await model.getByRole('button', { name: title }).click();
       const frame = result.comparison[p].actions[slot];
+      const physicalScene = model.locator('figure');
+      assert.equal(await physicalScene.getAttribute('data-stock-m3'), String(frame.tank_stock_m3));
+      assert.equal(await physicalScene.getAttribute('data-pump-m3'), String(frame.pump_m3));
+      assert.equal(await model.locator('canvas').evaluate((canvas, original) => canvas === original, regionalRenderer), true);
       for (const sector of ['west', 'east']) {
         const volume = frame.deliveries.find(d => d.plot_id === sector)?.delivered_m3 ?? 0;
         const label = model.getByText(`${sector === 'west' ? 'West' : 'East'} · ${number.format(volume)} m³`, { exact: true });
@@ -188,6 +206,8 @@ try {
   });
   await mobile.goto(url.href);
   await mobile.getByRole('combobox', { name: 'Agricultural site' }).selectOption(ids[0]);
+  await mobile.getByRole('img', { name: /North-up satellite composite/ }).waitFor();
+  await mobile.getByRole('button', { name: 'Land cover', exact: true }).click();
   await mobile.getByRole('img', { name: /North-up land-cover map/ }).waitFor();
   await mobile.getByRole('button', { name: 'Elevation', exact: true }).click();
   await mobile.getByRole('img', { name: /North-up elevation grid/ }).waitFor();
@@ -202,7 +222,7 @@ try {
     await route.fulfill({ response: upstream, json: context });
   }, { times: 1 });
   await mobile.getByRole('button', { name: 'Model an irrigation plan' }).click();
-  await mobile.getByRole('img', { name: /North-up land-cover map/ }).waitFor();
+  await mobile.getByRole('img', { name: /North-up satellite composite/ }).waitFor();
   await mobile.locator('[data-marker="east"]').waitFor();
   await mobile.getByText('A verified daily reference ET₀ and rainfall pair is unavailable.', { exact: false }).waitFor();
   assert.equal(await mobile.getByText('Estimate sector demand from weather', { exact: true }).count(), 0);

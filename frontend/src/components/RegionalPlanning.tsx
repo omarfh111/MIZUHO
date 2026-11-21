@@ -6,9 +6,10 @@ import { clockHour, dateLabel, kilo, percent, value } from '../format.ts';
 import type { FieldZone, Plan, RegionalDemandBasis, RegionalPlanningContext, RegionPlanContext, RegionPlanRequest, RegionalPlanningResult,
   RegionSector, Site } from '../types.ts';
 import RegionalDemandEstimator from './RegionalDemandEstimator.tsx';
+import OutageLab, { OutageEntry } from './OutageLab.tsx';
 import './field-zone.css';
 
-const CityRelief = lazy(() => import('./CityRelief.tsx'));
+const RegionalSiteScene = lazy(() => import('./RegionalSiteScene.tsx'));
 type InputKey = Exclude<keyof RegionPlanRequest, 'date' | 'outage_hours' | 'demand_basis'>;
 type Draft = Partial<Record<InputKey, string>>;
 type Input = { key: InputKey; title: string; unit: string; min?: number; max?: number; step?: string };
@@ -87,6 +88,7 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
   const [resourceError, setResourceError] = useState(false);
   const [attempt, retry] = useState(0);
   const [opened, setOpened] = useState(visible);
+  const [stress, setStress] = useState(false);
   const [draft, setDraft] = useState<Draft>({});
   const [demandBasis, setDemandBasis] = useState<Partial<Record<RegionSector, RegionalDemandBasis>>>({});
   const [estimatorVersion, resetEstimator] = useState(0);
@@ -124,10 +126,10 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
 
   useEffect(() => {
     if (!playing) return;
-    if (!visible || cinematic || !plan?.actions || index >= plan.actions.length - 1) { play(false); return; }
+    if (stress || !visible || cinematic || !plan?.actions || index >= plan.actions.length - 1) { play(false); return; }
     const timer = window.setTimeout(() => seek(index + 1), 1200 / speed);
     return () => window.clearTimeout(timer);
-  }, [playing, index, plan, visible, cinematic, speed]);
+  }, [playing, index, plan, visible, cinematic, speed, stress]);
 
   useEffect(() => {
     if (result && visible && assumptionSection.current?.contains(document.activeElement)) replayRegion.current?.focus();
@@ -196,6 +198,19 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
       onClick={() => retry(n => n + 1)}>Retry planning inputs</button></> : 'Loading the regional terrain and solar archive…'}</section>;
 
   const { profile, context } = resources;
+  if (stress) {
+    const keys = Object.keys(example) as InputKey[];
+    const complete = day && keys.every(key => draft[key]?.trim() && Number.isFinite(Number(draft[key])));
+    const inputs = complete ? {
+      ...Object.fromEntries(keys.map(key => [key, Number(draft[key])])) as Record<InputKey, number>,
+      date: day.date, outage_hours: outages, ...(Object.keys(demandBasis).length > 0 && { demand_basis: demandBasis }),
+    } : undefined;
+    return visible && !cinematic && <OutageLab site={site} plan={inputs} profile={profile} label="Regional experiment"
+      capacity={Number(draft.tank_capacity_m3)} plots={context.anchors.map(a => a.plot_id)} back={() => {
+        setStress(false);
+        if (result && inputs) onPlanChange({ inputs, comparison_id: result.comparison_id });
+      }}/>;
+  }
   const [west, south, east, north] = profile.relief.bounds;
   const markers = context.anchors.map(anchor => {
     const delivery = frame?.deliveries.find(d => d.plot_id === anchor.plot_id)?.delivered_m3 ?? 0;
@@ -207,6 +222,12 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
   });
   const actionCount = plan?.actions?.length ?? 0;
   return <div className="region-planning" aria-label="Regional planning experiment">
+    <OutageEntry open={() => {
+      request.current?.abort();
+      setBusy(false);
+      setStress(true);
+      onPlanChange(undefined);
+    }}/>
     <section className="surface field-detail-card region-location" aria-label="Regional simulation terrain" ref={replayRegion} tabIndex={-1}>
       <div className="region-title"><div><h2><MapPin size={20} /> {site.properties.label}</h2>
         <p>Two hypothetical irrigation sectors, each anchored to a cell classified as cropland by ESA WorldCover in 2021.</p></div>
@@ -216,7 +237,11 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
           <button type="button" className="button button-secondary" onClick={() =>
             assumptionSection.current?.querySelector<HTMLButtonElement>('button')?.focus()}>Set up experiment</button>}</div>
       {visible && !cinematic && <Suspense fallback={<div className="field-map-status">Loading terrain…</div>}>
-        <CityRelief name={site.properties.label} relief={profile.relief} landCover={profile.land_cover} showLandCover markers={markers} />
+        <RegionalSiteScene profile={profile} markers={markers} frame={frame?.tank_stock_m3 === undefined ? undefined : {
+          tank_stock_m3: frame.tank_stock_m3, tank_capacity_m3: Number(draft.tank_capacity_m3), pump_m3: frame.pump_m3,
+          grid_available: !outages.includes(frame.slot), deliveries: frame.deliveries,
+          pv_capacity_kwp: Number(draft.pv_capacity_kwp), solar_potential_wh: result?.solar_wh[frame.slot],
+        }} />
       </Suspense>}
       {result && !frame && <p role="status">The {planNames[planId].toLowerCase()} has no actions to replay.</p>}
       {frame && result && <section className="region-replay" aria-label="Regional hourly replay">

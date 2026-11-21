@@ -6,6 +6,7 @@ import SiteMap from './components/SiteMap.tsx';
 import SolarComparison from './components/SolarComparison.tsx';
 import type { AssistantSimulationContext, RegionPlanContext, SolarOption, TunisiaCity, TunisiaPeriod } from './types.ts';
 import SitePicker from './components/SitePicker.tsx';
+import CivicContinuity from './components/CivicContinuity.tsx';
 
 const Simulation = lazy(() => import('./components/Simulation.tsx'));
 const AssistantPanel = lazy(() => import('./components/AssistantPanel.tsx'));
@@ -134,7 +135,7 @@ export default function App() {
       <div className="topbar-inner">
         <a className="brand" href="#tunisia" aria-label="Mizhuo · Tunisia">
           <span className="brand-mark"><Waves size={24} strokeWidth={2.4} /></span>
-          <span>Miz<strong>huo</strong><small>AGRICULTURAL OBSERVATORY</small></span>
+          <span>Miz<strong>huo</strong><small>WATER &amp; ENERGY OBSERVATORY</small></span>
         </a>
         <nav className="main-nav" aria-label="Main navigation">
           <a href={page === 'map' ? '#map' : '#tunisia'} aria-current={page === 'map' || page === 'tunisia' ? 'page' : undefined}><Globe2 size={16} /> Land &amp; agriculture</a>
@@ -169,7 +170,7 @@ export default function App() {
               ? 'Inspect the terrain, land cover, and evidence behind this agricultural zone.'
               : 'Explore the site, compare solar options, and plan irrigation.'
             : page === 'energy' ? 'Inspect the water and solar inputs available for the selected site.'
-            : 'Compare fixed and proposed irrigation schedules during outages using the same water stock and quota.'}</p>
+            : 'Choose an outage, replay water deliveries and see how long essential household loads can stay powered.'}</p>
         </div>
         {page === 'map' && site && <div className="hero-location"><MapPin size={19} />
           <div><strong>{site.properties.label}</strong><small>{site.properties.locality ?? 'Agricultural site'}</small></div></div>}
@@ -201,6 +202,7 @@ export default function App() {
           scenario={scenarios[0]} mode={catalog.mode} onCompare={setSolarIds}
           onEvidence={setSource} onPlan={() => navigate('simulation')} />
       </Suspense>}
+      {page === 'energy' && catalog?.mode === 'live' && <CivicContinuity key={siteId || cityId} city={site?.properties.label ?? city?.name ?? 'the selected area'} />}
       {catalog && site && visitedSimulation && <div hidden={page !== 'simulation'}>
         {site.properties.field_zone ? <Suspense fallback={<p role="status">Loading regional planner…</p>}>
           <RegionalPlanning key={siteId} site={site} visible={page === 'simulation'} onPlanChange={setZonePlan} />
@@ -213,7 +215,7 @@ export default function App() {
         </section>}
       </div>}
       <footer className="footer"><span><Waves size={15} /> Mizhuo</span>
-        <span>{catalog?.mode === 'demo' ? 'Demo mode · local layers and scenarios' : 'Irrigation continuity · Tunisia'}</span></footer>
+        <span>{catalog?.mode === 'demo' ? 'Demo mode · local layers and scenarios' : 'Water and electricity continuity · Tunisia'}</span></footer>
     </main>
     {catalog && solarIds && <SolarComparison site={siteId} options={solarIds} mode={catalog.mode} startWithArchive={page === 'energy' && catalog.mode === 'live'}
       selectedOption={solar} close={() => setSolarIds(null)} onEvidence={setSource} onUse={(option) => {

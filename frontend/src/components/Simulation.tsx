@@ -6,6 +6,8 @@ import { ApiError, compare, type DataMode, type FieldErrors } from '../api.ts';
 import { hour, percent, value } from '../format.ts';
 import { defaultOperating, parseOperating, type OperatingInputs } from '../operating.ts';
 import OperatingEditor from './OperatingEditor.tsx';
+import OutageLab, { OutageEntry } from './OutageLab.tsx';
+import { useExperience } from '../experience/index.ts';
 import type { AssistantSimulationContext, CompareRequest, Comparison, Plan, Scenario, SolarOption } from '../types.ts';
 import Planning from './Planning.tsx';
 import DigitalTwin from './DigitalTwin.tsx';
@@ -138,8 +140,11 @@ interface Props {
 }
 
 export default function Simulation({ site, visible, scenarios, mode, solar, onClearSolar, onEvidence, onAssistantContext }: Props) {
+  const [stress, setStress] = useState(false);
+  const cinematic = useExperience().active;
   const [telemetry, setTelemetry] = useState<ReplayContext>();
   const [inputs, setInputs] = useState(() => initialInputs(scenarios[0]));
+  const [beforeExample, setBeforeExample] = useState<Inputs>();
   const [calculated, setCalculated] = useState<Calculated | null>(null);
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -180,11 +185,11 @@ export default function Simulation({ site, visible, scenarios, mode, solar, onCl
   const assistantPending = !assistantContext && (revision > 0 || loading || Boolean(error));
   useEffect(() => {
     onAssistantContext?.({
-      scenarioId: scenario.id, revision, pending: assistantPending, comparison: assistantContext,
-      telemetry: assistantContext && visible ? telemetry : undefined,
+      scenarioId: scenario.id, revision, pending: stress || assistantPending, comparison: stress ? undefined : assistantContext,
+      telemetry: assistantContext && visible && !stress ? telemetry : undefined,
     });
     return () => onAssistantContext?.(undefined);
-  }, [assistantContext, assistantPending, onAssistantContext, revision, scenario.id, telemetry, visible]);
+  }, [assistantContext, assistantPending, onAssistantContext, revision, scenario.id, telemetry, visible, stress]);
   const canValidate = current && !missingWeather && displayed?.status !== 'NO_SOLUTION' && Boolean(displayed?.actions && displayed.metrics);
   const reset = () => { invalidate(); setInputs(initialInputs(scenario)); };
   const toggle = (slot: number) => update({ outages: inputs.outages.includes(slot)
@@ -238,7 +243,28 @@ export default function Simulation({ site, visible, scenarios, mode, solar, onCl
   else if (stale) outcome = 'Result out of date · recalculate to continue.';
   else if (calculated) outcome = statusText(calculated, mode);
 
+  if (stress) {
+    const parsed = parseInputs(inputs, scenario, solar);
+    return visible && !cinematic && <OutageLab key={revision} site={site} plan={Object.keys(parsed.errors).length ? undefined : parsed.request}
+      label={scenario.label} capacity={scenario.site.tank_capacity_m3} plots={scenario.plots.map(plot => plot.plot_id)}
+      back={() => setStress(false)}/>;
+  }
   return <>
+    {mode === 'live' && <>
+      <OutageEntry open={() => { inFlight.current?.abort(); setLoading(false); setStress(true); }}/>
+      {scenario.id === 'normal' && <div className="outage-example">
+        <span>{beforeExample ? 'Your inputs from before the limited-pump example are saved for this session.' :
+          `Try the normal Jendouba day with a smaller 2 m³/h pump, ${scenario.state.tank_stock_m3} m³ of stock and a ${scenario.state.quota_remaining_m3} m³ withdrawal quota.`}
+          {solar && ' The selected solar installation still applies.'}</span>
+        {beforeExample ? <button className="text-button" type="button" onClick={() => {
+          invalidate(); setInputs(beforeExample); setBeforeExample(undefined);
+        }}>Restore previous inputs</button> : <button className="text-button" type="button" onClick={() => {
+          setBeforeExample(inputs);
+          const base = initialInputs(scenario);
+          invalidate(); setInputs({ ...base, operating: { ...base.operating, pump: '2' } }); setStress(true);
+        }}>Test the limited-pump example</button>}
+      </div>}
+    </>}
     <form className="surface simulation-controls" noValidate onSubmit={(event) => { event.preventDefault(); void run(); }}>
       <div className="panel-heading">
         <div className="title-with-icon"><div className="section-icon"><Settings2 size={18} /></div><div>
