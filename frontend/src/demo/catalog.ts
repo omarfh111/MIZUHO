@@ -15,9 +15,9 @@ export const demoSites: Sites = {
     type: 'Feature',
     geometry: { type: 'Point', coordinates: demoCenter },
     properties: {
-      site_id: demoSiteId, label: 'Jendouba', locality: 'Nord-Ouest · Tunisie',
+      site_id: demoSiteId, label: 'Jendouba', locality: 'Nord-Ouest · Tunisia',
       source_id: 'demo-site', status: 'simulated', date: demoDate,
-      description: 'Cinq parcelles desservies par un réservoir gravitaire.',
+      description: 'Five plots supplied by a gravity-fed reservoir.',
     },
   }],
 };
@@ -31,7 +31,7 @@ const feature = (geometry: Geometry, properties: LayerProperties): Feature<Geome
   type: 'Feature', geometry, properties,
 });
 
-const crops = ['Oliviers', 'Blé dur', 'Maraîchage', 'Agrumes', 'Fourrage'];
+const crops = ['Olive trees', 'Durum wheat', 'Vegetables', 'Citrus', 'Forage'];
 const polygons = [
   [[-31, -19], [-7, -24], [-3, -10], [-28, -6]],
   [[-3, -25], [22, -28], [25, -14], [2, -10]],
@@ -44,24 +44,24 @@ export const demoLayers: Record<LayerId, Layer> = {
   plots: {
     type: 'FeatureCollection', date: demoDate, status: 'simulated', source_id: 'wapor',
     features: polygons.map((points, index) => feature(polygon(points), {
-      plot_id: String.fromCharCode(65 + index), label: `Parcelle ${String.fromCharCode(65 + index)}`,
+      plot_id: String.fromCharCode(65 + index), label: `Plot ${String.fromCharCode(65 + index)}`,
       crop: crops[index], status: 'simulated', source_id: 'wapor', date: demoDate,
-      signal: ['Besoin modéré', 'Besoin modéré', 'Besoin prioritaire', 'Besoin modéré', 'Besoin faible'][index],
-      period: 'Journée de démonstration',
+      signal: ['Moderate water demand', 'Moderate water demand', 'Priority water demand', 'Moderate water demand', 'Low water demand'][index],
+      period: 'Demo day',
     })),
   },
   solar: {
     type: 'FeatureCollection', date: demoDate, status: 'simulated', source_id: 'solar',
     features: [
-      feature(point(-44, -6), { option_id: 'toiture', label: 'Toiture de la station', source_id: 'solar' }),
-      feature(point(34, -16), { option_id: 'ombriere', label: 'Ombrière agricole', source_id: 'solar' }),
+      feature(point(-44, -6), { option_id: 'toiture', label: 'Pump station rooftop', source_id: 'solar' }),
+      feature(point(34, -16), { option_id: 'ombriere', label: 'Solar canopy', source_id: 'solar' }),
     ],
   },
   wind: { type: 'FeatureCollection', status: 'unavailable', source_id: 'wind', features: [] },
   anomalies: {
     type: 'FeatureCollection', date: demoDate, status: 'simulated', source_id: 'telemetry',
     features: [feature(point(9, 25), {
-      label: 'Compteur de distribution', signal: '13 m³ à expliquer', period: 'H09–H10',
+      label: 'Distribution meter', signal: '13 m³ unaccounted for', period: 'H09–H10',
       status: 'simulated', source_id: 'telemetry',
     })],
   },
@@ -69,32 +69,32 @@ export const demoLayers: Record<LayerId, Layer> = {
 
 export const demoEvidence: Record<string, Evidence> = {
   'demo-site': {
-    title: 'Périmètre pilote de Jendouba', organization: 'Mizhuo', date: demoDate, page: null, url: null,
-    limitation: 'Le groupement, ses parcelles et ses équipements sont fictifs. Les coordonnées situent la démonstration.',
+    title: 'Jendouba pilot site', organization: 'Mizhuo', date: demoDate, page: null, url: null,
+    limitation: 'The irrigation group, plots and equipment are fictional. The coordinates locate the demo.',
   },
   wapor: {
-    title: 'Essai WaPOR à Jendouba · ETa quotidienne à 10 m', organization: 'FAO', date: '2025', page: null,
+    title: 'WaPOR trial in Jendouba · daily ETa at 10 m resolution', organization: 'FAO', date: '2025', page: null,
     url: 'https://www.fao.org/in-action/remote-sensing-for-water-productivity/news-and-events/news/news-detail/testing-daily-10-m-wapor-data-for-improved-irrigation-in-jendouba--tunisia/en',
-    limitation: 'Les parcelles et les signaux de cette carte sont simulés. L’ETa ne mesure pas le prélèvement au forage.',
+    limitation: 'The plots and indicators are simulated. ETa measures evapotranspiration. Well withdrawals require meter readings.',
   },
   solar: {
-    title: 'Potentiel photovoltaïque tunisien', organization: 'ANME', date: null, page: null,
+    title: 'Solar PV potential in Tunisia', organization: 'ANME', date: null, page: null,
     url: 'https://anme.tn/en/content/solar-photovoltaic',
-    limitation: 'Contexte régional. Les deux profils horaires de la démonstration sont synthétiques. Un relevé et une étude de raccordement restent nécessaires.',
+    limitation: 'Regional context. Both hourly demo profiles are synthetic. The site needs a survey and a grid connection study.',
   },
   wind: {
-    title: 'Global Wind Atlas · Tunisie', organization: 'DTU', date: null, page: null,
+    title: 'Global Wind Atlas · Tunisia', organization: 'DTU', date: null, page: null,
     url: 'https://globalwindatlas.info/fr/area/Tunisia',
-    limitation: 'Aucun extrait local ni modèle de turbine chargé. La production est indisponible.',
+    limitation: 'Local wind data and a turbine model are needed to estimate production.',
   },
   telemetry: {
-    title: 'Relevés hydrauliques et énergétiques de démonstration', organization: 'Mizhuo', date: demoDate,
-    page: null, url: null, limitation: 'Une hausse de consommation ou un résidu d’eau déclenche une vérification. La cause demande des mesures complémentaires.',
+    title: 'Demo water and energy readings', organization: 'Mizhuo', date: demoDate,
+    page: null, url: null, limitation: 'Higher consumption or unaccounted-for water warrants a check. Further measurements are needed to establish the cause.',
   },
   weather: {
-    title: 'Prévisions d’ensemble et incertitude', organization: 'ECMWF', date: null, page: null,
+    title: 'Ensemble forecasts and uncertainty', organization: 'ECMWF', date: null, page: null,
     url: 'https://www.ecmwf.int/en/research/modelling-and-prediction/quantifying-forecast-uncertainty',
-    limitation: 'Les deux profils horaires sont simulés. Aucun historique de prévisions locales à J+1 n’a été utilisé.',
+    limitation: 'Both hourly profiles are simulated. Local day-ahead forecast records are unavailable.',
   },
 };
 
@@ -104,9 +104,9 @@ const solarProfiles = [
 ];
 
 export const demoSolar: SolarOption[] = ['toiture', 'ombriere'].map((id, index) => ({
-  id, label: index === 0 ? 'Toiture de la station' : 'Ombrière agricole', source_id: 'solar', provenance: 'simulated',
+  id, label: index === 0 ? 'Pump station rooftop' : 'Solar canopy', source_id: 'solar', provenance: 'simulated',
   capacity_kwp: 10, tilt_deg: index === 0 ? 24 : 30, azimuth_deg: index === 0 ? 195 : 180, losses_pct: 14,
-  period: 'Journée simulée · 24 h', profile_wh: Array.from({ length: 24 }, (_, slot) => solarProfiles[index][slot] ?? 0),
+  period: 'Simulated day · 24 hours', profile_wh: Array.from({ length: 24 }, (_, slot) => solarProfiles[index][slot] ?? 0),
   annual_production_kwh: null, net_savings_tnd: null, payback_years: null,
 }));
 
@@ -147,11 +147,11 @@ const weatherSlots = slots(24, [], { 10: 1000, 13: 3500 }).map((slot) => ({ ...s
 const weatherPlots = [makePlot(0, 8, 8, [13], 13)];
 
 export const demoScenarios: Scenario[] = [
-  makeScenario('normal', 'Journée normale', 'Réseau disponible sur les 24 créneaux.', slots(24), pilotPlots, 12, 65, 35, pilotFixed),
-  makeScenario('announced', 'Coupure annoncée', 'Une fenêtre de pompage avant la coupure du matin.', slots(24, [8, 9, 10, 11]), pilotPlots, 0, 58, 35, pilotFixed),
-  makeScenario('successive', 'Coupures successives', 'Deux interruptions suivies d’une reprise sous plafond.', slots(24, [9, 10, 11, 14, 15]), pilotPlots, 10, 48, 35, pilotFixed, 7),
-  makeScenario('mini', 'Cas miniature A/B', 'Deux parcelles, trois heures et 10 m³ à partager.', slots(3, [1, 2], { 0: 5000 }),
+  makeScenario('normal', 'Normal day', 'The grid is available for all 24 hours.', slots(24), pilotPlots, 12, 65, 35, pilotFixed),
+  makeScenario('announced', 'Scheduled outage', 'A pumping window is available before the morning outage.', slots(24, [8, 9, 10, 11]), pilotPlots, 0, 58, 35, pilotFixed),
+  makeScenario('successive', 'Successive outages', 'Two outages followed by a capped restart.', slots(24, [9, 10, 11, 14, 15]), pilotPlots, 10, 48, 35, pilotFixed, 7),
+  makeScenario('mini', 'A/B demo', 'Two plots, three hours and 10 m³ to share.', slots(3, [1, 2], { 0: 5000 }),
     [makePlot(0, 10, 10, [1, 2], 2), makePlot(1, 10, 10, [1, 2], 2)], 10, 0, 10, [1, 2], 1),
-  makeScenario('jplus1', 'Réserve météo J+1', 'Production solaire réduite à partir de 11 h.', weatherSlots, weatherPlots, 1, 7, 8, [13], 0, weatherPair),
-  makeScenario('jplus1-stable', 'Réserve J+1 · Profil stable', 'Le profil défavorable permet le même pompage que le profil central.', weatherSlots, weatherPlots, 1, 7, 8, [13], 0, weatherPairStable),
+  makeScenario('jplus1', 'Day-ahead weather reserve', 'Solar generation falls from 11:00.', weatherSlots, weatherPlots, 1, 7, 8, [13], 0, weatherPair),
+  makeScenario('jplus1-stable', 'Day-ahead reserve · Stable profile', 'The adverse and baseline profiles support the same pumping volume.', weatherSlots, weatherPlots, 1, 7, 8, [13], 0, weatherPairStable),
 ];

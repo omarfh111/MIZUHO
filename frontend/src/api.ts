@@ -26,26 +26,30 @@ async function request<T>(path: string, signal: AbortSignal, body?: unknown): Pr
   try {
     response = await fetch(`/api/${path}`, {
       signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
-      headers: body === undefined ? { Accept: 'application/json' } : { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        'Accept-Language': 'en',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
       method: body === undefined ? 'GET' : 'POST',
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (error) {
     if (signal.aborted) throw error;
-    throw new ApiError('Service indisponible. Vérifiez la connexion à l’API.', 503);
+    throw new ApiError('Service unavailable. Check the API connection.', 503);
   }
   const payload: unknown = await response.json().catch(() => null);
   if (response.status === 422) {
-    throw new ApiError('Vérifiez les paramètres avant de relancer le calcul.', 422, validationFields(payload));
+    throw new ApiError('Check the inputs before recalculating.', 422, validationFields(payload));
   }
   if (!response.ok || payload === null) {
-    throw new ApiError('Service indisponible. Réessayez dans un instant.', response.ok ? 503 : response.status);
+    throw new ApiError('Service unavailable. Try again in a moment.', response.ok ? 503 : response.status);
   }
   return payload as T;
 }
 
 function unreadable() {
-  return new ApiError('La réponse de l’API est illisible.', 502);
+  return new ApiError('The API response could not be read.', 502);
 }
 
 function centerOf(geometry: Geometry): Position | undefined {
@@ -148,6 +152,6 @@ export async function compare(input: CompareRequest, scenario: Scenario, mode: D
 export async function getEvidence(source: string, mode: DataMode, signal: AbortSignal): Promise<Evidence> {
   if (mode === 'demo' && demoEvidence[source]) return demoEvidence[source];
   const record = await request<Evidence & { titre?: string; organisme?: string; limite?: string }>(`evidence/${encodeURIComponent(source)}`, signal);
-  return { ...record, title: record.title ?? record.titre ?? 'Source documentaire',
+  return { ...record, title: record.title ?? record.titre ?? 'Reference source',
     organization: record.organization ?? record.organisme ?? '', limitation: record.limitation ?? record.limite ?? '' };
 }

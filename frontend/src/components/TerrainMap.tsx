@@ -264,7 +264,7 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
           title={marker.label} onClick={() => select(marker.properties ?? null)}
           ref={(element) => { if (element) markerRefs.current.set(marker.id, element); else markerRefs.current.delete(marker.id); }}>
           {marker.layer === 'plots' && marker.properties?.plot_id ? marker.properties.plot_id : <Icon size={14} />}
-          {!marker.layer && <span>Réservoir</span>}
+          {!marker.layer && <span>Reservoir</span>}
         </button>;
       })}
     </div>

@@ -60,11 +60,11 @@ function parseInputs(inputs: Inputs, scenario: Scenario, solar: SolarOption | nu
   const rawCap = readDecimal(inputs.restartCap) * 1000;
   const cap = Math.round(rawCap);
   if (!Number.isSafeInteger(stock) || stock < 0 || stock > scenario.site.tank_capacity_m3) {
-    errors['state.tank_stock_m3'] = `Saisissez un nombre entier entre 0 et ${scenario.site.tank_capacity_m3}.`;
+    errors['state.tank_stock_m3'] = `Enter a whole number between 0 and ${scenario.site.tank_capacity_m3}.`;
   }
-  if (!Number.isSafeInteger(quota) || quota < 0) errors['state.quota_remaining_m3'] = 'Saisissez un nombre entier positif ou nul.';
+  if (!Number.isSafeInteger(quota) || quota < 0) errors['state.quota_remaining_m3'] = 'Enter a whole number of zero or greater.';
   if (inputs.restartCap.trim() !== '' && (!Number.isSafeInteger(cap) || cap < 0 || Math.abs(rawCap - cap) > 1e-8)) {
-    errors.restart_grid_cap_w = 'Saisissez une puissance positive ou nulle (précision au watt).';
+    errors.restart_grid_cap_w = 'Enter a nonnegative power to the nearest watt.';
   }
   const request: CompareRequest = {
     scenario_id: scenario.id,
@@ -80,13 +80,13 @@ function parseInputs(inputs: Inputs, scenario: Scenario, solar: SolarOption | nu
 
 function statusText(calculated: Calculated, mode: DataMode) {
   if (calculated.request.planning_mode === 'weather_buffer' && !calculated.comparison.weather_comparison) {
-    return 'Données insuffisantes pour le plan météo';
+    return 'Insufficient data for the weather reserve plan';
   }
   const proposed = calculated.comparison.weather_comparison?.buffer_on_adverse ?? calculated.comparison.optimized;
-  if (proposed.status === 'NO_SOLUTION' || !proposed.metrics || !proposed.actions) return 'Calcul interrompu · tour fixe disponible';
-  if (mode === 'live' && proposed.status === 'FEASIBLE') return 'Calcul interrompu · plan faisable';
-  if ((proposed.metrics.worst_coverage_bp ?? 10000) < 10000) return 'Plan partiel · minima non couverts';
-  return mode === 'demo' ? 'Plan simulé disponible' : 'Plan calculé';
+  if (proposed.status === 'NO_SOLUTION' || !proposed.metrics || !proposed.actions) return 'Calculation interrupted · fixed schedule available';
+  if (mode === 'live' && proposed.status === 'FEASIBLE') return 'Calculation interrupted · feasible plan available';
+  if ((proposed.metrics.worst_coverage_bp ?? 10000) < 10000) return 'Partial plan · minimum targets unmet';
+  return mode === 'demo' ? 'Simulated plan available' : 'Plan ready';
 }
 
 interface Validation {
@@ -168,7 +168,7 @@ export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvi
     const { request, errors } = parseInputs(inputs, scenario, solar);
     setErrors(errors);
     if (Object.keys(errors).length) {
-      setError('Corrigez les valeurs signalées.');
+      setError('Correct the highlighted inputs.');
       return;
     }
     inFlight.current?.abort();
@@ -182,7 +182,7 @@ export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvi
       setValidation(readValidation(request, (result.weather_comparison?.buffer_on_adverse ?? result.optimized).actions));
     } catch (failure) {
       if (controller.signal.aborted) return;
-      setError(failure instanceof Error ? failure.message : 'Service indisponible.');
+      setError(failure instanceof Error ? failure.message : 'Service unavailable.');
       if (failure instanceof ApiError) setErrors(failure.fields);
     } finally {
       if (!controller.signal.aborted) setLoading(false);
@@ -198,44 +198,44 @@ export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvi
   const before = calculated?.comparison.weather_comparison?.reference_on_adverse ?? calculated?.comparison.baseline;
   const delta = displayed?.metrics?.worst_coverage_bp != null && before?.metrics?.worst_coverage_bp != null
     ? (displayed.metrics.worst_coverage_bp - before.metrics.worst_coverage_bp) / 100 : null;
-  let outcome: ReactNode = 'Renseignez l’état du site et lancez le calcul.';
-  if (loading) outcome = 'Calcul en cours…';
+  let outcome: ReactNode = 'Enter the site conditions and calculate the schedules.';
+  if (loading) outcome = 'Calculating…';
   else if (error) outcome = error;
-  else if (stale) outcome = 'Résultat périmé · recalculez après la modification.';
+  else if (stale) outcome = 'Result out of date · recalculate to continue.';
   else if (calculated) outcome = statusText(calculated, mode);
 
   return <>
     <form className="surface simulation-controls" noValidate onSubmit={(event) => { event.preventDefault(); void run(); }}>
       <div className="panel-heading">
         <div className="title-with-icon"><div className="section-icon"><Settings2 size={18} /></div><div>
-          <h2>Paramètres du scénario</h2><p className="muted small">{scenario.description ?? 'État du site au début du calcul'}
-            {mode === 'live' && scenario.provenance === 'simulated' && ' · Données simulées'}</p>
+          <h2>Scenario settings</h2><p className="muted small">{scenario.description ?? 'Site conditions at the start of the calculation'}
+            {mode === 'live' && scenario.provenance === 'simulated' && ' · Simulated data'}</p>
         </div></div>
-        <button type="button" className="text-button" onClick={reset}><RotateCcw size={15} /> Réinitialiser</button>
+        <button type="button" className="text-button" onClick={reset}><RotateCcw size={15} /> Reset</button>
       </div>
       <div className="simulation-fields">
-        <label className="field"><span>Scénario</span>
+        <label className="field"><span>Scenario</span>
           <select value={scenario.id} onChange={(event) => {
             const selected = scenarios.find(({ id }) => id === event.target.value);
             if (selected) { invalidate(); setInputs(initialInputs(selected)); }
           }}>{scenarios.map(({ id, label }) => <option value={id} key={id}>{label}</option>)}</select>
           {fieldError('scenario_id') && <small className="field-error">{fieldError('scenario_id')}</small>}
         </label>
-        <Field id="tank-stock" label="Stock observé" unit="m³" input={inputs.stock}
+        <Field id="tank-stock" label="Measured water stock" unit="m³" input={inputs.stock}
           error={fieldError('state.tank_stock_m3')} change={(stock) => update({ stock })} />
-        <Field id="remaining-quota" label="Quota restant" unit="m³" input={inputs.quota}
+        <Field id="remaining-quota" label="Remaining quota" unit="m³" input={inputs.quota}
           error={fieldError('state.quota_remaining_m3')} change={(quota) => update({ quota })} />
-        <Field id="restart-cap" label="Plafond de reprise" unit="kW" input={inputs.restartCap}
+        <Field id="restart-cap" label="Restart power cap" unit="kW" input={inputs.restartCap}
           error={fieldError('restart_grid_cap_w')} change={(restartCap) => update({ restartCap })} />
       </div>
       <div className="outage-block">
-        <div className="outage-heading"><span><Radio size={16} /> Créneaux de coupure</span>
-          <small>Début du calcul · {hour(scenario.state.current_slot)}</small>
+        <div className="outage-heading"><span><Radio size={16} /> Outage hours</span>
+          <small>Calculation starts · {hour(scenario.state.current_slot)}</small>
         </div>
-        <div className="outage-buttons" aria-label="Créneaux de coupure">
+        <div className="outage-buttons" aria-label="Outage hours">
           {scenario.slots.map(({ slot }) => <button type="button" key={slot} className="hour-toggle"
             disabled={slot < scenario.state.current_slot} aria-pressed={inputs.outages.includes(slot)}
-            aria-label={`${hour(slot)} · coupure`} onClick={() => toggle(slot)}>
+            aria-label={`${hour(slot)} · outage`} onClick={() => toggle(slot)}>
             {inputs.outages.includes(slot) && <TriangleAlert size={12} />} {hour(slot)}
           </button>)}
         </div>
@@ -244,43 +244,43 @@ export default function Simulation({ scenarios, mode, solar, onClearSolar, onEvi
       <div className="simulation-actions">
         <div className="simulation-options">
           <span className="selection-chip"><Sun size={15} /> {mode === 'demo' && inputs.weather
-            ? 'Profils solaires météo du scénario' : solar?.label ?? 'Sans option solaire ajoutée'}
-            {solar && <button type="button" className="text-button" onClick={onClearSolar}>Retirer</button>}
+            ? 'Scenario weather profiles' : solar?.label ?? 'No solar option selected'}
+            {solar && <button type="button" className="text-button" onClick={onClearSolar}>Remove</button>}
           </span>
           {fieldError('solar_option_id') && <small className="field-error">{fieldError('solar_option_id')}</small>}
           {scenario.weather_pair_id && <label className="weather-toggle"><input type="checkbox" checked={inputs.weather}
-            onChange={(event) => update({ weather: event.target.checked })} /><CloudSun size={15} /> Réserve météo J+1</label>}
+            onChange={(event) => update({ weather: event.target.checked })} /><CloudSun size={15} /> Day-ahead weather reserve</label>}
           {fieldError('weather_pair_id', 'planning_mode', 'state.current_slot') &&
             <small className="field-error">{fieldError('weather_pair_id', 'planning_mode', 'state.current_slot')}</small>}
         </div>
-        <button type="submit" className="button button-primary" disabled={loading}><Play size={16} /> {calculated ? 'Recalculer' : 'Calculer les plannings'}</button>
+        <button type="submit" className="button button-primary" disabled={loading}><Play size={16} /> {calculated ? 'Recalculate' : 'Calculate schedules'}</button>
       </div>
     </form>
     <div className={`result-status ${error || stale ? 'attention' : ''}`} role={error ? 'alert' : 'status'}>
       {error || stale ? <CircleAlert size={18} /> : loading ? <Gauge className="loading-icon" size={18} /> : <CalendarClock size={18} />}
       <strong>{outcome}</strong>
-      {calculated && stale && <span>Résultat précédent · {calculated.scenario.label}</span>}
-      {calculated && current && delta != null && <span>{delta >= 0 ? '+' : '−'}{value(Math.abs(delta))} pts de couverture minimale · {percent(displayed?.metrics?.worst_coverage_bp)}</span>}
+      {calculated && stale && <span>Previous result · {calculated.scenario.label}</span>}
+      {calculated && current && delta != null && <span>{delta >= 0 ? '+' : '−'}{value(Math.abs(delta))} pts minimum coverage · {percent(displayed?.metrics?.worst_coverage_bp)}</span>}
     </div>
     {calculated && <>
       <Planning key={`${calculated.scenario.id}-${calculated.revision}`} comparison={calculated.comparison}
         scenario={calculated.scenario} input={calculated.request} stale={stale} onEvidence={onEvidence} />
       <section className="surface validation-panel">
         <div className="title-with-icon"><div className="section-icon"><BadgeCheck size={19} /></div><div>
-          <h2>Décision d’irrigation</h2>
+          <h2>Irrigation decision</h2>
           <p className="muted small">{current && validation
-            ? `Plan simulé validé à ${new Intl.DateTimeFormat('fr-TN', { timeZone: 'Africa/Tunis', timeStyle: 'medium' }).format(new Date(validation))} · heure de Tunis`
-            : 'Enregistrez la validation dans cette session.'}</p>
+            ? `Simulated plan approved at ${new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Tunis', timeStyle: 'medium' }).format(new Date(validation))} · Tunis time`
+            : 'Save the approval for this session.'}</p>
         </div></div>
         <button type="button" className="button button-primary" onClick={validate} disabled={!canValidate || Boolean(validation)}>
-          <BadgeCheck size={17} /> {current && validation ? 'Plan validé' : 'Valider le plan simulé'}
+          <BadgeCheck size={17} /> {current && validation ? 'Plan approved' : 'Approve simulated plan'}
         </button>
       </section>
     </>}
     {!calculated && <section className="simulation-empty surface">
       <div><Droplets size={22} /><Zap size={16} /></div>
-      <h2>Tour fixe et plan proposé</h2>
-      <p>Le calcul affichera les livraisons par heure, la couverture des exploitants et l’énergie utilisée.</p>
+      <h2>Fixed schedule and proposed plan</h2>
+      <p>The schedules show hourly deliveries, grower coverage and energy use.</p>
     </section>}
   </>;
 }

@@ -21,7 +21,7 @@ export function Modal({ title, icon, children, close, wide = false }: {
     <div className="modal-content">
       <div className="modal-head">
         <div className="title-with-icon">{icon}<h2 id={titleId}>{title}</h2></div>
-        <button type="button" className="icon-button" onClick={close} aria-label="Fermer" autoFocus><X size={20} /></button>
+        <button type="button" className="icon-button" onClick={close} aria-label="Close" autoFocus><X size={20} /></button>
       </div>
       {children}
     </div>
@@ -38,15 +38,15 @@ export default function EvidencePanel({ source, mode, close }: { source: string;
     });
     return () => controller.abort();
   }, [source, mode]);
-  return <Modal title="Fiche de provenance" icon={<BookOpenText size={22} />} close={close}>
-    {failed ? <p role="alert" className="muted">Données insuffisantes pour ouvrir cette source.</p> : !evidence
-      ? <p role="status" className="muted">Chargement de la fiche…</p> : <div className="evidence">
+  return <Modal title="Data source" icon={<BookOpenText size={22} />} close={close}>
+    {failed ? <p role="alert" className="muted">This source is unavailable.</p> : !evidence
+      ? <p role="status" className="muted">Loading the source…</p> : <div className="evidence">
         <h3>{evidence.title}</h3>
         <p className="evidence-meta">{evidence.organization} · {dateLabel(evidence.date)}
           {evidence.page != null && ` · p. ${evidence.page}`}</p>
         <p>{evidence.limitation}</p>
         {evidence.url && <a className="button button-secondary" href={evidence.url} target="_blank" rel="noreferrer">
-          Ouvrir la source <ExternalLink size={15} /></a>}
+          Open source <ExternalLink size={15} /></a>}
       </div>}
   </Modal>;
 }

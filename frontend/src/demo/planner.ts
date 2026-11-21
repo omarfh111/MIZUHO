@@ -75,16 +75,16 @@ function replay(scenario: Scenario, request: CompareRequest, slots: Slot[], stra
       plot_id: plot.plot_id, farmer_id: plot.farmer_id, demand_m3: plot.demand_m3, minimum_m3: plot.minimum_m3,
       delivered_m3: get(delivered, plot.plot_id), delivered_on_time_m3: amount, coverage_bp: coverage(amount, plot.minimum_m3),
       reason: amount >= plot.minimum_m3 ? undefined : site.gravity_max_m3_per_slot === 0
-        ? 'Distribution gravitaire indisponible' : quota === 0 ? 'Quota épuisé au cours du plan'
-          : 'Minimum non couvert dans la fenêtre autorisée',
+        ? 'Gravity-fed distribution unavailable' : quota === 0 ? 'Withdrawal quota exhausted during the plan'
+          : 'Minimum volume unmet within the allowed window',
     };
   });
   const fractions = plotResults.flatMap(({ coverage_bp }) => coverage_bp == null ? [] : [coverage_bp]);
   const warnings: Warning[] = scenario.id === 'successive' ? [{
-    type: 'efficiency', message: 'Vérifier le débit, la pression et le compteur de la pompe.',
-    period: 'H09–H10 · relevés indépendants simulés', value: 0.7, reference: 0.5,
+    type: 'efficiency', message: 'Check the flow rate, pressure and pump meter.',
+    period: 'H09–H10 · independent simulated readings', value: 0.7, reference: 0.5,
     unit: 'kWh/m³', source_id: 'telemetry',
-  }] : [{ type: 'insufficient', message: 'Données insuffisantes pour établir le diagnostic kWh/m³.' }];
+  }] : [{ type: 'insufficient', message: 'Insufficient data to assess energy use per m³.' }];
 
   return {
     status: 'FEASIBLE', actions, plot_results: plotResults, warnings,
@@ -176,8 +176,8 @@ function compareWeather(scenario: Scenario, request: CompareRequest, slots: Slot
       remaining_deficit_m3: Math.max(0, plot.minimum_m3 - (best.plot_results?.[0].delivered_on_time_m3 ?? 0)),
       quota_remaining_m3: best.metrics?.quota_remaining_m3,
       reason: request.weather_pair_id === 'jplus1-demo'
-        ? 'Le profil défavorable réduit la production solaire après 11 h.'
-        : 'Les deux profils permettent le même pompage sur la fenêtre à risque.',
+        ? 'The adverse profile reduces solar generation after 11:00.'
+        : 'Both profiles support the same pumping volume during the risk window.',
       source_id: 'weather', provenance: 'simulated',
     },
   };
