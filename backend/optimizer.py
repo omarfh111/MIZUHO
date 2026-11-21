@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from math import isfinite
 from time import monotonic
@@ -145,3 +145,27 @@ def optimize(
         return Plan(status="NO_SOLUTION", warnings=("optimizer_no_solution",))
     warnings = ("optimizer_not_proven_optimal",) if status == "FEASIBLE" else ()
     return verified_plan(scenario, state, actions, status, warnings)
+
+
+def replan_after_outage(
+    scenario: Scenario,
+    state: State,
+    *,
+    outage_slots: Sequence[int],
+    max_time_seconds: float = 5.0,
+) -> Plan:
+    """Replan from the validated operating state with additional grid outages."""
+    validate_state(scenario, state)
+    if not outage_slots or any(
+        type(slot) is not int or not state.current_slot <= slot < len(scenario.slots)
+        for slot in outage_slots
+    ):
+        raise ValueError("outage_slots must contain slots in the remaining horizon")
+    outages = set(outage_slots)
+    if len(outages) != len(outage_slots):
+        raise ValueError("outage_slots contains duplicates")
+    slots = tuple(
+        slot.model_copy(update={"grid_available": False}) if slot.slot in outages else slot
+        for slot in scenario.slots
+    )
+    return optimize(scenario.model_copy(update={"slots": slots}), state, max_time_seconds=max_time_seconds)

@@ -65,11 +65,21 @@ def can_allocate_history(requests: list[list[int]], past_slot_count: int) -> boo
     return all(allocate(request, set()) for request in range(len(requests)))
 
 
-def simulate(scenario: Scenario, state: State, actions: Sequence[Action]) -> Simulation:
+def simulate(
+    scenario: Scenario,
+    state: State,
+    actions: Sequence[Action],
+    *,
+    stop_before_slot: int | None = None,
+) -> Simulation:
+    """Replay completed actions up to an exclusive slot and return the resulting state."""
     validate_state(scenario, state)
+    end_slot = len(scenario.slots) if stop_before_slot is None else stop_before_slot
+    if type(end_slot) is not int or not state.current_slot <= end_slot <= len(scenario.slots):
+        raise ValueError("stop_before_slot is outside the remaining horizon")
     indexed = {}
     for action in actions:
-        if not state.current_slot <= action.slot < len(scenario.slots):
+        if not state.current_slot <= action.slot < end_slot:
             return invalid([], action.slot, "slot")
         if action.slot in indexed:
             return invalid([], action.slot, "duplicate_action")
@@ -81,9 +91,10 @@ def simulate(scenario: Scenario, state: State, actions: Sequence[Action]) -> Sim
     on_time = dict(state.delivered_on_time_by_plot_m3)
     stock, quota = state.tank_stock_m3, state.quota_remaining_m3
     balances: list[SlotBalance] = []
-    for slot in scenario.slots[state.current_slot:]:
+    for slot in scenario.slots[state.current_slot:end_slot]:
         action = indexed.get(slot.slot) or Action(slot=slot.slot)
-        solar_available, grid_available = available_power(slot)
+        stock_before = stock
+        solar_available, grid_limit = available_power(slot)
         pumped = action.pump_m3
         pump_wh = pumped * site.pump_wh_per_m3
         limits = (
@@ -94,7 +105,7 @@ def simulate(scenario: Scenario, state: State, actions: Sequence[Action]) -> Sim
         for limit, constraint in limits:
             if pumped > limit:
                 return invalid(balances, slot.slot, constraint)
-        if pump_wh > solar_available + grid_available:
+        if pump_wh > solar_available + grid_limit:
             return invalid(balances, slot.slot, "power")
         stock += pumped
         quota -= pumped
@@ -127,13 +138,20 @@ def simulate(scenario: Scenario, state: State, actions: Sequence[Action]) -> Sim
 
         solar_used = min(pump_wh, solar_available)
         balances.append(SlotBalance(
-            slot=slot.slot, tank_stock_m3=stock, quota_remaining_m3=quota,
-            pump_m3=pumped, delivered_m3=volume, pump_wh=pump_wh,
+            slot=slot.slot, tank_stock_before_m3=stock_before, tank_stock_m3=stock,
+            quota_remaining_m3=quota, pump_m3=pumped, delivered_m3=volume,
+            deliveries=tuple(deliveries), pump_wh=pump_wh,
             solar_wh=solar_used, grid_wh=pump_wh - solar_used,
+            solar_available_wh=solar_available, grid_available=slot.grid_available,
+            grid_cap_w=grid_limit,
         ))
     plot_results = summarize_plots(scenario, state, delivered, on_time)
     return Simulation(
-        slots=tuple(balances), plot_results=plot_results, metrics=summarize_slots(balances, plot_results)
+        slots=tuple(balances), plot_results=plot_results, metrics=summarize_slots(balances, plot_results),
+        end_state=State(
+            current_slot=end_slot, tank_stock_m3=stock, quota_remaining_m3=quota,
+            delivered_by_plot_m3=delivered, delivered_on_time_by_plot_m3=on_time,
+        ),
     )
 
 

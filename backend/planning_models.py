@@ -104,13 +104,18 @@ class Violation(PlanningModel):
 
 class SlotBalance(PlanningModel):
     slot: int
+    tank_stock_before_m3: int
     tank_stock_m3: int
     quota_remaining_m3: int
     pump_m3: int
     delivered_m3: int
+    deliveries: tuple[Delivery, ...]
     pump_wh: int
     solar_wh: int
     grid_wh: int
+    solar_available_wh: int
+    grid_available: bool
+    grid_cap_w: int
 
 
 class PlotResult(PlanningModel):
@@ -137,6 +142,7 @@ class Simulation(PlanningModel):
     plot_results: tuple[PlotResult, ...] = ()
     metrics: Metrics | None = None
     violations: tuple[Violation, ...] = ()
+    end_state: State | None = None
 
 
 class Plan(PlanningModel):
