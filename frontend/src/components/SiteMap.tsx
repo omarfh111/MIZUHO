@@ -5,6 +5,7 @@ import {
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getLayer, type DataMode } from '../api.ts';
 import { dateLabel, provenanceLabel, value } from '../format.ts';
+import { useExperience } from '../experience/index.ts';
 import type { Layer, LayerId, LayerProperties, Scenario, Site, SolarOption } from '../types.ts';
 import type { MapControls } from './mapControls.ts';
 
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export default function SiteMap({ site, sites, scenario, selectedOption, mode, onSelectSite, onCompare, onEvidence, onSimulate }: Props) {
+  const { active: cinematicActive } = useExperience();
   const [catalog, setCatalog] = useState<LayerState>({});
   const [visible, setVisible] = useState<LayerId[]>(['plots', 'solar']);
   const [active, setActive] = useState<LayerProperties | null>(null);
@@ -76,7 +78,7 @@ export default function SiteMap({ site, sites, scenario, selectedOption, mode, o
         <div className="map-viewport">
           {hardwareError ? <div className="map-loading" role="status">
             <p><TriangleAlert size={17} /> 3D view unavailable. Use the area selector to inspect site layers.</p>
-          </div> : <>
+          </div> : cinematicActive ? <div className="map-loading" aria-hidden /> : <>
             <Suspense fallback={<div className="map-loading" role="status">Loading the map…</div>}>
               <TerrainMap site={site} layers={layers} active={active} select={setActive} controls={controls}
                 onUnavailable={fallback} demo={hasDemoRelief} />

@@ -93,4 +93,4 @@ npm test
 npm run build
 ```
 
-With Chrome, the frontend, and the configured backend running, run `npm run test:browser` from `frontend/` for the live assistant walkthrough. It sends three questions to the configured OpenAI model, including a follow-up about the previous citation. Set `MIZHUO_TEST_URL` if the frontend is served somewhere other than `http://127.0.0.1:5173/`.
+With Chrome, the frontend, and the configured backend running, run `npm run test:browser` from `frontend/` for the cinematic and assistant walkthroughs. The assistant walkthrough sends three questions to the configured OpenAI model. Set `MIZHUO_TEST_URL` if the frontend is served somewhere other than `http://127.0.0.1:5173/`. Use `?intro=0` to go directly to the dashboard or Replay intro to watch the film again.
