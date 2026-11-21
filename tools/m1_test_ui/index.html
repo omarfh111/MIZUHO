@@ -70,7 +70,7 @@ td.null { color: var(--warn); font-style: italic; }
 
 <section id="s2">
   <h2><span class="num">2</span>Carte : site, parcelles OSM et couche WaPOR <span class="badge b-idle" id="st2">non lancé</span></h2>
-  <p class="hint">Les couches sont lues en local. Le fond de carte OSM demande Internet ; sans lui, les couches restent visibles.</p>
+  <p class="hint"><b>Données observées, pas une prévision :</b> mesures satellite FAO WaPOR pour la période passée du 11 au 20 juillet 2026. La prévision à 24 h relève de M3. Clique une parcelle pour remplir le calculateur de l'étape 4. Le fond de carte OSM demande Internet ; sans lui, les couches restent visibles.</p>
   <div class="row" style="margin-bottom:8px"><button onclick="step2()">Charger les couches</button>
     <label style="flex-direction:row;display:flex;gap:6px;align-items:center;color:var(--ink)"><input type="checkbox" id="wap" checked style="width:auto" onchange="toggleWapor()"> Couche WaPOR AETI</label></div>
   <div id="map" role="region" aria-label="Carte des parcelles"></div>
@@ -90,7 +90,7 @@ td.null { color: var(--warn); font-style: italic; }
 
 <section id="s4">
   <h2><span class="num">4</span>Conversion mm → m³ <span class="badge b-idle" id="st4">non lancé</span></h2>
-  <p class="hint">m³ = mm × m² ÷ 1000, arrondi au m³ (demi vers le haut). Recette du cahier : 4 mm sur 500 m² = 2 m³.</p>
+  <p class="hint">m³ = mm × m² ÷ 1000, arrondi au m³ (demi vers le haut). Recette du cahier : 4 mm sur 500 m² = 2 m³. Un clic sur une parcelle de la carte remplit les deux champs et compare le résultat à <code>plots.geojson</code>.</p>
   <div class="row">
     <label>Hauteur (mm)<input id="mm" type="number" step="0.01" min="0" value="4"></label>
     <label>Surface (m²)<input id="m2" type="number" step="1" min="0" value="500"></label>
@@ -181,10 +181,18 @@ async function step2() { await guard(2, "map", async () => {
     onEachFeature: (f, l) => l.bindPopup(`<b>${esc(f.properties.label)}</b><br>site_id : ${esc(f.properties.site_id)}<br>quota : ${f.properties.quota_m3 ?? "donnée locale requise"}`)}).addTo(map);
   const pl = L.geoJSON(plots, {style: {color: "#c2410c", weight: 2, fillOpacity: .08},
     onEachFeature: (f, l) => { const p = f.properties; l.bindTooltip(p.plot_id, {permanent: true, direction: "center", className: ""});
-      l.bindPopup(`<b>${p.plot_id}</b> (OSM way ${p.osm_way_id})<br>${p.land_use}, ${p.surface_m2.toLocaleString("fr")} m²<br>AETI ${p.eta_mm_day} mm/j · pluie ${p.precip_mm_day} · ET0 ${p.ref_et_mm_day}<br><b>${p.demand_m3} m³/j</b> (brut ${p.demand_m3_raw})`); }}).addTo(map);
+      l.bindPopup(`<b>${p.plot_id}</b> (OSM way ${p.osm_way_id})<br>${p.land_use}, ${p.surface_m2.toLocaleString("fr")} m²<br>AETI ${p.eta_mm_day} mm/j · pluie ${p.precip_mm_day} · ET0 ${p.ref_et_mm_day}<br><b>${p.demand_m3} m³/j</b> (brut ${p.demand_m3_raw})<br><i>Observé du 11 au 20 juil. 2026, pas une prévision.</i><br>→ calculateur (étape 4) rempli`);
+      l.on("click", () => fillCalc(p)); }}).addTo(map);
   map.fitBounds(pl.getBounds(), {padding: [20, 20]});
   status(2, "ok", `${plots.features.length} parcelles, ${wap.features.length} pixels`);
 }); }
+let fromPlot = null;
+async function fillCalc(p) {
+  $("mm").value = p.irrigation_need_mm_day;
+  $("m2").value = p.surface_m2;
+  fromPlot = p;
+  await step4();
+}
 function toggleWapor() { if (!map || !waporLayer) return; $("wap").checked ? waporLayer.addTo(map) : map.removeLayer(waporLayer); }
 
 async function initSites() {
@@ -207,8 +215,18 @@ async function step3() { await guard(3, "o3", async () => {
 
 async function step4() { await guard(4, "o4", async () => {
   const mm = +$("mm").value, m2 = +$("m2").value;
+  const p = fromPlot && fromPlot.irrigation_need_mm_day === mm && fromPlot.surface_m2 === m2 ? fromPlot : null;
+  fromPlot = null;
   const j = await post("/api/convert", {depth_mm: mm, surface_m2: m2});
-  $("o4").textContent = `${mm} mm × ${m2} m² ÷ 1000 = ${j.raw_m3} m³ brut → ${j.rounded_m3} m³ arrondi`;
+  let txt = `${mm} mm × ${m2} m² ÷ 1000 = ${j.raw_m3} m³ brut → ${j.rounded_m3} m³ arrondi`;
+  if (p) {
+    const same = j.rounded_m3 === p.demand_m3;
+    txt = `Parcelle ${p.plot_id} (cliquée sur la carte)\nBesoin = AETI ${p.eta_mm_day} − pluie ${p.precip_mm_day} = ${mm} mm/j, observé du 11 au 20 juil. 2026\n` + txt +
+      `\nValeur dans plots.geojson : ${p.demand_m3} m³/j → ${same ? "✓ identique" : "✗ différente"}`;
+    $("o4").textContent = txt;
+    return status(4, same ? "ok" : "bad", same ? `${p.plot_id} : ${j.rounded_m3} m³/j vérifié` : `${p.plot_id} : écart`);
+  }
+  $("o4").textContent = txt;
   const recette = mm === 4 && m2 === 500;
   status(4, recette ? (j.rounded_m3 === 2 ? "ok" : "bad") : "ok", recette ? (j.rounded_m3 === 2 ? "recette 2 m³ vérifiée" : "recette échouée") : "calculé");
 }); }
