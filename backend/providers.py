@@ -6,6 +6,7 @@ import re
 import ssl
 from dataclasses import dataclass, field
 from os import getenv
+from time import monotonic
 from urllib.parse import urlsplit
 
 import httpx
@@ -129,8 +130,10 @@ class Providers:
                    "max_tokens": body["max_output_tokens"], "chat_template_kwargs": {"enable_thinking": False},
                    "tools": [{"type": "function", "function": {k: tool[k] for k in ("name", "description", "parameters")}}
                              for tool in body["tools"]]}
-        data = self._request("NVIDIA", "POST", "https://integrate.api.nvidia.com/v1/chat/completions",
-                             {"Authorization": f"Bearer {self.settings.nvidia_key}"}, payload, timeout)
+        deadline = monotonic() + timeout
+        url = "https://integrate.api.nvidia.com/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {self.settings.nvidia_key}"}
+        data = self._request("NVIDIA", "POST", url, headers, payload, timeout)
         try:
             choice = data["choices"][0]
             message = choice["message"]
@@ -160,6 +163,27 @@ class Providers:
             content = message["content"]
             if choice["finish_reason"] != "stop" or not isinstance(content, str) or not content.strip():
                 raise ValueError
+            try:
+                parsed = json.loads(content)
+            except ValueError:
+                parsed = None
+            if not isinstance(parsed, dict) or not isinstance(parsed.get("paragraphs"), list):
+                # Tool mode can finish in plain prose. Ask for a constrained final answer
+                # from the original evidence without forwarding the unverified draft.
+                remaining = deadline - monotonic()
+                if remaining < .25:
+                    raise ServiceError("NVIDIA response")
+                del payload["tools"]
+                fmt = body["text"]["format"]
+                payload["response_format"] = {"type": "json_schema", "json_schema": {
+                    "name": "grounded_answer", "strict": True, "schema": fmt["schema"]}}
+                data = self._request("NVIDIA", "POST", url, headers, payload, remaining)
+                final = data["choices"][0]
+                if data["model"] != NVIDIA_MODEL or final["finish_reason"] != "stop" or final["message"]["role"] != "assistant":
+                    raise ValueError
+                content = final["message"]["content"]
+                if not isinstance(json.loads(content), dict):
+                    raise ValueError
             return {"output": [{"type": "message", "content": [{"type": "output_text", "text": content}]}]}
         except (AttributeError, IndexError, KeyError, TypeError, ValueError):
             raise ServiceError("NVIDIA response") from None

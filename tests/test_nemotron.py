@@ -50,6 +50,10 @@ def test_nemotron_executes_tools_and_renders_only_verified_figures(monkeypatch):
         assert [m["role"] for m in dialogue] == ["system", "user", "assistant", "tool", "tool"]
         assert [m["tool_call_id"] for m in dialogue[-2:]] == ["allocation", "site"]
         facts = json.loads(dialogue[-2]["content"])["facts"]
+        if len(requests) == 2:
+            return completion("Unverified draft that must never reach the browser.")
+        assert payload["response_format"]["type"] == "json_schema" and "tools" not in payload
+        assert "Unverified draft" not in str(dialogue)
         return completion(json.dumps({"paragraphs": [{"text": "It delivered 9000 cubic metres.",
             "citation_ids": [], "fact_ids": [facts[0]["id"]]}], "missing_information": []}))
 
@@ -58,7 +62,7 @@ def test_nemotron_executes_tools_and_renders_only_verified_figures(monkeypatch):
     try:
         answer = run_assistant(AssistantRequest(provider="nvidia", site_id="jendouba-pilote",
             question="Why did farmer A receive only 5 m³?"), catalog, load_corpus(DATA_DIR, catalog.evidence), service, 5)
-        assert len(requests) == 2
+        assert len(requests) == 3
         assert answer.tools_used == ("explain_decision", "get_site_data")
         assert any("Plot A (EXP-01): 5 m³" in fact.text for fact in answer.facts)
         assert "9000" not in answer.model_dump_json()
