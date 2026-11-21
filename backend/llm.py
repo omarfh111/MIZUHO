@@ -42,6 +42,8 @@ def config() -> dict:
         "temperature": float(os.environ.get("LLM_TEMPERATURE", "0.2")),
         "max_tokens": int(os.environ.get("LLM_MAX_TOKENS", "900")),
         "timeout": float(os.environ.get("LLM_TIMEOUT_S", "60")),
+        # Reasoning models (Nemotron 3.5...) can spend every token "thinking" and return no text.
+        "disable_thinking": os.environ.get("LLM_DISABLE_THINKING", "true").lower() in ("1", "true", "yes"),
     }
 
 
@@ -58,13 +60,15 @@ def chat(messages: list[dict]) -> dict:
     c = config()
     if not c["api_key"]:
         raise LLMNotConfigured("LLM_API_KEY is empty: copy .env.example to .env and add the key")
+    body = {"model": c["model"], "messages": messages, "temperature": c["temperature"],
+            "max_tokens": c["max_tokens"], "stream": False}
+    if c["disable_thinking"]:
+        body["chat_template_kwargs"] = {"enable_thinking": False}
     try:
         r = requests.post(
             f"{c['base_url']}/chat/completions",
             headers={"Authorization": f"Bearer {c['api_key']}", "Content-Type": "application/json"},
-            json={"model": c["model"], "messages": messages, "temperature": c["temperature"],
-                  "max_tokens": c["max_tokens"], "stream": False},
-            timeout=c["timeout"],
+            json=body, timeout=c["timeout"],
         )
     except requests.RequestException as e:
         raise LLMError(f"endpoint unreachable: {type(e).__name__}") from None
@@ -75,6 +79,9 @@ def chat(messages: list[dict]) -> dict:
     msg = data["choices"][0]["message"]
     text = _strip_reasoning(msg.get("content") or "")
     if not text:
-        raise LLMError("empty answer from the model")
+        hint = ""
+        if msg.get("reasoning_content") and data["choices"][0].get("finish_reason") == "length":
+            hint = " (all tokens spent on reasoning: set LLM_DISABLE_THINKING=true or raise LLM_MAX_TOKENS)"
+        raise LLMError("empty answer from the model" + hint)
     return {"text": text, "model": data.get("model", c["model"]),
             "finish_reason": data["choices"][0].get("finish_reason"), "usage": data.get("usage")}

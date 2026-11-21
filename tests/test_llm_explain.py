@@ -14,9 +14,20 @@ def result():
 
 def test_facts_carry_only_computed_numbers(result):
     f = texp.facts(result)
-    assert f["demande_climatique"]["pente_mm_jour_par_degre"] == result["climatic_demand"]["slope"]
-    assert [p["parcelle"] for p in f["parcelles"]] == [p["plot_id"] for p in result["plots"]]
+    assert f["demande_climatique_mm_jour_par_degre"] == round(result["climatic_demand"]["slope"], 2)
+    ids = {p["plot_id"] for p in result["plots"]}
+    for key in ("annee_a_pluie_egale", "saison_seche"):
+        g = f[key]
+        assert {x["parcelle"] for x in g["hausse"] + g["baisse"]} | set(g["sans_effet"]) == ids
     assert "series" not in str(f)
+
+
+def test_number_check_flags_invented_values(result):
+    f = texp.facts(result)
+    v = f["annee_a_pluie_egale"]["hausse"][0]["m3_jour_par_degre"]
+    good = f"**Oui**, +{str(v).replace('.', ',')} m³/jour par °C sur **P-02** entre 2018 et 2026."
+    assert texp.check_numbers(good, f)["ok"]
+    assert texp.check_numbers("entre 1,37 et 42 m³/jour", f)["unknown"] == ["1,37", "42"]
 
 
 def test_missing_key_is_reported(monkeypatch):

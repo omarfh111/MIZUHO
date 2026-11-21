@@ -302,7 +302,7 @@ tr.click:hover td { background: color-mix(in srgb, var(--plot) 5%, transparent);
 
     <section class="card" id="s8">
       <div class="card-h"><div class="n">8</div>
-        <div class="t"><h2>Suite pytest</h2><p>Lance <code>tests/test_agriculture.py</code> et <code>tests/test_temperature_effect.py</code> sur le serveur.</p></div>
+        <div class="t"><h2>Suite pytest</h2><p>Lance <code>tests/test_agriculture.py</code>, <code>tests/test_temperature_effect.py</code> et <code>tests/test_llm_explain.py</code> sur le serveur.</p></div>
         <span class="chip c-idle" id="st8">Non lancé</span></div>
       <div class="actions"><button onclick="step8()">Lancer les tests</button></div>
       <div id="o8"></div>
@@ -530,6 +530,7 @@ function llmHtml() {
     `<p class="err">${esc(EXPL.error)}</p>` + (EXPL.configured === false ? `<p class="llm-meta">Copie <code>.env.example</code> en <code>.env</code>, mets ta clé dans <code>LLM_API_KEY</code>, puis clique « Réessayer ». Le résumé calculé sans IA reste disponible ci-dessous.</p>` : "");
   return head("Explication générée par IA", `<button class="ghost sm" onclick="explainTemp(true)">↻ Régénérer</button>`) +
     `<div class="llm-text">${mdLite(EXPL.text)}</div>
+    <p class="llm-meta">${EXPL.check ? (EXPL.check.ok ? `<span class="chip c-ok">✓ ${EXPL.check.numbers} chiffres vérifiés dans les faits calculés</span>` : `<span class="chip c-bad">⚠ chiffres absents des faits : ${esc(EXPL.check.unknown.join(", "))}</span> à ne pas croire, utilise le tableau`) : ""}</p>
     <p class="llm-meta">Modèle <code>${esc(EXPL.model)}</code> · ${esc(EXPL.generated_at.replace("T", " ").slice(0, 16))} UTC${EXPL.cached ? " · en cache" : ""}. Texte rédigé par un modèle de langage à partir des seuls chiffres du tableau ci-dessous : vérifie-le avec ces chiffres.</p>`;
 }
 async function explainTemp(refresh) {

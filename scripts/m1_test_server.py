@@ -77,7 +77,7 @@ def step_validate(body: dict) -> dict:
 
 
 def step_tests() -> dict:
-    r = subprocess.run([sys.executable, "-m", "pytest", "tests/test_agriculture.py", "tests/test_temperature_effect.py", "-v", "--no-header", "-p", "no:cacheprovider"],
+    r = subprocess.run([sys.executable, "-m", "pytest", "tests/test_agriculture.py", "tests/test_temperature_effect.py", "tests/test_llm_explain.py", "-v", "--no-header", "-p", "no:cacheprovider"],
                        cwd=ROOT, capture_output=True, text=True, timeout=120)
     lines = [ln for ln in r.stdout.splitlines() if "::" in ln and ("PASSED" in ln or "FAILED" in ln or "ERROR" in ln)]
     tests = [{"name": ln.split("::")[1].split(" ")[0], "ok": "PASSED" in ln} for ln in lines]
