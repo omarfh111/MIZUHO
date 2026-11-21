@@ -3,7 +3,7 @@ import '@fontsource-variable/manrope';
 import './experience.css';
 import { gsap } from 'gsap';
 import {
-  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
+  Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
   type ComponentType, type PointerEvent as ReactPointerEvent, type ReactNode,
 } from 'react';
 import { detectCapabilities, QUALITY, type Capabilities } from './core/capabilities.ts';
@@ -54,6 +54,7 @@ const WEIGHTS: Record<Exclude<LoadingStage, 'ready'>, number> = { engine: 0.22, 
 /** The opening lasts about three seconds: ~2.4 s of filling, ~0.7 s of hand-over. */
 const MIN_OPENING_MS = 2400;
 const MIN_REPLAY_OPENING_MS = 1200;
+const SCENE_TIMEOUT_MS = 15000;
 /** How long the finale holds before entering on its own, when nobody took control. */
 const FINALE_HOLD_S = 2.6;
 /** After this long without input, the film carries on by itself. */
@@ -84,19 +85,11 @@ function markSeen(policy: PlayPolicy, storageKey: string) {
   }
 }
 
-/** Black dip used for hard cuts when motion is reduced. */
-function Dip({ director }: { director: Director }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    let frame = 0;
-    const tick = () => {
-      if (ref.current) ref.current.style.opacity = String(director.dip);
-      frame = requestAnimationFrame(tick);
-    };
-    tick();
-    return () => cancelAnimationFrame(frame);
-  }, [director]);
-  return <div ref={ref} className="mx-dip" style={{ opacity: 0 }} />;
+class SceneBoundary extends Component<{ children: ReactNode; onFailure: () => void }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { this.props.onFailure(); }
+  render() { return this.state.failed ? null : this.props.children; }
 }
 
 export function ExperienceGate({
@@ -104,13 +97,15 @@ export function ExperienceGate({
   storageKey = 'mizuho.experience', onComplete,
 }: ExperienceGateProps) {
   const caps = useMemo<Capabilities>(() => detectCapabilities(), []);
+  const sceneMode = caps.webgl && !caps.reducedMotion ? '3d' : 'fallback';
   const [phase, setPhase] = useState<Phase>(() => (shouldPlay(play, storageKey, caps.reducedMotion) ? 'loading' : 'done'));
-  const [mode, setMode] = useState<Mode>(caps.webgl ? '3d' : 'fallback');
+  const [mode, setMode] = useState<Mode>(sceneMode);
   const [run, setRun] = useState(0);
   const [childrenMounted, setChildrenMounted] = useState(() => mountChildrenEarly || phase === 'done');
   const [chapter, setChapter] = useState(0);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState<LoadingStage>('engine');
+  const [showLoader, setShowLoader] = useState(true);
   const [labelLayer, setLabelLayer] = useState<HTMLDivElement | null>(null);
   const [scene, setScene] = useState<{ Canvas: CanvasModule['default']; world: World } | null>(null);
 
@@ -118,6 +113,9 @@ export function ExperienceGate({
   // `lastInput` is -Infinity until the visitor first scrolls, so the film plays from the start.
   const film = useRef({ target: 0, spring: { value: 0, velocity: 0 }, lastInput: -Infinity, hold: 0 });
   const overlay = useRef<HTMLDivElement>(null);
+  const appRoot = useRef<HTMLDivElement>(null);
+  const skip = useRef<HTMLButtonElement>(null);
+  const exitAnimation = useRef<gsap.core.Timeline | null>(null);
   const hud = useRef<{ coordinates?: HTMLElement | null; rail?: HTMLElement | null }>({});
   const sceneReady = useRef<() => void>(() => undefined);
   const exiting = useRef(false);
@@ -128,6 +126,17 @@ export function ExperienceGate({
   completeRef.current = onComplete;
 
   const active = phase !== 'done';
+  const onSceneReady = useCallback(() => sceneReady.current(), []);
+  const onSceneFailure = useCallback(() => {
+    setScene(null);
+    setMode('fallback');
+  }, []);
+  const onLoaderReleased = useCallback(() => setShowLoader(false), []);
+  useEffect(() => () => { exitAnimation.current?.kill(); }, []);
+  useEffect(() => {
+    if (active) skip.current?.focus({ preventScroll: true });
+    else if (exiting.current) appRoot.current?.querySelector<HTMLElement>('main')?.focus({ preventScroll: true });
+  }, [active]);
 
   /* ------------------------------------------------------------ exit */
   const finish = useCallback(() => {
@@ -141,24 +150,28 @@ export function ExperienceGate({
     if (exiting.current) return;
     exiting.current = true;
     setChildrenMounted(true);
+    if (caps.reducedMotion) {
+      finish();
+      return;
+    }
     setPhase('exiting');
     const el = overlay.current;
     const mask = { r: 0 };
     const duration = quick ? 0.75 : 1.35;
-    gsap.to(director.current, { exit: 1, duration, ease: 'power2.inOut' });
-    gsap.to(mask, {
-      r: 1,
-      duration,
-      ease: 'power3.inOut',
-      onUpdate: () => el?.style.setProperty('--mx-reveal', mask.r.toFixed(4)),
-      onComplete: finish,
-    });
-  }, [finish]);
+    exitAnimation.current = gsap.timeline({ onComplete: finish })
+      .to(director.current, { exit: 1, duration, ease: 'power2.inOut' }, 0)
+      .to(mask, {
+        r: 1, duration, ease: 'power3.inOut',
+        onUpdate: () => el?.style.setProperty('--mx-reveal', mask.r.toFixed(4)),
+      }, 0);
+  }, [caps.reducedMotion, finish]);
 
   /* --------------------------------------------------------- loading */
   useEffect(() => {
     if (phase !== 'loading') return;
     let cancelled = false;
+    let openingTimer: ReturnType<typeof setTimeout> | undefined;
+    let resolveReady: (() => void) | undefined;
     const started = performance.now();
     const parts: Record<keyof typeof WEIGHTS, number> = { engine: 0, terrain: 0, valley: 0, shaders: 0, app: 0 };
     const report = (key: keyof typeof WEIGHTS, value: number) => {
@@ -176,6 +189,7 @@ export function ExperienceGate({
       document.fonts?.ready.catch(() => undefined),
     ]).then(() => report('app', 1));
 
+    const deadline = mode === '3d' ? setTimeout(onSceneFailure, SCENE_TIMEOUT_MS) : undefined;
     const sceneTask = mode === '3d'
       ? (async () => {
         const mod = (await import('./scene/CinematicCanvas.tsx')) as CanvasModule;
@@ -183,6 +197,7 @@ export function ExperienceGate({
         const world = await mod.prepareWorld(caps.tier, QUALITY[caps.tier], (f) => report('terrain', f), (f) => report('valley', f));
         if (cancelled) return;
         await new Promise<void>((resolve) => {
+          resolveReady = resolve;
           sceneReady.current = resolve;
           setScene({ Canvas: mod.default, world });
         });
@@ -192,25 +207,32 @@ export function ExperienceGate({
 
     Promise.all([app, sceneTask])
       .then(async () => {
-        const wait = (run ? MIN_REPLAY_OPENING_MS : MIN_OPENING_MS) - (performance.now() - started);
-        if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-        if (!cancelled) setPhase('film');
+        clearTimeout(deadline);
+        if (cancelled) return;
+        const wait = caps.reducedMotion ? 0 : (run ? MIN_REPLAY_OPENING_MS : MIN_OPENING_MS) - (performance.now() - started);
+        openingTimer = setTimeout(() => {
+          if (caps.reducedMotion) setShowLoader(false);
+          setPhase('film');
+        }, Math.max(0, wait));
       })
       .catch((error) => {
-        console.warn('[MIZUHO experience] 3D scene unavailable, using the lightweight intro.', error);
         if (!cancelled) {
-          setScene(null);
-          setMode('fallback');
+          console.warn('[MIZUHO experience] 3D scene unavailable, using the lightweight intro.', error);
+          onSceneFailure();
         }
       });
     return () => {
       cancelled = true;
+      clearTimeout(deadline);
+      clearTimeout(openingTimer);
+      sceneReady.current = () => undefined;
+      resolveReady?.();
     };
-  }, [phase, mode, run, caps.tier]);
+  }, [phase, mode, run, caps.tier, caps.reducedMotion, onSceneFailure]);
 
   /* ------------------------------------------------------- film clock */
   useEffect(() => {
-    if (phase !== 'film') return;
+    if (phase !== 'film' || caps.reducedMotion) return;
     let frame = 0;
     let last = performance.now();
     // The drop is released by the opening; give it a beat before the film starts moving.
@@ -228,19 +250,9 @@ export function ExperienceGate({
         }
       }
       const d = director.current;
-      if (caps.reducedMotion) {
-        // No glide: cut straight to the target, softened by a dip.
-        if (Math.abs(f.spring.value - Math.min(SCENE_END, f.target)) > 0.001) {
-          d.dip = 1;
-          f.spring.value = Math.min(SCENE_END, f.target);
-        }
-      } else {
-        springStep(f.spring, Math.min(SCENE_END, f.target), dt);
-      }
+      springStep(f.spring, Math.min(SCENE_END, f.target), dt);
       const s = Math.min(SCENE_END, Math.max(0, f.spring.value));
-      const dip = Math.max(0, d.dip - dt * 3);
       direct(d, s);
-      d.dip = dip;
       setChapter(chapterAt(s));
       if (s > SCENE_END - 1.6) setChildrenMounted(true);
       hud.current.rail?.style.setProperty('--mx-film', (s / SCENE_END).toFixed(4));
@@ -258,17 +270,18 @@ export function ExperienceGate({
   }, []);
 
   const nudge = useCallback((delta: number) => {
-    if (phase !== 'film') return;
+    if (phase !== 'film' || caps.reducedMotion) return;
     takeControl();
     const f = film.current;
     f.target = Math.max(0, Math.min(SCENE_END + OVERSCROLL_ENTER + 0.05, f.target + delta));
     if (f.target > SCENE_END + OVERSCROLL_ENTER) exit();
-  }, [phase, exit, takeControl]);
+  }, [phase, exit, takeControl, caps.reducedMotion]);
 
   const jump = useCallback((index: number) => {
     takeControl();
     film.current.target = Math.max(0, Math.min(SCENE_END, index));
-  }, [takeControl]);
+    if (caps.reducedMotion) setChapter(chapterAt(film.current.target));
+  }, [caps.reducedMotion, takeControl]);
 
 
   /* ------------------------------------------ keyboard, wheel & scroll lock */
@@ -280,6 +293,7 @@ export function ExperienceGate({
         return;
       }
       if (phase !== 'film') return;
+      if (event.key === ' ' && event.target instanceof HTMLButtonElement) return;
       const f = film.current;
       const forward = ['ArrowDown', 'PageDown', 'ArrowRight'].includes(event.key) || (event.key === ' ' && !event.shiftKey);
       const back = ['ArrowUp', 'PageUp', 'ArrowLeft'].includes(event.key) || (event.key === ' ' && event.shiftKey);
@@ -321,10 +335,11 @@ export function ExperienceGate({
     setChapter(0);
     setProgress(0);
     setStage('engine');
-    setMode(caps.webgl ? '3d' : 'fallback');
+    setMode(sceneMode);
+    setShowLoader(true);
     setRun((r) => r + 1);
     setPhase('loading');
-  }, [phase, caps.webgl]);
+  }, [phase, sceneMode]);
 
   const api = useMemo(() => ({ replay, active }), [replay, active]);
 
@@ -353,7 +368,7 @@ export function ExperienceGate({
 
   return (
     <ExperienceContext.Provider value={api}>
-      <div className="mx-app" data-experience={phase} inert={active} aria-hidden={active || undefined}>
+      <div ref={appRoot} className="mx-app" data-experience={phase} inert={active} aria-hidden={active || undefined}>
         {childrenMounted ? children : null}
       </div>
 
@@ -364,6 +379,7 @@ export function ExperienceGate({
           className="mx-gate"
           data-phase={phase}
           data-mode={mode}
+          data-quality={caps.tier}
           role="region"
           aria-roledescription="film"
           aria-label="MIZUHO: follow a raindrop across Tunisia"
@@ -375,19 +391,20 @@ export function ExperienceGate({
         >
           <div className="mx-stage">
             {mode === '3d' && SceneCanvas && scene ? (
-              <SceneCanvas
-                world={scene.world}
-                director={director.current}
-                quality={QUALITY[caps.tier]}
-                hud={hud.current}
-                labelLayer={labelLayer}
-                onReady={() => sceneReady.current()}
-                onContextLost={() => exit(true)}
-              />
+              <SceneBoundary onFailure={onSceneFailure}>
+                <SceneCanvas
+                  world={scene.world}
+                  director={director.current}
+                  quality={QUALITY[caps.tier]}
+                  hud={hud.current}
+                  labelLayer={labelLayer}
+                  onReady={onSceneReady}
+                  onContextLost={onSceneFailure}
+                />
+              </SceneBoundary>
             ) : null}
             <div className="mx-labels" ref={setLabelLayer} aria-hidden />
             {mode === 'fallback' && phase !== 'loading' ? <Fallback chapter={chapter} /> : null}
-            {caps.reducedMotion ? <Dip director={director.current} /> : null}
           </div>
 
           {phase !== 'loading' ? (
@@ -397,13 +414,17 @@ export function ExperienceGate({
             </>
           ) : null}
 
-          <Loader
+          {showLoader && <Loader
             progress={progress}
             stage={LOADING_STAGES[stage]}
             leaving={phase !== 'loading'}
-            particles={caps.tier === 'high' ? 16000 : 7000}
-          />
+            particles={mode === '3d' && caps.tier === 'high' ? 16000 : 0}
+            onReleased={onLoaderReleased}
+          />}
 
+          {phase !== 'exiting' && <button ref={skip} type="button" className="mx-skip" onClick={() => exit(true)}>
+            Skip intro <span aria-hidden>→</span>
+          </button>}
         </div>
       ) : null}
 

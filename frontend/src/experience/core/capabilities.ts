@@ -48,5 +48,5 @@ export interface Quality {
 
 export const QUALITY: Record<Tier, Quality> = {
   high: { dpr: [1, 1.75], mapTexture: 1536, mapSegments: [300, 345], valleySegments: 220, particles: 1400, postprocessing: true },
-  low: { dpr: [1, 1.5], mapTexture: 1024, mapSegments: [170, 195], valleySegments: 140, particles: 600, postprocessing: true },
+  low: { dpr: [1, 1.25], mapTexture: 1024, mapSegments: [170, 195], valleySegments: 140, particles: 600, postprocessing: false },
 };

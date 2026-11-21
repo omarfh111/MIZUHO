@@ -9,6 +9,7 @@ interface Props {
   stage: string;
   leaving: boolean;
   particles: number;
+  onReleased: () => void;
 }
 
 const FONT = '"Space Grotesk Variable", "Space Grotesk", system-ui, sans-serif';
@@ -18,18 +19,21 @@ const FONT = '"Space Grotesk Variable", "Space Grotesk", system-ui, sans-serif';
  * and condenses into the wordmark as the scene genuinely loads; then the
  * letters spiral into one drop, which falls into the film.
  */
-export function Loader({ progress, stage, leaving, particles }: Props) {
+export function Loader({ progress, stage, leaving, particles, onReleased }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const field = useRef<OpeningField | null>(null);
   const state = useRef({ condense: 0, release: 0, pointer: null as [number, number] | null });
   const number = useRef<HTMLSpanElement>(null);
-  const [gl, setGl] = useState(true);
+  const [gl, setGl] = useState(particles > 0);
 
   // Particle field lifecycle: one rAF loop for the whole opening.
   useEffect(() => {
     const el = canvas.current;
-    if (!el) return;
+    if (!el || !particles) {
+      setGl(false);
+      return;
+    }
     let f: OpeningField | null = null;
     try {
       f = createOpeningField(el, particles);
@@ -101,10 +105,10 @@ export function Loader({ progress, stage, leaving, particles }: Props) {
       gsap.to(root.current, { '--mx-open-bg': 0, duration: 0.6, delay: 0.7, ease: 'power1.inOut' });
       gsap.to(canvas.current, { opacity: 0, duration: 0.35, delay: 1.0 });
       gsap.set(root.current, { pointerEvents: 'none', delay: 0.4 });
-      gsap.set(root.current, { visibility: 'hidden', delay: 1.6 });
+      gsap.delayedCall(1.6, onReleased);
     }, root);
     return () => ctx.revert();
-  }, [leaving]);
+  }, [leaving, onReleased]);
 
   const onPointer = (event: ReactPointerEvent) => {
     const el = canvas.current;
@@ -129,7 +133,7 @@ export function Loader({ progress, stage, leaving, particles }: Props) {
       onPointerLeave={() => { state.current.pointer = null; }}
     >
       <div className="mx-open__caustics" aria-hidden />
-      <canvas ref={canvas} className="mx-open__field" aria-hidden />
+      {particles > 0 && <canvas ref={canvas} className="mx-open__field" aria-hidden />}
       {!gl ? (
         <div className="mx-open__fallback" aria-hidden>
           {BRAND.split('').map((ch, i) => <span key={i} style={{ '--i': i } as CSSProperties}>{ch}</span>)}

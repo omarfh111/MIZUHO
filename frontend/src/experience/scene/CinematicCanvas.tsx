@@ -1,10 +1,10 @@
-import { PerformanceMonitor } from '@react-three/drei';
+import { PerformanceMonitor } from '@react-three/drei/core/PerformanceMonitor.js';
 import { Canvas, useThree } from '@react-three/fiber';
 import {
   Bloom, BrightnessContrast, ChromaticAberration, EffectComposer, HueSaturation, Noise, ToneMapping, Vignette,
 } from '@react-three/postprocessing';
 import { BlendFunction, ToneMappingMode } from 'postprocessing';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import type { Quality, Tier } from '../core/capabilities.ts';
 import type { Director } from '../core/director.ts';
@@ -33,22 +33,39 @@ export function prepareWorld(tier: Tier, quality: Quality, onTerrain: Progress, 
     pending.then(() => {
       onTerrain(1);
       onValley(1);
-    });
+    }, () => undefined);
   }
   return pending;
 }
 
 /** Compiles every program up front, renders a first frame, then reports readiness. */
-function Warmup({ onReady }: { onReady: () => void }) {
+function RendererLifecycle({ onReady, onContextLost }: Pick<CinematicCanvasProps, 'onReady' | 'onContextLost'>) {
   const { gl, scene, camera } = useThree();
+  useLayoutEffect(() => {
+    const canvas = gl.domElement;
+    const lost = (event: Event) => {
+      event.preventDefault();
+      onContextLost();
+    };
+    canvas.addEventListener('webglcontextlost', lost);
+    return () => {
+      canvas.removeEventListener('webglcontextlost', lost);
+      if (!gl.getContext().isContextLost()) gl.forceContextLoss();
+    };
+  }, [gl, onContextLost]);
   useEffect(() => {
     let cancelled = false;
-    const finish = () => requestAnimationFrame(() => requestAnimationFrame(() => !cancelled && onReady()));
-    gl.compileAsync(scene, camera).then(finish, finish);
+    let frame = 0;
+    const finish = () => {
+      if (cancelled) return;
+      frame = requestAnimationFrame(() => { frame = requestAnimationFrame(onReady); });
+    };
+    gl.compileAsync(scene, camera).then(finish, () => { if (!cancelled) onContextLost(); });
     return () => {
       cancelled = true;
+      cancelAnimationFrame(frame);
     };
-  }, [gl, scene, camera, onReady]);
+  }, [gl, scene, camera, onReady, onContextLost]);
   return null;
 }
 
@@ -85,13 +102,7 @@ export default function CinematicCanvas({ world, director, quality, hud, labelLa
       dpr={[quality.dpr[0], dpr]}
       gl={{ antialias: false, powerPreference: 'high-performance', alpha: false, stencil: false }}
       camera={{ fov: 34, near: 0.03, far: 2000, position: [0, 140, 0] }}
-      onCreated={({ gl }) => {
-        gl.setClearColor(FOG_COLOR);
-        gl.domElement.addEventListener('webglcontextlost', (event) => {
-          event.preventDefault();
-          onContextLost();
-        }, { once: true });
-      }}
+      onCreated={({ gl }) => gl.setClearColor(FOG_COLOR)}
     >
       <PerformanceMonitor
         onDecline={() => setDpr((d) => Math.max(1, d - 0.25))}
@@ -128,7 +139,7 @@ export default function CinematicCanvas({ world, director, quality, hud, labelLa
         opacity={(d) => d.mapReveal * (1 - d.valley) * 0.55}
       />
       <CameraRig world={world} director={director} hud={hud} />
-      <Warmup onReady={onReady} />
+      <RendererLifecycle onReady={onReady} onContextLost={onContextLost} />
       {post ? (
         <EffectComposer multisampling={quality.dpr[1] > 1.5 ? 4 : 0} enableNormalPass={false}>
           <Bloom mipmapBlur luminanceThreshold={0.78} luminanceSmoothing={0.22} intensity={0.95} radius={0.75} />

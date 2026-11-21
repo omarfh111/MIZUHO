@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright-core';
 
 const base = new URL(process.env.MIZHUO_TEST_URL ?? 'http://127.0.0.1:5173/');
+base.searchParams.set('intro', '0');
 const browser = await chromium.launch({
   ...(process.env.MIZHUO_CHROME_PATH ? { executablePath: process.env.MIZHUO_CHROME_PATH } : { channel: 'chrome' }),
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
@@ -70,6 +71,12 @@ try {
 
   await page.keyboard.press('Escape');
   await visible(page.getByText(/Simulated plan approved/));
+  await page.getByRole('button', { name: 'Replay the intro' }).click();
+  await page.getByRole('button', { name: 'Skip intro' }).click();
+  await visible(page.getByText(/Simulated plan approved/));
+  await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
+  await visible(panel.getByText(/ANME · Solar PV potential in Tunisia/).first());
+  await page.keyboard.press('Escape');
   await page.getByLabel(/Measured water stock/).fill('9');
   await visible(page.getByText(/Result out of date/));
   await page.getByRole('button', { name: 'Ask Mizhuo' }).click();

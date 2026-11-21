@@ -253,6 +253,7 @@ export default function TerrainMap({ site, layers, active, select, controls, onU
       disposeScene(scene);
       renderer.domElement.removeEventListener('webglcontextlost', lost);
       renderer.dispose();
+      renderer.forceContextLoss();
       renderer.domElement.remove();
       mount.parentElement?.style.removeProperty('--map-north');
       controls.current = null;

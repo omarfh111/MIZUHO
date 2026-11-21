@@ -36,6 +36,7 @@ export function Hud({ chapter, onJump, railRef }: Props) {
               <button
                 type="button"
                 onClick={() => onJump(i)}
+                aria-label={item.short}
                 data-active={i === chapter || undefined}
                 data-done={i < chapter || undefined}
                 aria-current={i === chapter ? 'step' : undefined}
