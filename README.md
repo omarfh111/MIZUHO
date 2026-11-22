@@ -261,4 +261,6 @@ For an opt-in provider check, `npm --prefix frontend run test:browser` exercises
 
 ### Serving a build
 
+The AWS judge deployment serves the dashboard, API and Voice Guardian from one AWS-managed HTTPS address. The deployment guide covers the CloudFormation setup, judge sign-in, release checks, rollback and teardown. [Deploy the judge demo on AWS](docs/aws-deployment-plan.md)
+
 Set `VITE_DATA_MODE=live` before `npm --prefix frontend run build` and serve `frontend/dist`. Route same-origin `/api` requests to FastAPI and forward WebSocket upgrades on `/api/guardian/call`. Preserve the public host and scheme at the proxy or allow its exact HTTPS origin in `MIZHUO_CORS_ORIGINS`. Browser microphone access requires HTTPS or localhost. For local development with a different backend address, set `MIZU_API_TARGET` for Vite. Keep provider credentials on the backend. The included manager confirmation and process-local assistant sessions are designed for a supervised demonstration.
