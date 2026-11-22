@@ -130,9 +130,12 @@ try {
         if (reads.length === 1) {
           // Compatibility fallback when the provider cannot stream this segment.
           send({ type: 'audio', turn_id: frame.turn_id, mime: 'audio/wav', data: shortReply });
-        } else {
+        } else if (reads.length === 2) {
           send({ type: 'error', request_type: 'speak', code: 'tts_unavailable', turn_id: frame.turn_id,
             text: 'The test speech provider is unavailable.' });
+        } else {
+          streamPcm(frame.turn_id, 'final', 2.5);
+          send({ type: 'audio_end', turn_id: frame.turn_id, phase: 'final' });
         }
       } else if (frame.type === 'cancel') cancelled.push(frame.turn_id);
     });
@@ -147,6 +150,9 @@ try {
   assert.equal(await page.evaluate(() => window.captureConstraints.length), 0);
   await start.click();
   await state('listening');
+  const chat = dialog.getByRole('button', { name: 'Chat', exact: true });
+  const sources = dialog.getByRole('button', { name: 'Sources', exact: true });
+  assert.equal(await chat.getAttribute('aria-pressed'), 'true');
   assert.equal(starts, 1);
   assert.equal(await page.evaluate(() => window.captureConstraints[0].audio.echoCancellation), true);
   assert.equal(await dialog.getByRole('button', { name: 'Send recording' }).count(), 0);
@@ -161,6 +167,7 @@ try {
   assert.equal(turns.length, 0, 'background noise and short impacts must send no audio');
   await state('listening');
 
+  await sources.click();
   await sound('quiet voice');
   await state('hearing');
   await sound(null);
@@ -187,7 +194,7 @@ try {
   const firstPlayback = await page.evaluate(() => window.playedBuffers);
   assert.ok(firstPlayback.some(buffer => buffer.stopped), 'barge-in must stop already scheduled audio');
   for (const turn of turns) {
-    assert.equal(turn.mode, 'ask');
+    assert.equal(turn.mode, 'evidence');
     assert.equal(turn.progress_audio, true);
     assert.equal(turn.stream_audio, true);
     assert.equal(turn.mime, 'audio/wav');
@@ -236,18 +243,41 @@ try {
   assert.equal(await page.evaluate(() => window.captureConstraints.length), 1);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
 
+  await chat.click();
   const played = await page.evaluate(() => window.playedBuffers.length);
   await sound('voice');
   await state('hearing');
   await sound(null);
   await state('thinking');
   await dialog.getByText('Test utterance 3', { exact: true }).waitFor();
+  assert.equal(turns[2].mode, 'ask');
   send({ type: 'reply', turn_id: turns[2].turn_id, text: 'The transcript remains available.', speech_available: true });
   await dialog.getByRole('alert').filter({ hasText: 'The test speech provider is unavailable.' }).waitFor();
   await dialog.getByText('The transcript remains available.', { exact: true }).waitFor();
   await state('listening');
   assert.equal(await page.evaluate(() => window.playedBuffers.length), played);
   assert.deepEqual(reads, [second, turns[2].turn_id]);
+
+  // Two consecutive interruptions on this same mic, including a research
+  // answer whose final audio_end can arrive while playback is still audible.
+  await sound('voice');
+  for (const number of [4, 5]) {
+    await state('hearing');
+    await sound(null);
+    await dialog.getByText('Test utterance ' + number, { exact: true }).waitFor();
+    const id = turns[number - 1].turn_id;
+    send({ type: 'reply', turn_id: id, text: 'Response to test utterance ' + number, speech_available: true,
+      activity: number === 5 ? 'evidence' : 'ask' });
+    await state('speaking');
+    await sound('voice');
+  }
+  await state('hearing');
+  await sound(null);
+  await dialog.getByText('Test utterance 6', { exact: true }).waitFor();
+  assert.deepEqual(cancelled, [first, turns[3].turn_id, turns[4].turn_id]);
+  send({ type: 'reply', turn_id: turns[5].turn_id, text: 'Yes, I heard you.', speech_available: false });
+  await state('listening');
+  assert.equal(await page.evaluate(() => window.captureConstraints.length), 1);
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
   await page.waitForFunction(() =>
     window.voiceTracks.every(track => track.readyState === 'ended') && window.voiceContexts.every(audio => audio.state === 'closed'));
@@ -257,7 +287,7 @@ try {
   await dialog.getByRole('textbox', { name: 'Message', exact: true }).waitFor();
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
   await page.waitForFunction(() => window.voiceContexts.every(audio => audio.state === 'closed'));
-  assert.equal(turns.length, 3);
+  assert.equal(turns.length, 6);
   assert.deepEqual(errors, []);
   console.log('Chrome verified background-noise rejection, quiet voice capture, spoken interruption, ordered fallback playback, provider recovery, grounded transcripts and microphone cleanup.');
 } finally {

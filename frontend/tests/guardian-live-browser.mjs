@@ -20,7 +20,7 @@ const synthesizeQuestion = [
   'load_dotenv(".env")',
   'async def synthesize():',
   '    provider = GuardianProvider.from_env()',
-  '    questions = ("Please explain the water balance alert on the tank meter.", "Which official source describes photovoltaic potential in northwest Tunisia?", "Can you hear me?")',
+  '    questions = ("Who are you?", "Please explain the water balance alert on the tank meter.", "Which official source describes photovoltaic potential in northwest Tunisia?", "Can you hear me?")',
   '    return [base64.b64encode((await provider.speak(question, "en", seed=42))[0]).decode() for question in questions]',
   'print(json.dumps(asyncio.run(synthesize())))',
 ].join('\n');
@@ -42,6 +42,12 @@ try {
     navigator.mediaDevices.getUserMedia = async () => {
       const ctx = new AudioContext();
       const sink = ctx.createMediaStreamDestination();
+      // A real microphone keeps supplying frames through a pause. Chromium
+      // can mute an otherwise disconnected synthetic destination between clips.
+      const silence = ctx.createConstantSource();
+      silence.offset.value = 0;
+      silence.connect(sink);
+      silence.start();
       const questions = await Promise.all(fixtures.map(fixture =>
         ctx.decodeAudioData(Uint8Array.from(atob(fixture), char => char.charCodeAt(0)).buffer)));
       await ctx.resume();
@@ -59,7 +65,7 @@ try {
         source.start();
         return performance.now();
       };
-      window.closeTestAudio = () => ctx.close();
+      window.closeTestAudio = () => { silence.stop(); return ctx.close(); };
       return sink.stream;
     };
   }, JSON.parse(fixture.stdout.toString('utf8')));
@@ -93,38 +99,60 @@ try {
   const dialog = page.getByRole('dialog', { name: 'Voice Guardian' });
   const log = dialog.getByRole('log', { name: 'Conversation' });
   const orb = state => dialog.locator(`.guardian-orb[data-state="${state}"]`);
-  const frame = (type, turn) => ws.waitForEvent('framereceived', {
-    predicate: ({ payload }) => { const msg = JSON.parse(payload); return msg.type === type && msg.turn_id === turn; },
+  const frame = (type, turn, phase) => ws.waitForEvent('framereceived', {
+    predicate: ({ payload }) => {
+      const msg = JSON.parse(payload);
+      return msg.type === type && msg.turn_id === turn && (!phase || msg.phase === phase);
+    },
     timeout: 90_000,
   }).then(({ payload }) => JSON.parse(payload));
   await orb('listening').waitFor();
+  const firstTurn = Promise.all([frame('transcript', 1), frame('reply', 1), frame('audio_chunk', 1)]);
+  await page.evaluate(() => window.sayTestQuestion(0));
+  const [firstTranscript, identity] = await firstTurn;
+  assert.match(firstTranscript.text, /who are you/i);
+  assert.match(identity.text, /Voice Guardian|Miz(?:huo|uho)/i);
+  assert.doesNotMatch(identity.text, /unavailable|verified evidence|13 m³/i);
+  assert.notEqual(identity.mode, 'langgraph');
+  assert.deepEqual(identity.tools_used, []);
+  const introduction = log.locator('.guardian-turn.guardian').filter({ hasText: identity.text });
+  await introduction.waitFor();
+  assert.equal(await introduction.locator('a, details').count(), 0);
+  assert.equal(timings.get(1).progress, undefined);
+  await orb('speaking').waitFor({ timeout: 90_000 });
+  await orb('listening').waitFor({ timeout: 90_000 });
   const playbackDelay = async () => {
     await orb('speaking').waitFor({ timeout: 90_000 });
     return page.evaluate(() => Math.round(performance.now() - window.questionEndedAt));
   };
-  const firstTranscript = frame('transcript', 1), firstAnswer = frame('reply', 1);
-  await page.evaluate(() => window.sayTestQuestion(0));
-  assert.match((await firstTranscript).text, /water.balance.*tank meter/i);
-  const [answer, firstReplyMs] = await Promise.all([firstAnswer, playbackDelay()]);
-  assert.equal(answer.mode, 'langgraph');
-  assert.ok(answer.tools_used.includes('get_sensor_anomalies'));
+  const alertTranscript = frame('transcript', 2), alertReply = frame('reply', 2);
+  await page.evaluate(() => window.sayTestQuestion(1));
+  assert.match((await alertTranscript).text, /water.balance.*tank meter/i);
+  const [answer, firstReplyMs] = await Promise.all([alertReply, playbackDelay()]);
+  assert.equal(answer.mode, 'guided');
+  assert.ok(answer.tools_used.includes('inspect_replay'));
   assert.match(answer.text, /13 m³/);
+  assert.equal(timings.get(2).progress, undefined);
   await orb('speaking').waitFor({ timeout: 90_000 });
 
   // Interrupt audible output with a documentary question on the same live mic.
-  const evidenceReply = frame('reply', 2);
-  const interruptedAt = await page.evaluate(() => window.sayTestQuestion(1));
+  const evidenceReply = frame('reply', 3);
+  const evidenceAudioEnded = frame('audio_end', 3, 'final');
+  const interruptedAt = await page.evaluate(() => window.sayTestQuestion(2));
   await orb('hearing').waitFor();
   const interruptionMs = await page.evaluate(start => Math.round(performance.now() - start), interruptedAt);
   const [evidence, evidenceReplyMs] = await Promise.all([evidenceReply, playbackDelay()]);
   assert.equal(evidence.mode, 'langgraph');
+  assert.equal(evidence.activity, 'evidence');
   assert.ok(evidence.tools_used.includes('search_evidence'));
   assert.ok(evidence.citations.some(item => item.organization === 'ANME' && item.excerpt && item.url.startsWith('https://')));
   await log.locator('.assistant-citation').filter({ hasText: /ANME/ }).first().waitFor();
-  await orb('speaking').waitFor({ timeout: 90_000 });
-  // A sound check after an evidence turn should acknowledge speech without repeating the citation.
-  const socialFrames = Promise.all([frame('transcript', 3), frame('reply', 3), frame('audio_chunk', 3)]);
-  await page.evaluate(() => window.sayTestQuestion(2));
+  // The preview and final answer both enter the speaking state. Wait for the
+  // final stream AND local playback to finish before testing a normal follow-up.
+  await evidenceAudioEnded;
+  await orb('listening').waitFor({ timeout: 90_000 });
+  const socialFrames = Promise.all([frame('transcript', 4), frame('reply', 4), frame('audio_chunk', 4)]);
+  await page.evaluate(() => window.sayTestQuestion(3));
   const [transcription, micCheck] = await socialFrames;
   assert.match(transcription.text, /can you hear me/i);
   assert.equal(micCheck.mode, 'conversation');
@@ -132,7 +160,7 @@ try {
   assert.doesNotMatch(micCheck.text, /13 m³|ANME|photovoltaic/i);
   assert.ok(micCheck.text.length <= 180, 'A sound check should get a brief reply');
   assert.deepEqual(micCheck.tools_used, []);
-  assert.equal(timings.get(3).progress, undefined);
+  assert.equal(timings.get(4).progress, undefined);
   const socialTurn = log.locator('.guardian-turn.guardian').filter({ hasText: micCheck.text });
   await socialTurn.waitFor();
   assert.equal(await socialTurn.locator('a, details').count(), 0);
