@@ -239,7 +239,7 @@ export default function App() {
           onEvidence={setSource} onPlan={() => navigate('simulation')} />
       </Suspense>}
       {page === 'energy' && catalog?.mode === 'live' && <CivicContinuity key={siteId || cityId} city={site?.properties.label ?? city?.name ?? 'the selected area'} />}
-      {page === 'simulation' && <Suspense fallback={null}><FieldDayAudit key={siteId || cityId} /></Suspense>}
+      {page === 'simulation' && <Suspense fallback={null}><FieldDayAudit key={siteId || cityId} siteId={site?.properties.site_id} /></Suspense>}
       {catalog && site && visitedSimulation && <div hidden={page !== 'simulation'}>
         {site.properties.field_zone ? <Suspense fallback={<p role="status">Loading regional planner…</p>}>
           <RegionalPlanning key={siteId} site={site} visible={page === 'simulation'} onPlanChange={setZonePlan} />

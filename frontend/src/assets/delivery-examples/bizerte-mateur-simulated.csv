@@ -1,0 +1,3 @@
+date,parcel_id,last_slot,minimum_m3,by_deadline_m3,by_day_end_m3,simulated_site
+2025-07-15,west,15,10,7,7,bizerte-mateur
+2025-07-15,east,15,8,3,3,bizerte-mateur

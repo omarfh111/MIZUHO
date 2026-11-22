@@ -1,1 +1,2 @@
 data/weather/bouhertma-fieldclimate.csv -text
+frontend/src/assets/delivery-examples/*.csv text eol=lf

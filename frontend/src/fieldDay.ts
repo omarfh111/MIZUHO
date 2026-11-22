@@ -12,13 +12,14 @@ export interface ParcelRecord {
 
 export interface FieldDay {
   date: string;
+  simulatedSite?: string;
   parcels: ParcelRecord[];
   measured: number;
   met: number;
   measuredShortfallLitres: number | null;
 }
 
-// Keep the CSV subset deliberately narrow: none of the six fields accepts free text.
+// Both supported formats contain only constrained identifiers, dates and numbers.
 function cells(line: string) {
   return line.split(',').map(cell => cell.trim().replace(/^"([^"]*)"$/, '$1'));
 }
@@ -42,10 +43,13 @@ function localToday(): string {
 export function parseFieldDay(csv: string, today = localToday()): FieldDay {
   if (csv.length > FIELD_DAY_MAX_BYTES) throw new Error('The CSV exceeds the 256 KiB limit. Import one delivery day at a time.');
   const lines = csv.trim().split(/\r\n|\n|\r/);
-  if (cells(lines[0]).join(',') !== FIELD_DAY_HEADER) throw new Error('Use the six columns in the order shown in the blank template, separated by commas.');
+  const header = cells(lines[0]).join(',');
+  const simulated = header === `${FIELD_DAY_HEADER},simulated_site`;
+  if (!simulated && header !== FIELD_DAY_HEADER) throw new Error('Use the six columns in the order shown in the blank template, separated by commas.');
   const parcels: ParcelRecord[] = [];
   const ids = new Set<string>();
   let date = '';
+  let simulatedSite: string | undefined;
   let measured = 0;
   let met = 0;
   let measuredShortfallLitres = 0;
@@ -54,7 +58,15 @@ export function parseFieldDay(csv: string, today = localToday()): FieldDay {
     const row = index + 1;
     if (parcels.length >= 1000) throw new Error('Import up to 1,000 parcels for one delivery day.');
     const values = cells(lines[index]);
-    if (values.length !== 6) throw new Error(`Row ${row}: supply six columns. Keep the comma for a missing reading.`);
+    if (simulated) {
+      const site = values[6];
+      if (values.length !== 7 || !/^[a-z0-9][a-z0-9_-]{0,99}$/i.test(site) || (simulatedSite && site !== simulatedSite)) {
+        throw new Error('Keep the same simulated site identifier on every example row.');
+      }
+      simulatedSite = site;
+    } else if (values.length !== 6) {
+      throw new Error(`Row ${row}: supply six columns. Keep the comma for a missing reading.`);
+    }
     const [localDate, id, slot, minimum, onTime, dayEnd] = values;
     const stamp = Date.parse(`${localDate}T00:00:00Z`);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(localDate) || Number.isNaN(stamp) || new Date(stamp).toISOString().slice(0, 10) !== localDate || localDate >= today) {
@@ -83,5 +95,5 @@ export function parseFieldDay(csv: string, today = localToday()): FieldDay {
     parcels.push({ id, lastSlot: Number(slot), minimumLitres, onTimeLitres, dayEndLitres, shortfallLitres });
   }
   if (!parcels.length) throw new Error('Add at least one parcel commitment beneath the header.');
-  return { date, parcels, measured, met, measuredShortfallLitres: measured ? measuredShortfallLitres : null };
+  return { date, simulatedSite, parcels, measured, met, measuredShortfallLitres: measured ? measuredShortfallLitres : null };
 }

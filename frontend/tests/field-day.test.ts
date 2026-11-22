@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync, readdirSync } from 'node:fs';
 import { FIELD_DAY_HEADER, FIELD_DAY_MAX_BYTES, parseFieldDay } from '../src/fieldDay.ts';
 
 const today = '2026-11-22';
@@ -53,4 +54,21 @@ test('rejects incomplete templates, personal free text, malformed and oversized 
   assert.throws(() => read('2026-11-20,=SUM(A1),9,5,3,4'), /parcel code/);
   assert.throws(() => parseFieldDay('A'.repeat(FIELD_DAY_MAX_BYTES + 1), today), /256 KiB/);
   assert.throws(() => read(...Array.from({ length: 1001 }, (_, i) => `2026-11-20,P${i},11,1,1,1`)), /1,000 parcels/);
+});
+
+test('downloadable delivery examples retain the simulated site inside every CSV even when renamed', () => {
+  const directory = new URL('../src/assets/delivery-examples/', import.meta.url);
+  const examples = readdirSync(directory).filter(name => name.endsWith('-simulated.csv'));
+  assert.ok(examples.length > 1);
+  for (const name of examples) {
+    const day = parseFieldDay(readFileSync(new URL(name, directory), 'utf8'), today);
+    assert.equal(day.simulatedSite, name.replace(/-simulated\.csv$/, ''));
+    assert.equal(day.measured, day.parcels.length);
+  }
+  assert.equal(read('2025-07-15,A,11,10,5,5').simulatedSite, undefined);
+  const header = FIELD_DAY_HEADER + ',simulated_site';
+  const row = '2025-07-15,A,11,10,5,5';
+  assert.throws(() => parseFieldDay([header, row + ',', row + ',gafsa-oasis'].join('\n')), /site identifier/);
+  assert.throws(() => parseFieldDay([header, row + ',gafsa-oasis', row + ',korba-cap-bon'].join('\n')), /site identifier/);
+  assert.throws(() => parseFieldDay([FIELD_DAY_HEADER, row + ',gafsa-oasis'].join('\n')), /six columns/);
 });

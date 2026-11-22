@@ -1,3 +1,4 @@
+from csv import DictReader
 from datetime import date
 from hashlib import sha256
 from math import ceil
@@ -7,16 +8,41 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.catalog import DATA_DIR
+from backend.catalog import DATA_DIR, load_catalog
 from backend.field_zones import read_field_zones
 from backend.main import create_app
 from backend.models import DemandEstimateRequest
 from backend.zone_planning import estimate_demand, read_planning_profiles
 from tools.field_zones.reference_et import reference_et
 from tools.field_zones.refresh_replays import fetch_day
+from tools.field_zones.delivery_examples import OUTPUT, example_files, regional_inputs
 
 
 ZONES = tuple(sorted(path.stem for path in (DATA_DIR / "field_zones").glob("*.json")))
+
+
+def test_downloadable_examples_match_local_weather_and_the_canonical_planning_api(client):
+    catalog = load_catalog()
+    checked_in = {path.name: path.read_bytes().decode("utf-8") for path in OUTPUT.glob("*.csv")}
+    assert checked_in == example_files(catalog)
+    assert len(checked_in) == len(catalog.zone_planning) + len(catalog.agriculture) + 1
+    for site_id, profile in catalog.zone_planning.items():
+        request = regional_inputs(profile)
+        response = client.post(f"/api/sites/{site_id}/planning", json=request.model_dump(mode="json"))
+        assert response.is_success, response.text
+        expected = response.json()["comparison"]["baseline"]["plot_results"]
+        rows = list(DictReader(checked_in[f"{site_id}-simulated.csv"].splitlines()))
+        assert len(rows) == len(expected)
+        for row, plot in zip(rows, expected, strict=True):
+            assert row["simulated_site"] == site_id and row["date"] == str(request.date)
+            assert row["parcel_id"] == plot["plot_id"] and int(row["last_slot"]) == request.delivery_end_hour
+            for field, key in (("minimum_m3", "minimum_m3"), ("by_deadline_m3", "delivered_on_time_m3"),
+                               ("by_day_end_m3", "delivered_m3")):
+                assert int(row[field]) == plot[key]
+    for site_id, survey in catalog.agriculture.items():
+        rows = list(DictReader(checked_in[f"{site_id}-template.csv"].splitlines()))
+        assert [row["parcel_id"] for row in rows] == [plot.plot_id for plot in survey.parcels]
+        assert not any(value for row in rows for key, value in row.items() if key != "parcel_id")
 
 
 @pytest.fixture(scope="module")
