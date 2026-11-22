@@ -1,6 +1,6 @@
 import { Fragment, type ElementType, type ReactNode } from 'react';
 import { jsx } from 'react/jsx-runtime';
-import { translate, useLanguage } from './language.ts';
+import { translate, useLanguage, type Language } from './language.ts';
 
 // Only DOM elements that can carry interface text or accessible descriptions participate.
 // Three.js objects, SVG geometry, input values, IDs and user records pass through unchanged.
@@ -11,15 +11,15 @@ const attributes = ['aria-label', 'aria-description', 'aria-valuetext', 'placeho
 type HostProps = Record<string, unknown> & { children?: ReactNode };
 const localized = new Map<ElementType, ElementType>();
 
-function japaneseChildren(children: ReactNode): ReactNode {
-  if (typeof children === 'string') return translate(children, 'ja');
+function localizedChildren(children: ReactNode, language: Language): ReactNode {
+  if (typeof children === 'string') return translate(children, language);
   if (!Array.isArray(children)) return children;
   const output: ReactNode[] = [...children];
   // React uses the slot of an unkeyed child to preserve its component state. Combining
   // translated text must never shift the position of a form, a scene or a result panel.
   for (let start = 0; start < children.length;) {
     if (typeof children[start] !== 'string' && typeof children[start] !== 'number') {
-      output[start] = japaneseChildren(children[start]);
+      output[start] = localizedChildren(children[start], language);
       start++;
       continue;
     }
@@ -27,8 +27,8 @@ function japaneseChildren(children: ReactNode): ReactNode {
     while (end < children.length && (typeof children[end] === 'string' || typeof children[end] === 'number')) end++;
     const fragments = children.slice(start, end);
     const sentence = fragments.join('');
-    const translated = translate(sentence, 'ja');
-    const result = translated !== sentence ? translated : fragments.map(fragment => typeof fragment === 'string' ? translate(fragment, 'ja') : fragment).join('');
+    const translated = translate(sentence, language);
+    const result = translated !== sentence ? translated : fragments.map(fragment => typeof fragment === 'string' ? translate(fragment, language) : fragment).join('');
     if (start === 0 && end === children.length) return result;
     output[start] = result;
     output.fill(null, start + 1, end);
@@ -44,7 +44,7 @@ export function localizedType(type: ElementType): ElementType {
     function LocalizedElement(props: HostProps) {
       const language = useLanguage();
       if (language === 'en' || props.translate === 'no') return jsx(type, props);
-      const translated: HostProps = { ...props, children: japaneseChildren(props.children) };
+      const translated: HostProps = { ...props, children: localizedChildren(props.children, language) };
       for (const name of attributes) {
         if (typeof props[name] === 'string') translated[name] = translate(props[name], language);
       }

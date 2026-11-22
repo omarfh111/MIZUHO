@@ -13,8 +13,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     };
   }, []);
   useEffect(() => {
-    document.documentElement.lang = language;
-    document.title = language === 'ja' ? 'Mizhuo · 灌漑観測所' : 'Mizhuo · Irrigation Observatory';
+    document.documentElement.lang = language === 'aeb' ? 'aeb-TN' : language;
+    document.documentElement.dir = language === 'aeb' ? 'rtl' : 'ltr';
+    document.title = { en: 'Mizhuo · Irrigation Observatory', ja: 'Mizhuo · 灌漑観測所', aeb: 'Mizhuo · مرصد السقي' }[language];
   }, [language]);
   return <LanguageContext.Provider value={language}>{children}</LanguageContext.Provider>;
 }
@@ -22,8 +23,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 export function LanguageSelector() {
   const language = useLanguage();
   return <select className="language-select" aria-label="Language" value={language}
-    onChange={event => selectLanguage(event.currentTarget.value === 'ja' ? 'ja' : 'en')}>
+    onChange={event => { const value = event.currentTarget.value; if (value === 'ja' || value === 'aeb' || value === 'en') selectLanguage(value); }}>
     <option lang="en" value="en" translate="no">English</option>
     <option lang="ja" value="ja" translate="no">日本語</option>
+    <option lang="aeb-TN" value="aeb" translate="no">تونسي</option>
   </select>;
 }

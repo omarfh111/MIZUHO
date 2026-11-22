@@ -22,6 +22,7 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks(id) {
+            if (/\/src\/i18n\/tunisian(Messages|Patterns)\.ts$/.test(id)) return 'tunisian-messages';
             if (/\/src\/i18n\/(common|explore|planning)\.ts$/.test(id)) return 'japanese-messages';
             if (id.endsWith('/three/build/three.core.js')) return 'three-core';
             if (id.includes('/node_modules/three/')) return 'three-renderer';

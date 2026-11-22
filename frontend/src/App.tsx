@@ -9,6 +9,7 @@ import type { AssistantSimulationContext, RegionPlanContext, SolarOption, Tunisi
 import SitePicker from './components/SitePicker.tsx';
 import CivicContinuity from './components/CivicContinuity.tsx';
 import { LanguageSelector } from './i18n/LanguageProvider.tsx';
+import { useLanguage } from './i18n/language.ts';
 
 const Simulation = lazy(() => import('./components/Simulation.tsx'));
 const AssistantPanel = lazy(() => import('./components/AssistantPanel.tsx'));
@@ -24,6 +25,7 @@ const currentPage = (): Page => {
 };
 
 export default function App() {
+  const language = useLanguage();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [failure, setFailure] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -194,7 +196,7 @@ export default function App() {
           <div className="eyebrow"><span className="eyebrow-rule" />
             {page === 'map' ? 'RESOURCE MAPPING' : page === 'energy' ? 'RESOURCE ASSESSMENT' : 'IRRIGATION CONTINUITY'}
           </div>
-          <h1>{page === 'map' ? <><em>Irrigation</em> observatory</> : page === 'energy' ? <><em>Water</em> &amp; energy</> : <><em>Daily water</em> deliveries</>}</h1>
+          <h1>{page === 'map' ? (language === 'aeb' ? <>مرصد <em>السقي</em></> : <><em>Irrigation</em> observatory</>) : page === 'energy' ? <><em>Water</em> &amp; energy</> : <><em>Daily water</em> deliveries</>}</h1>
           <p>{page === 'map' ? site?.properties.field_zone
               ? 'Inspect the terrain, land cover, and evidence behind this agricultural zone.'
               : 'Explore the site, compare solar options, and plan irrigation.'

@@ -4,7 +4,7 @@ import type { FeatureCollection, MultiPolygon, Polygon, Position } from 'geojson
 import { getTunisia, getTunisiaCity } from '../api.ts';
 import { nearestSiteCity } from '../siteLocation.ts';
 import { cityNamesJa } from '../i18n/places.ts';
-import { useLanguage } from '../i18n/language.ts';
+import { translate, useLanguage } from '../i18n/language.ts';
 import { useExperience } from '../experience/index.ts';
 import CivicContinuity from './CivicContinuity.tsx';
 import type { TunisiaCatalog, TunisiaCity, TunisiaCityAnalysis, TunisiaClimate, TunisiaPeriod, TunisiaSource } from '../types.ts';
@@ -50,7 +50,7 @@ function showDate(value: string) {
 
 function normalize(value: string) {
   return value.normalize('NFKC').normalize('NFD').replace(/(\p{Script=Latin})\p{M}+/gu, '$1')
-    .normalize('NFC').toLowerCase()
+    .normalize('NFC').toLowerCase().replace(/[\u064B-\u065F\u0670\u0640]/g, '').replace(/[أإآ]/g, 'ا')
     .replace(/[ぁ-ゖ]/g, hiragana => String.fromCharCode(hiragana.charCodeAt(0) + 0x60));
 }
 
@@ -418,7 +418,7 @@ export default function TunisiaExplorer({ selectedCityId, onCityResolved, onCity
   const cityResult = cityAnalysis?.id === activeCityId ? cityAnalysis?.result : undefined;
   const matching = useMemo(() => {
     const needle = normalize(search.trim());
-    return (data?.cities ?? []).filter(city => [city.name, cityNamesJa[city.name] ?? '']
+    return (data?.cities ?? []).filter(city => [city.name, cityNamesJa[city.name] ?? '', translate(city.name, 'aeb')]
       .some(name => normalize(name).includes(needle)));
   }, [data, search]);
   const nearbySites = activeCityId && data ? sites.filter(site => nearestSiteCity(site.coordinates, data.cities) === activeCityId) : [];
@@ -449,7 +449,7 @@ export default function TunisiaExplorer({ selectedCityId, onCityResolved, onCity
   return <div className="tn-explorer">
     <header className="tn-heading">
       <div className="tn-kicker"><MapPin size={15} aria-hidden="true" /> National observatory</div>
-      <h1>{language === 'ja' ? <>チュニジアを<em>探索</em></> : <><em>Explore</em> Tunisia</>}</h1>
+      <h1>{language === 'ja' ? <>チュニジアを<em>探索</em></> : language === 'aeb' ? <><em>اكتشف</em> تونس</> : <><em>Explore</em> Tunisia</>}</h1>
       <p>Select a city to explore local water and energy conditions. Open a nearby irrigation site to see which parcels can receive water on time.</p>
     </header>
     {!catalog && <div className="tn-unavailable" role="status">Loading Tunisia’s boundaries and cities…</div>}
