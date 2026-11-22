@@ -12,7 +12,7 @@ url.searchParams.set('intro', '0');
 url.searchParams.set('site', 'jendouba-pilote');
 url.hash = 'simulation';
 
-// The microphone receives only these two synthetic questions; no personal speech is recorded.
+// The microphone receives synthetic questions; no personal speech is recorded.
 const synthesizeQuestion = [
   'import asyncio, base64, json',
   'from dotenv import load_dotenv',
@@ -20,14 +20,14 @@ const synthesizeQuestion = [
   'load_dotenv(".env")',
   'async def synthesize():',
   '    provider = GuardianProvider.from_env()',
-  '    questions = ("Please explain the water balance alert on the tank meter.", "Which official source describes photovoltaic potential in northwest Tunisia?")',
+  '    questions = ("Please explain the water balance alert on the tank meter.", "Which official source describes photovoltaic potential in northwest Tunisia?", "Can you hear me?")',
   '    return [base64.b64encode((await provider.speak(question, "en", seed=42))[0]).decode() for question in questions]',
   'print(json.dumps(asyncio.run(synthesize())))',
 ].join('\n');
 const fixture = spawnSync(process.env.MIZHUO_TEST_PYTHON || 'python', ['-X', 'utf8', '-c', synthesizeQuestion], {
   cwd: new URL('../../', import.meta.url), timeout: 90_000, maxBuffer: 4 * 1024 * 1024,
 });
-assert.ok(fixture.status === 0 && fixture.stdout?.length, 'Unable to synthesize the two test questions.');
+assert.ok(fixture.status === 0 && fixture.stdout?.length, 'Unable to synthesize the test questions.');
 
 const browser = await chromium.launch({
   ...(process.env.MIZHUO_CHROME_PATH ? { executablePath: process.env.MIZHUO_CHROME_PATH } : { channel: 'chrome' }),
@@ -122,6 +122,20 @@ try {
   assert.ok(evidence.citations.some(item => item.organization === 'ANME' && item.excerpt && item.url.startsWith('https://')));
   await log.locator('.assistant-citation').filter({ hasText: /ANME/ }).first().waitFor();
   await orb('speaking').waitFor({ timeout: 90_000 });
+  // A sound check after an evidence turn should acknowledge speech without repeating the citation.
+  const socialFrames = Promise.all([frame('transcript', 3), frame('reply', 3), frame('audio_chunk', 3)]);
+  await page.evaluate(() => window.sayTestQuestion(2));
+  const [transcription, micCheck] = await socialFrames;
+  assert.match(transcription.text, /can you hear me/i);
+  assert.equal(micCheck.mode, 'conversation');
+  assert.match(micCheck.text, /hear|heard|voice.*through/i);
+  assert.doesNotMatch(micCheck.text, /13 m³|ANME|photovoltaic/i);
+  assert.ok(micCheck.text.length <= 180, 'A sound check should get a brief reply');
+  assert.deepEqual(micCheck.tools_used, []);
+  assert.equal(timings.get(3).progress, undefined);
+  const socialTurn = log.locator('.guardian-turn.guardian').filter({ hasText: micCheck.text });
+  await socialTurn.waitFor();
+  assert.equal(await socialTurn.locator('a, details').count(), 0);
   await dialog.getByRole('button', { name: 'Pause microphone' }).click();
   assert.equal(await page.evaluate(() => window.testGuardianTrack.readyState), 'ended');
   await page.evaluate(() => window.closeTestAudio());
@@ -145,11 +159,11 @@ try {
   const ends = await page.evaluate(() => window.guardianQuestionTimes);
   for (const [i, end] of ends.entries()) {
     const t = timings.get(i + 1);
-    assert.ok(t.transcript && t.reply && t.audio_chunk, 'Expected a real transcription, M8 answer and streamed provider audio');
-    console.log(`Turn ${i + 1}: transcript at ${t.transcript-end} ms, first PCM at ${t.audio_chunk-end} ms, full M8 answer at ${t.reply-end} ms.`);
+    assert.ok(t.transcript && t.reply && t.audio_chunk, 'Expected a real transcription, reply and streamed provider audio');
+    console.log(`Turn ${i + 1}: transcript at ${t.transcript-end} ms, first PCM at ${t.audio_chunk-end} ms, full reply at ${t.reply-end} ms.`);
   }
   console.log(`End of synthetic speech to first playback: replay ${firstReplyMs} ms, official evidence ${evidenceReplyMs} ms. Spoken interruption registered in ${interruptionMs} ms.`);
-  console.log('Chrome verified one-click hands-free speech, interruption, M8 retrieval with an ANME citation, a spoken M3 result, Japanese and Tunisian presentations and a real Japanese-to-Derja translation.');
+  console.log('Chrome verified hands-free speech, interruption, M8 retrieval with an ANME citation, a spoken M3 result, a conversational mic check, Japanese and Tunisian presentations and a real Japanese-to-Derja translation.');
 } finally {
   await browser.close();
 }

@@ -46,6 +46,20 @@ try {
   const log = call.getByRole('log', { name: 'Conversation' });
   await log.getByText(/13 m³.*meter/i).waitFor();
   assert.equal(await page.evaluate(() => window.micRequests), 0);
+  const typedReply = opened.at(-1).waitForEvent('framereceived', {
+    predicate: ({ payload }) => JSON.parse(payload).type === 'reply',
+  }).then(({ payload }) => JSON.parse(payload));
+  await call.getByLabel('Message', { exact: true }).fill('can u hear me');
+  await call.getByRole('button', { name: 'Send message' }).click();
+  const micCheck = await typedReply;
+  assert.equal(micCheck.mode, 'conversation');
+  assert.match(micCheck.text, /text|typ(ed|ing)|read your message/i);
+  assert.doesNotMatch(micCheck.text, /13 m³|meter|ANME|I can hear you/i);
+  assert.deepEqual(micCheck.tools_used, []);
+  const socialTurn = log.locator('.guardian-turn.guardian').filter({ hasText: micCheck.text });
+  await socialTurn.waitFor();
+  assert.equal(await socialTurn.locator('a, details').count(), 0);
+  assert.equal(await page.evaluate(() => window.micRequests), 0);
   await call.getByRole('button', { name: 'Record observation' }).click();
   await call.getByLabel('Field observation').fill('The meter inspection is underway.');
   await call.getByRole('button', { name: 'Save observation' }).click();

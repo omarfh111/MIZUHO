@@ -373,6 +373,90 @@ def graph_done(*paragraphs):
     return {"output": [{"type": "message", "content": [{"type": "output_text", "text": text}]}]}
 
 
+@pytest.mark.parametrize(("language", "utterance", "heard", "typed"), [
+    ("en", "Hey, can u hear me?", "I can hear you", "I can read your message"),
+    ("ja", "もしもし、私の声が聞こえますか？", "聞こえています", "メッセージは読めて"),
+    ("aeb", "عسلامة، تسمعني توّا؟", "نسمع فيك", "قريت مساجك"),
+    ("fr", "Salut, est-ce que tu m’entends ?", "je t’entends", "lire ton message"),
+])
+def test_sound_check_acknowledges_only_the_received_channel(client, monkeypatch, language, utterance, heard, typed):
+    class SoundCheck(GuardianProvider):
+        async def transcribe(self, data, mime, lang):
+            assert data == b"audio" and lang == language
+            return utterance
+
+        async def speak(self, text, lang):
+            assert heard in text and lang == language
+            return b"spoken reply", "audio/mpeg"
+
+        async def choose_tool(self, *args):
+            pytest.fail("A sound check must not select a site tool")
+
+    def fail_graph(*args, **kwargs):
+        pytest.fail("A sound check must not run the evidence graph")
+
+    monkeypatch.setattr("backend.guardian.ask_graph", fail_graph)
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: SoundCheck(key="fixture"))
+    with connect(client) as ws:
+        exchange(ws, **context(language=language))
+        keyboard = exchange(ws, type="message", text=utterance)
+        transcript = exchange(ws, type="audio", data="YXVkaW8=", mime="audio/wav", turn_id=1, progress_audio=True)
+        assert transcript == {"type": "transcript", "text": utterance, "turn_id": 1}
+        voice = ws.receive_json()
+        assert typed in keyboard["text"] and heard not in keyboard["text"]
+        assert heard in voice["text"] and typed not in voice["text"]
+        for reply in (keyboard, voice):
+            assert reply["mode"] == "conversation" and reply["language"] == language
+            assert not any(reply[key] for key in ("citations", "facts", "tools_used", "missing_information"))
+        assert exchange(ws, type="speak", turn_id=1)["data"] == base64.b64encode(b"spoken reply").decode()
+
+
+@pytest.mark.parametrize(("prompt", "expected"), [
+    ("Hello there!", "I’m here"), ("Hi, how are you?", "How are you doing?"),
+    ("Thank you so much!", "welcome"), ("I can't hear you!", "speaker volume"),
+    ("Are u still there?", "I’m here"),
+    ("Can you hear me?", "Voice input is unavailable"),
+])
+def test_social_turns_work_without_a_provider(client, prompt, expected):
+    with connect(client) as ws:
+        exchange(ws, **context(language="en"))
+        reply = exchange(ws, type="message", text=prompt)
+        assert reply["mode"] == "conversation" and expected in reply["text"]
+        assert not reply["tools_used"] and not reply["citations"]
+
+
+def test_explicit_translation_takes_precedence_over_the_sound_check(client, monkeypatch):
+    class Translator(GuardianProvider):
+        async def translate(self, text, source_language, target_language):
+            assert (text, source_language, target_language) == ("Can you hear me?", "en", "ja")
+            return "聞こえますか？"
+
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: Translator(key="fixture"))
+    with connect(client) as ws:
+        exchange(ws, **context(language="en"))
+        result = exchange(ws, type="message", mode="translate", target_language="ja", text="Can you hear me?")
+        assert result["activity"] == "translate" and result["text"] == "聞こえますか？"
+
+
+@pytest.mark.parametrize("question", [
+    "Can you hear me? Why did plot B get 5 m³?",
+    "Thanks, what does ANME say about solar energy?",
+    "Is the flow sensor working?",
+])
+def test_domain_questions_with_social_language_still_reach_the_graph(client, monkeypatch, question):
+    forwarded = []
+
+    def respond(body, **kwargs):
+        forwarded.append(json.loads(body["input"][0]["content"])["question"])
+        return graph_done()
+
+    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace(respond=respond))
+    with connect(client) as ws:
+        exchange(ws, **context(language="en"))
+        reply = exchange(ws, type="message", text=question)
+        assert reply["mode"] == "langgraph" and forwarded[0] == question
+
+
 def test_voice_ask_uses_read_only_graph_verified_facts_and_per_call_memory(client, monkeypatch):
     service = client.app.state.assistant
     source = next(chunk for chunk in service.corpus.chunks.values() if chunk.citation.source_id == "solar")
@@ -404,6 +488,8 @@ def test_voice_ask_uses_read_only_graph_verified_facts_and_per_call_memory(clien
         assert result["citations"] == [source.citation.model_dump(mode="json")]
         assert any(f["text"].startswith("Plot A") and f["provenance"] == "simulated" for f in result["facts"])
         assert scopes[-1]["active_scenario"] == "mini" and not scopes[-1]["prior_answers"]
+        assert exchange(ws, type="message", text="تسمعني؟")["mode"] == "conversation"
+        assert len(scopes) == 1
         again = exchange(ws, type="message", turn_id=2, text="تنجّم تعاود تفسّرها؟")
         assert again["mode"] == "langgraph" and again["facts"][0]["text"].startswith("Plot A ")
         assert scopes[-1]["prior_answers"] and len(scopes[-1]["recent_questions"]) == 1

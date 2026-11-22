@@ -17,6 +17,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .assistant_language import valid_question_length
 from .compare import InputError
+from .guardian_conversation import conversational_reply
 from .guardian_dialogue import CallStart, Dialogue
 from .guardian_presentation import audience_question
 from .guardian_provider import GuardianProvider, GuardianProviderError
@@ -269,15 +270,21 @@ async def respond(call, provider, prompt, message, send):
         return await presentation(call, provider, prompt)
     if activity != "ask":
         raise ValueError("Unsupported activity")
-    if ("turn_id" in message and message.get("progress_audio") is True and provider.capabilities_for(call.start.language)["tts"]):
+    prompt = short_text(prompt)
+    voice = provider.capabilities_for(call.start.language)
+    text = conversational_reply(call, prompt, spoken=message["type"] == "audio", voice_input_available=voice["stt"])
+    if text:
+        return {"type": "reply", "mode": "conversation", "text": text,
+                "citations": [], "facts": [], "tools_used": [], "missing_information": []}
+    if "turn_id" in message and message.get("progress_audio") is True and voice["tts"]:
         progress = VoiceProgress(call, provider, send, message["turn_id"], message.get("stream_audio") is True)
         try:
-            result = await answer(call, provider, short_text(prompt), progress)
+            result = await answer(call, provider, prompt, progress)
             call.live_remainder = await progress.finish(result["text"])
             return result
         finally:
             await progress.cancel()
-    return await answer(call, provider, short_text(prompt))
+    return await answer(call, provider, prompt)
 
 
 async def handle(socket, call, provider, message):
