@@ -96,6 +96,33 @@ try {
   assert.equal(clips.length, 1);
   assert.equal(clips[0].mode, 'evidence');
   assert.ok(clips[0].mime.startsWith('audio/') && Buffer.from(clips[0].data, 'base64').length > 0);
+  const player = dialog.getByLabel('Spoken reply', { exact: true });
+  function sendClip(mime, data) { connection.send(JSON.stringify({ type: 'audio', mime, data })); }
+  async function playRecordedClip() {
+    sendClip(clips[0].mime, clips[0].data);
+    await page.waitForFunction(() => {
+      const audio = document.querySelector('audio[aria-label="Spoken reply"]');
+      return audio?.src.startsWith(`blob:${location.origin}/`) && audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+    });
+    return player.getAttribute('src');
+  }
+  async function verifyReleased(url) {
+    await player.waitFor({ state: 'detached' });
+    assert.equal(await page.evaluate(async oldUrl => {
+      try { await fetch(oldUrl); return false; } catch { return true; }
+    }, url), true, 'The previous playback URL must have been revoked');
+  }
+  const audioUrl = await playRecordedClip();
+  const played = await page.evaluate(async url => {
+    const blob = await (await fetch(url)).blob();
+    return { type: blob.type, size: blob.size };
+  }, audioUrl);
+  assert.deepEqual(played, { type: clips[0].mime.split(';')[0], size: Buffer.from(clips[0].data, 'base64').length });
+  sendClip('text/plain', clips[0].data);
+  await verifyReleased(audioUrl);
+  const secondUrl = await playRecordedClip();
+  sendClip(clips[0].mime, 'Recording incomplete.');
+  await verifyReleased(secondUrl);
   await dialog.getByRole('button', { name: 'Chat', exact: true }).click();
   await dialog.getByRole('button', { name: 'Record observation' }).click();
   await dialog.getByRole('button', { name: 'Use my last message' }).click();
@@ -176,7 +203,9 @@ try {
   await dialog.getByRole('button', { name: 'Save observation' }).click();
   await dialog.getByText('Observation saved.').waitFor();
   assert.equal(await confirm.count(), 0);
+  const closingUrl = await playRecordedClip();
   await dialog.getByRole('button', { name: 'Done' }).click();
+  await verifyReleased(closingUrl);
   assert.deepEqual(errors, []);
   console.log('Chrome passed opt-in recording and upload, transcription, TTS failure, microphone denial and cleanup, mobile layout, protected approval and proposal invalidation.');
 } finally { await browser.close(); }

@@ -72,6 +72,21 @@ const reasonLabels: Record<Reason, string> = {
 };
 const idleCapabilities = { stt: false, tts: false, llm: false };
 
+const replyAudioTypes = new Set(['audio/wav', 'audio/x-wav', 'audio/wave', 'audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/webm', 'audio/mp4']);
+const maxReplyBytes = 2 * 1024 * 1024; // Matches the server's maximum synthesized clip.
+
+function decodeReplyClip(mime: unknown, data: unknown): Blob | null {
+  const type = typeof mime === 'string' ? mime.split(';', 1)[0].trim().toLowerCase() : '';
+  if (!replyAudioTypes.has(type) || typeof data !== 'string' || data.length > 4 * Math.ceil(maxReplyBytes / 3)) return null;
+  try {
+    const raw = atob(data);
+    if (!raw.length || raw.length > maxReplyBytes) return null;
+    return new Blob([Uint8Array.from(raw, char => char.charCodeAt(0))], { type });
+  } catch {
+    return null;
+  }
+}
+
 function GuardianCall({ call, close, onConfirm, liveLaunch }: {
   call: Call; close: () => void; onConfirm?: (value: GuardianConfirmation) => void; liveLaunch: Ref<() => void>;
 }) {
@@ -93,7 +108,7 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
   const [quota, setQuota] = useState('');
   const [pending, setPending] = useState(false);
   const [proposal, setProposal] = useState<Proposal>();
-  const [audioSrc, setAudioSrc] = useState('');
+  const [audioClip, setAudioClip] = useState<Blob | null>(null);
   const [muted, setMuted] = useState(false);
   const [recordingObservation, setRecordingObservation] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -102,6 +117,17 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
   const transcript = useRef<HTMLDivElement>(null);
   const socket = useRef<WebSocket | null>(null);
   const speaker = useRef<HTMLAudioElement>(null);
+  useEffect(() => {
+    const player = speaker.current;
+    if (!player || !audioClip) return;
+    const url = URL.createObjectURL(audioClip);
+    player.src = url;
+    return () => {
+      player.removeAttribute('src');
+      player.load();
+      URL.revokeObjectURL(url);
+    };
+  }, [audioClip]);
   const approval = useRef('');
   const confirmHandler = useRef(onConfirm);
   const mute = useRef(false);
@@ -144,7 +170,7 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
     ignoreAudio.current = true;
     mute.current = false;
     setMuted(false);
-    setAudioSrc('');
+    setAudioClip(null);
     live.start();
   }
   useImperativeHandle(liveLaunch, () => startLive);
@@ -172,7 +198,7 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
     const append = (entry: Entry) => setEntries(previous => [...previous.slice(-59), entry]);
     function settle() { duplicateTurn.current = false; setPending(false); }
     function readAloud(available: boolean) {
-      setAudioSrc('');
+      setAudioClip(null);
       setSpeechAvailable(available);
       ignoreAudio.current = false;
       if (available && !mute.current && !capturing.current && channel.readyState === WebSocket.OPEN) channel.send(JSON.stringify({ type: 'speak' }));
@@ -232,8 +258,10 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
         if (id !== undefined) {
           if (!mute.current) live.play(id, reply.mime, reply.data, reply.phase === 'preview');
           else live.finished(id);
-        } else if (!live.controller.current && !ignoreAudio.current && !mute.current && !capturing.current && typeof reply.data === 'string' && /^audio\/(wav|x-wav|wave|mpeg|mp3|ogg|webm|mp4)(;|$)/i.test(reply.mime)) {
-          setAudioSrc(`data:${reply.mime};base64,${reply.data}`);
+        } else if (!live.controller.current && !ignoreAudio.current && !mute.current && !capturing.current) {
+          const clip = decodeReplyClip(reply.mime, reply.data);
+          setAudioClip(clip);
+          if (!clip) setSpeechAvailable(false);
         }
       } else if (reply.type === 'error') {
         if (id !== undefined) live.finished(id);
@@ -259,7 +287,7 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
       settle();
       live.disconnect();
       stopPlayback();
-      setAudioSrc('');
+      setAudioClip(null);
       setError(current => current || 'The assistant disconnected. Reconnect to start a new session.');
     };
     return () => {
@@ -284,7 +312,7 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
   function mutePlayback() {
     mute.current = !mute.current;
     setMuted(mute.current);
-    if (mute.current) { stopPlayback(); setAudioSrc(''); } else post({ type: 'speak' }, false);
+    if (mute.current) { stopPlayback(); setAudioClip(null); } else post({ type: 'speak' }, false);
   }
   function reconnect() {
     setProposal(undefined); setEntries([]); setConfirmed(false); setError('');
@@ -296,7 +324,7 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
   function changeLanguage(next: SpeechLanguage) {
     if (next === language || !post({ type: 'language', language: next })) return;
     ignoreAudio.current = true;
-    stopPlayback(); setAudioSrc('');
+    stopPlayback(); setAudioClip(null);
   }
   const turn = { mode: activity, ...(activity === 'translate' && { target_language: target }) };
   const { input: inputLabel, submit: submitLabel, placeholder } = activities[activity];
@@ -355,7 +383,7 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
       </div>
       {error && <p role="alert" className="guardian-notice">{error}</p>}
       {active && !isLive && <div className="guardian-playback">
-        {speechAvailable && !muted && !audioSrc && lastReply && entries.length === 1 && call.reason === 'accessibility' &&
+        {speechAvailable && !muted && !audioClip && lastReply && entries.length === 1 && call.reason === 'accessibility' &&
           <button type="button" className="text-button" disabled={busy} onClick={() => post({ type: 'speak' }, false)}>
             <Volume2 size={15} />Listen to introduction</button>}
         {speechAvailable ? <button type="button" className="text-button" aria-pressed={!muted} onClick={mutePlayback}>
@@ -368,7 +396,7 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
             speech.onend = speech.onerror = () => setManualSpeaking(false);
             window.speechSynthesis.speak(speech);
           }}><Volume2 size={15} />Read aloud with device voice</button> : lastReply && !ignoreAudio.current ? <p className="guardian-note">Voice playback is unavailable for this reply.</p> : null}
-        {audioSrc && <audio key={audioSrc} ref={speaker} src={audioSrc} autoPlay controls aria-label="Spoken reply"
+        {audioClip && <audio ref={speaker} autoPlay controls aria-label="Spoken reply"
           onPlaying={() => setManualSpeaking(true)} onPause={() => setManualSpeaking(false)} onEnded={() => setManualSpeaking(false)} />}
       </div>}
       {active && <>
