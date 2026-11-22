@@ -1,5 +1,6 @@
 export const guardianJa: Record<string, string> = {
   'Start live voice': '音声で話し始める',
+  'Part of the audio was interrupted. The answer is available in the transcript.': '音声の一部が途切れました。回答は会話の記録で確認できます。',
   'Pause microphone': 'マイクを一時停止',
   'Resume live voice': '音声会話を再開',
   'Speak freely. Pause for an answer, or interrupt by speaking again.': 'そのままお話しください。ひと息おくと返事が始まります。話しかけると途中でも質問できます。',
@@ -79,6 +80,7 @@ export const guardianJa: Record<string, string> = {
 
 export const guardianTn: Record<string, string> = {
   'Start live voice': 'ابدا احكي بالميكرو',
+  'Part of the audio was interrupted. The answer is available in the transcript.': 'الصوت تقصّ في وسط الجواب. تنجم تقرى الجواب في نصّ الحديث.',
   'Pause microphone': 'سكّر الميكرو شوية',
   'Resume live voice': 'كمّل الحديث بالميكرو',
   'Speak freely. Pause for an answer, or interrupt by speaking again.': 'احكي على راحتك. كي تسكت شوية نجاوبك، وتنجم تقاطعني وتحكي وقت ما تحبّ.',

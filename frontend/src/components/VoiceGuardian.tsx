@@ -50,7 +50,10 @@ type ServerMessage =
   | { type: 'reply'; text: string; language?: SpeechLanguage; speech_available?: boolean; citations?: Source[];
       facts?: Entry['facts']; missing_information?: string[]; proposal?: Proposal }
   | { type: 'recorded' | 'transcript'; text: string }
-  | { type: 'audio'; mime: string; data: string }
+  | { type: 'progress'; text: string }
+  | { type: 'audio'; mime: string; data: string; phase?: 'preview' | 'final' }
+  | { type: 'audio_chunk'; data: string; sample_rate: number }
+  | { type: 'audio_end'; phase: 'preview' | 'final'; partial?: boolean }
   | { type: 'error'; code: string; request_type?: string; text: string }
   | ({ type: 'confirmed' } & GuardianConfirmation);
 
@@ -196,6 +199,13 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
         setSpeechAvailable(false);
       } else if (reply.type === 'transcript') {
         append({ speaker: 'farmer', text: reply.text, language: sourceLanguage.current });
+      } else if (reply.type === 'progress' && id !== undefined) {
+        live.setPreview(reply.text);
+      } else if (reply.type === 'audio_chunk' && id !== undefined && reply.sample_rate === 24_000) {
+        live.chunk(id, reply.data);
+      } else if (reply.type === 'audio_end' && id !== undefined) {
+        if (reply.partial) setError('Part of the audio was interrupted. The answer is available in the transcript.');
+        live.endAudio(id, reply.phase === 'preview');
       } else if (reply.type === 'reply' || reply.type === 'recorded') {
         settle();
         append({ speaker: 'guardian', text: reply.text, language: reply.type === 'reply' && reply.language || sourceLanguage.current,
@@ -207,7 +217,7 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
         else readAloud(available);
       } else if (reply.type === 'audio') {
         if (id !== undefined) {
-          if (!mute.current) live.play(id, reply.mime, reply.data);
+          if (!mute.current) live.play(id, reply.mime, reply.data, reply.phase === 'preview');
           else live.finished(id);
         } else if (!live.controller.current && !ignoreAudio.current && !mute.current && !capturing.current && typeof reply.data === 'string' && /^audio\/(wav|x-wav|wave|mpeg|mp3|ogg|webm|mp4)(;|$)/i.test(reply.mime)) {
           setAudioSrc(`data:${reply.mime};base64,${reply.data}`);
@@ -282,6 +292,7 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
       {call.context.telemetry && <span>{String(call.context.telemetry.selected_slot).padStart(2, '0')}:00</span>}</div>}
     <div className="guardian-call-body">
       <GuardianOrb state={orbState()} levelRef={live.level} />
+      {live.preview && <p className="guardian-live-preview" lang={languageTags[language]} dir="auto" translate="no">{live.preview}</p>}
       {(isLive || active && capabilities.stt) && <div className="guardian-live-controls">
         {isLive ? <button type="button" className="button button-secondary" onClick={live.stop}>
           <MicOff size={16} />Pause microphone</button> : <button type="button" className="button button-primary" disabled={busy || manualRecording}

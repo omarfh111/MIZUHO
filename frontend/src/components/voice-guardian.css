@@ -7,6 +7,7 @@
 .guardian-live-controls { display: flex; gap: 12px; align-items: center; }
 .guardian-live-controls .button { flex-shrink: 0; }
 .guardian-live-controls .guardian-note { max-width: 33ch; }
+.guardian-live-preview { margin: 0; padding-inline-start: 10px; border-inline-start: 2px solid var(--teal); font-size: .88rem; line-height: 1.45; }
 .guardian-facts { margin-block-start: 5px; font-size: .78rem; }
 .guardian-facts summary { cursor: pointer; color: var(--teal); }
 .guardian-facts .assistant-fact { margin-block-start: 5px; }

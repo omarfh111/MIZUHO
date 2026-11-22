@@ -158,6 +158,23 @@ function base64(bytes: Uint8Array) {
   return btoa(parts.join(''));
 }
 
+interface PcmPlayback {
+  sources: Set<AudioBufferSourceNode>;
+  nextTime: number;
+  sampleRate: number;
+  trailingByte: number | null;
+  ended: boolean;
+  done: Promise<void>;
+  resolve: () => void;
+  deadline?: ReturnType<typeof setTimeout>;
+}
+
+function stopSource(source: AudioBufferSourceNode) {
+  source.onended = null;
+  try { source.stop(); } catch { /* Audio device failure before playback started. */ }
+  source.disconnect();
+}
+
 /** One explicit user gesture owns one duplex audio session. */
 export class GuardianHandsFree {
   private events: VoiceEvents;
@@ -168,6 +185,7 @@ export class GuardianHandsFree {
   private mic: MediaStreamAudioSourceNode | null = null;
   private worklet: AudioWorkletNode | null = null;
   private output: AudioBufferSourceNode | null = null;
+  private pcm: PcmPlayback | null = null;
   private playbackVersion = 0;
   private finishPlayback: (() => void) | null = null;
   private detector = new VoiceTurnDetector();
@@ -255,15 +273,103 @@ export class GuardianHandsFree {
   private cancelPlayback() {
     this.playbackVersion++;
     if (this.output) {
-      this.output.onended = null;
-      if (this.output.buffer) {
-        try { this.output.stop(); } catch { /* A decoder or device may have failed before playback began. */ }
-      }
-      this.output.disconnect();
+      stopSource(this.output);
       this.output = null;
     }
     this.finishPlayback?.();
     this.finishPlayback = null;
+    if (this.pcm) {
+      clearTimeout(this.pcm.deadline);
+      for (const source of this.pcm.sources) stopSource(source);
+      this.pcm.sources.clear();
+      this.pcm.resolve();
+      this.pcm = null;
+    }
+  }
+
+  /** Schedule signed little-endian, mono samples as they arrive from the speech provider. */
+  queuePcm(data: string, sampleRate = 24_000) {
+    const audio = this.audio;
+    if (this.closed || !audio || !this.worklet || this.phase === 'hearing') return false;
+    try {
+      if (sampleRate !== 24_000 || !data || data.length > 512_000) throw new Error('Invalid speech chunk');
+      const raw = atob(data);
+      if (!this.pcm) {
+        this.cancelPlayback();
+        let resolve!: () => void;
+        const done = new Promise<void>(finish => { resolve = finish; });
+        this.pcm = { sources: new Set(), nextTime: audio.currentTime, sampleRate, trailingByte: null,
+          ended: false, done, resolve };
+      }
+      const pcm = this.pcm;
+      if (pcm.ended || pcm.nextTime > audio.currentTime + 90) throw new Error('Speech queue exceeded its limit');
+      const prefix = pcm.trailingByte === null ? 0 : 1;
+      const bytes = new Uint8Array(prefix + raw.length);
+      if (pcm.trailingByte !== null) bytes[0] = pcm.trailingByte;
+      for (let i = 0; i < raw.length; i++) bytes[prefix + i] = raw.charCodeAt(i);
+      pcm.trailingByte = bytes.length % 2 ? bytes[bytes.length - 1] : null;
+      const count = Math.floor(bytes.length / 2);
+      if (count) {
+        const buffer = audio.createBuffer(1, count, pcm.sampleRate);
+        const samples = buffer.getChannelData(0), view = new DataView(bytes.buffer);
+        for (let i = 0; i < count; i++) samples[i] = view.getInt16(i * 2, true) / 32768;
+        const source = audio.createBufferSource();
+        source.buffer = buffer;
+        pcm.sources.add(source);
+        source.connect(audio.destination);
+        source.connect(this.worklet, 0, 1);
+        source.onended = () => {
+          if (this.pcm !== pcm) return;
+          source.disconnect();
+          pcm.sources.delete(source);
+          if (!pcm.sources.size) {
+            if (pcm.ended) this.endPcm(pcm);
+            else this.setPhase('thinking'); // The next chunk is still arriving.
+          }
+        };
+        const when = Math.max(pcm.nextTime, audio.currentTime + 0.015);
+        source.start(when);
+        pcm.nextTime = when + buffer.duration;
+        this.setPhase('speaking');
+      }
+      clearTimeout(pcm.deadline);
+      // A stalled connection can otherwise leave an open microphone after its last sound.
+      pcm.deadline = setTimeout(() => {
+        if (this.pcm === pcm) this.lostCapture();
+      }, 15_000 + Math.max(0, pcm.nextTime - audio.currentTime) * 1000);
+      return true;
+    } catch {
+      this.waitForReply();
+      this.events.onError('playback');
+      return false;
+    }
+  }
+
+  private endPcm(pcm: PcmPlayback) {
+    clearTimeout(pcm.deadline);
+    this.pcm = null;
+    this.setPhase('listening');
+    pcm.resolve();
+  }
+
+  /** Resolves only after the final sample, or after the user interrupts/stops. */
+  finishPcm(): Promise<void> {
+    const pcm = this.pcm;
+    if (!pcm) return Promise.resolve();
+    if (pcm.trailingByte !== null) {
+      this.waitForReply();
+      this.events.onError('playback');
+      return pcm.done;
+    }
+    pcm.ended = true;
+    if (!pcm.sources.size) this.endPcm(pcm);
+    return pcm.done;
+  }
+
+  waitForReply() {
+    if (this.closed || this.phase === 'hearing' || this.phase === 'permission') return;
+    this.cancelPlayback();
+    this.setPhase('thinking');
   }
 
   async play(mime: string, data: string) {

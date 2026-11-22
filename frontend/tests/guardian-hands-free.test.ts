@@ -91,9 +91,10 @@ class Worklet {
 }
 class Source {
   onended: (() => void) | null = null;
-  buffer: unknown;
+  buffer?: { getChannelData: (channel: number) => Float32Array; duration: number };
+  startTime = 0;
   stopped = false;
-  start() {}
+  start(time = 0) { this.startTime = time; }
   stop() { this.stopped = true; }
   connect() {}
   disconnect() {}
@@ -101,6 +102,7 @@ class Source {
 class Context {
   static latest: Context;
   sampleRate = rate;
+  currentTime = 1;
   state = 'suspended';
   output = new Source();
   audioWorklet = { addModule: async () => undefined };
@@ -109,6 +111,10 @@ class Context {
   async close() { this.state = 'closed'; }
   createMediaStreamSource() { return new Source(); }
   createBufferSource() { this.output = new Source(); return this.output; }
+  createBuffer(_: number, length: number, sampleRate: number) {
+    const samples = new Float32Array(length);
+    return { getChannelData: () => samples, duration: length / sampleRate };
+  }
   async decodeAudioData() { return {}; }
 }
 function browser(t: TestContext, permissionMode: 'grant' | 'defer' | 'deny' = 'grant') {
@@ -225,6 +231,71 @@ test('permission denial reaches the owner before it releases the session and pre
   assert.deepEqual(b.phasesAtError, ['permission']);
   assert.equal(Context.latest.state, 'closed');
   assert.equal(b.turns.length, 0);
+});
+
+test('streaming speech schedules the first PCM sample immediately and joins split 16-bit samples in order', async t => {
+  const b = browser(t);
+  await b.live.start();
+  b.live.waitForReply();
+  assert.equal(b.phases.at(-1), 'thinking');
+  // -32768, +32767, 0. The second sample spans two WebSocket messages.
+  assert.equal(b.live.queuePcm(Buffer.from([0, 128, 255]).toString('base64')), true);
+  const first = Context.latest.output;
+  assert.deepEqual([...first.buffer!.getChannelData(0)], [-1]);
+  assert.equal(b.phases.at(-1), 'speaking');
+  assert.equal(b.live.queuePcm(Buffer.from([127, 0, 0]).toString('base64')), true);
+  const second = Context.latest.output;
+  assert.equal(first.startTime + 1 / 24_000, second.startTime);
+  assert.deepEqual([...second.buffer!.getChannelData(0)], [32767 / 32768, 0]);
+  let drained = false;
+  const done = b.live.finishPcm().then(() => { drained = true; });
+  first.onended?.();
+  await Promise.resolve();
+  assert.equal(drained, false);
+  second.onended?.(); await done;
+  assert.equal(b.phases.at(-1), 'listening');
+  b.live.waitForReply();
+  b.frames(14, speech);
+  b.live.waitForReply();
+  assert.equal(b.phases.at(-1), 'hearing');
+  assert.equal(b.interrupts(), 1);
+  b.live.stop();
+});
+
+test('barge-in stops all scheduled stream sources and ignores a stale audio chunk', async t => {
+  const b = browser(t);
+  await b.live.start();
+  const data = Buffer.alloc(2400).toString('base64');
+  b.live.queuePcm(data); const source = Context.latest.output;
+  b.live.queuePcm(data); const following = Context.latest.output;
+  const done = b.live.finishPcm();
+  b.frames(16, speech);
+  await done;
+  assert.equal(b.interrupts(), 1);
+  assert.equal(source.stopped, true);
+  assert.equal(following.stopped, true);
+  assert.equal(b.live.queuePcm(data), false);
+  assert.equal(b.phases.at(-1), 'hearing');
+  b.frames(45, quiet);
+  assert.equal(b.turns.length, 1);
+  b.live.stop();
+});
+
+test('a missing stream end closes the microphone and a malformed final sample reports a playback error', async t => {
+  const b = browser(t);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  await b.live.start();
+  b.live.queuePcm('AA==');
+  await b.live.finishPcm();
+  assert.deepEqual(b.errors, ['playback']);
+  assert.equal(b.phases.at(-1), 'thinking');
+  b.live.queuePcm('AAA=');
+  Context.latest.output.onended?.();
+  assert.equal(b.phases.at(-1), 'thinking');
+  t.mock.timers.tick(16_000);
+  assert.equal(b.phases.at(-1), 'off');
+  assert.equal(b.track.readyState, 'ended');
+  assert.deepEqual(b.errors, ['playback', 'interrupted']);
 });
 
 test('audio worklet keeps continuous 20 ms microphone frames and an independent speaker reference', () => {
