@@ -1,10 +1,14 @@
-import { AudioLines, BellRing, Check, Languages, MessageSquareText, Presentation, Send, ShieldCheck, Volume2, VolumeX } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { AudioLines, BellRing, Check, Languages, MessageSquareText, Mic, MicOff, Presentation, Send, ShieldCheck, Volume2, VolumeX } from 'lucide-react';
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
+import { createPortal, flushSync } from 'react-dom';
 import { useLanguage, type Language } from '../i18n/language.ts';
-import type { Comparison, CompareRequest, RegionalPlanningResult, RegionPlanContext, RegionPlanRequest } from '../types.ts';
+import type { AssistantAnswer, Citation, Comparison, CompareRequest, RegionalPlanningResult, RegionPlanContext, RegionPlanRequest } from '../types.ts';
 import type { ReplayContext } from '../twin.ts';
 import { Modal } from './EvidencePanel.tsx';
 import GuardianMicrophone from './GuardianMicrophone.tsx';
+import GuardianOrb, { type GuardianOrbState } from './GuardianOrb.tsx';
+import { useGuardianLiveVoice } from './useGuardianLiveVoice.ts';
+import { Metric, SourceCitation } from './AssistantEvidence.tsx';
 import './voice-guardian.css';
 
 export interface GuardianContext {
@@ -14,6 +18,10 @@ export interface GuardianContext {
   comparison?: CompareRequest;
   telemetry?: ReplayContext;
   zone_plan?: RegionPlanContext;
+  solar_option_id?: string;
+  pvgis_option_id?: 'ombriere' | 'toiture';
+  selected_scenario_id?: string;
+  simulation_pending?: boolean;
 }
 type Reason = 'emergency' | 'clarification' | 'accessibility';
 export interface GuardianOffer { id: string; reason: Exclude<Reason, 'accessibility'>; context?: GuardianContext }
@@ -30,12 +38,17 @@ function languageOptions(exclude?: SpeechLanguage) {
   return speechLanguages.filter(id => id !== exclude).map(id =>
     <option key={id} value={id} lang={languageTags[id]} translate="no">{languageNames[id]}</option>);
 }
-interface Entry { speaker: 'guardian' | 'farmer'; text: string; language: SpeechLanguage; citations?: { title: string; url: string }[] }
+type Source = Pick<Citation, 'title' | 'url'> & Partial<Citation>;
+interface Entry {
+  speaker: 'guardian' | 'farmer'; text: string; language: SpeechLanguage;
+  citations?: Source[]; facts?: AssistantAnswer['facts']; gaps?: string[];
+}
 interface Capabilities { stt: boolean; tts: boolean; llm: boolean }
 type ServerMessage =
-  | { type: 'ready'; text: string; voice: Capabilities; requires_manager_code?: boolean }
+  | { type: 'ready'; text: string; voice: Capabilities; requires_manager_code?: boolean; rag_available?: boolean }
   | { type: 'language'; language: SpeechLanguage; voice: Capabilities }
-  | { type: 'reply'; text: string; language?: SpeechLanguage; speech_available?: boolean; citations?: Entry['citations']; proposal?: Proposal }
+  | { type: 'reply'; text: string; language?: SpeechLanguage; speech_available?: boolean; citations?: Source[];
+      facts?: Entry['facts']; missing_information?: string[]; proposal?: Proposal }
   | { type: 'recorded' | 'transcript'; text: string }
   | { type: 'audio'; mime: string; data: string }
   | { type: 'error'; code: string; request_type?: string; text: string }
@@ -47,12 +60,13 @@ const reasonLabels: Record<Reason, string> = {
 };
 const idleCapabilities = { stt: false, tts: false, llm: false };
 
-function GuardianCall({ call, close, onConfirm }: {
-  call: Call; close: () => void; onConfirm?: (value: GuardianConfirmation) => void;
+function GuardianCall({ call, close, onConfirm, liveLaunch }: {
+  call: Call; close: () => void; onConfirm?: (value: GuardianConfirmation) => void; liveLaunch: Ref<() => void>;
 }) {
   const [connection, setConnection] = useState<'connecting' | 'active' | 'closed'>('connecting');
   const [attempt, setAttempt] = useState(0);
   const [capabilities, setCapabilities] = useState(idleCapabilities);
+  const [ragAvailable, setRagAvailable] = useState(false);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [error, setError] = useState('');
   const [draft, setDraft] = useState('');
@@ -79,11 +93,24 @@ function GuardianCall({ call, close, onConfirm }: {
   const confirmHandler = useRef(onConfirm);
   const mute = useRef(false);
   const capturing = useRef(false);
+  const [manualRecording, setManualRecording] = useState(false);
+  const [manualSpeaking, setManualSpeaking] = useState(false);
   const duplicateTurn = useRef(false);
   const [deviceVoices, setDeviceVoices] = useState<SpeechSynthesisVoice[]>([]);
   const utterance = useRef<SpeechSynthesisUtterance | null>(null);
   const active = connection === 'active';
-  const busy = pending || !active;
+  const live = useGuardianLiveVoice(socket, activity, target, setError);
+  const isLive = live.phase !== 'off';
+  const busy = pending || !active || (isLive && live.phase !== 'listening');
+  function orbState(): GuardianOrbState {
+    if (connection === 'closed') return 'unavailable';
+    if (connection === 'connecting' || live.phase === 'permission') return 'connecting';
+    if (live.phase !== 'off') return live.phase;
+    if (manualRecording) return 'hearing';
+    if (pending) return 'thinking';
+    if (manualSpeaking) return 'speaking';
+    return live.paused ? 'paused' : 'idle';
+  }
   const currentQuota = call.context.comparison?.state.quota_remaining_m3 ?? call.context.zone_plan?.inputs.withdrawal_limit_m3;
   const lastReply = entries.filter(entry => entry.speaker === 'guardian').at(-1);
   const deviceVoice = lastReply && deviceVoices.find(voice => {
@@ -96,8 +123,18 @@ function GuardianCall({ call, close, onConfirm }: {
 
   const stopPlayback = () => {
     speaker.current?.pause();
+    setManualSpeaking(false);
     if (utterance.current) { window.speechSynthesis?.cancel(); utterance.current = null; }
   };
+  function startLive() {
+    stopPlayback();
+    ignoreAudio.current = true;
+    mute.current = false;
+    setMuted(false);
+    setAudioSrc('');
+    live.start();
+  }
+  useImperativeHandle(liveLaunch, () => startLive);
   useEffect(() => {
     const synth = window.speechSynthesis;
     if (!synth) return;
@@ -132,15 +169,19 @@ function GuardianCall({ call, close, onConfirm }: {
     };
     channel.onmessage = event => {
       if (!alive || typeof event.data !== 'string') return;
-      let reply: ServerMessage;
+      let reply: ServerMessage & { turn_id?: number };
       try { reply = JSON.parse(event.data); } catch { setError('The assistant received an unreadable response.'); return; }
+      const id = reply.turn_id;
+      if (id !== undefined && !live.accepts(id)) return;
       if (reply.type === 'ready') {
         ready = true;
         clearTimeout(connectDeadline);
         setConnection('active');
         setCapabilities(reply.voice);
+        setRagAvailable(reply.rag_available === true);
         setRequiresManagerCode(reply.requires_manager_code === true);
         tts = reply.voice.tts;
+        live.ready(reply.voice.stt);
         append({ speaker: 'guardian', text: reply.text, language: sourceLanguage.current });
         setSpeechAvailable(tts);
         if (call.reason !== 'accessibility') readAloud(tts);
@@ -150,6 +191,7 @@ function GuardianCall({ call, close, onConfirm }: {
         setLanguage(reply.language);
         setTarget(previous => previous === reply.language ? (reply.language === 'en' ? 'ja' : 'en') : previous);
         setCapabilities(reply.voice);
+        live.ready(reply.voice.stt);
         tts = reply.voice.tts;
         setSpeechAvailable(false);
       } else if (reply.type === 'transcript') {
@@ -157,15 +199,21 @@ function GuardianCall({ call, close, onConfirm }: {
       } else if (reply.type === 'reply' || reply.type === 'recorded') {
         settle();
         append({ speaker: 'guardian', text: reply.text, language: reply.type === 'reply' && reply.language || sourceLanguage.current,
-          citations: reply.type === 'reply' ? reply.citations : undefined });
+          ...(reply.type === 'reply' && { citations: reply.citations, facts: reply.facts, gaps: reply.missing_information }) });
         if (reply.type === 'reply' && reply.proposal) setProposal(reply.proposal);
         if (reply.type === 'recorded') { setProposal(undefined); approval.current = ''; }
-        readAloud(reply.type === 'reply' ? reply.speech_available ?? tts : tts);
+        const available = reply.type === 'reply' ? reply.speech_available ?? tts : tts;
+        if (id !== undefined) { setSpeechAvailable(available); live.read(id, available && !mute.current); }
+        else readAloud(available);
       } else if (reply.type === 'audio') {
-        if (!ignoreAudio.current && !mute.current && !capturing.current && typeof reply.data === 'string' && /^audio\/(wav|x-wav|wave|mpeg|mp3|ogg|webm|mp4)(;|$)/i.test(reply.mime)) {
+        if (id !== undefined) {
+          if (!mute.current) live.play(id, reply.mime, reply.data);
+          else live.finished(id);
+        } else if (!live.controller.current && !ignoreAudio.current && !mute.current && !capturing.current && typeof reply.data === 'string' && /^audio\/(wav|x-wav|wave|mpeg|mp3|ogg|webm|mp4)(;|$)/i.test(reply.mime)) {
           setAudioSrc(`data:${reply.mime};base64,${reply.data}`);
         }
       } else if (reply.type === 'error') {
+        if (id !== undefined) live.finished(id);
         if (reply.request_type === 'speak' || reply.code === 'tts_unavailable') {
           setSpeechAvailable(false);
         } else {
@@ -186,6 +234,7 @@ function GuardianCall({ call, close, onConfirm }: {
       if (!alive) return;
       setConnection('closed');
       settle();
+      live.disconnect();
       stopPlayback();
       setAudioSrc('');
       setError(current => current || 'The assistant disconnected. Reconnect to start a new session.');
@@ -194,6 +243,7 @@ function GuardianCall({ call, close, onConfirm }: {
       alive = false;
       clearTimeout(connectDeadline);
       approval.current = '';
+      live.disconnect();
       socket.current = null;
       if (channel.readyState === WebSocket.OPEN) channel.send(JSON.stringify({ type: 'end' }));
       channel.close();
@@ -231,8 +281,16 @@ function GuardianCall({ call, close, onConfirm }: {
       {call.reason !== 'accessibility' && <span className="guardian-chip">{reasonLabels[call.reason]}</span>}
       {call.context.telemetry && <span>{String(call.context.telemetry.selected_slot).padStart(2, '0')}:00</span>}</div>}
     <div className="guardian-call-body">
+      <GuardianOrb state={orbState()} levelRef={live.level} />
+      {(isLive || active && capabilities.stt) && <div className="guardian-live-controls">
+        {isLive ? <button type="button" className="button button-secondary" onClick={live.stop}>
+          <MicOff size={16} />Pause microphone</button> : <button type="button" className="button button-primary" disabled={busy || manualRecording}
+          onClick={startLive}><Mic size={16} />{live.paused ? 'Resume live voice' : 'Start live voice'}</button>}
+        <p className="guardian-note">{isLive ? 'Speak freely. Pause for an answer, or interrupt by speaking again.'
+          : 'Live voice sends each phrase for transcription after you pause.'}</p>
+      </div>}
       {connection === 'connecting' && <p role="status" className="guardian-status">Opening the assistant…</p>}
-      {active && !capabilities.llm && <p className="guardian-note">Guided mode uses verified simulator data. Open conversation needs the AI service.</p>}
+      {active && !capabilities.llm && !ragAvailable && <p className="guardian-note">Guided mode uses verified simulator data. Open conversation needs the AI service.</p>}
       {active && <>
         <div className="guardian-modes" role="group" aria-label="Assistant tools">
           {([{ id: 'ask', label: 'Ask', Icon: MessageSquareText }, { id: 'present', label: 'Present', Icon: Presentation },
@@ -253,11 +311,17 @@ function GuardianCall({ call, close, onConfirm }: {
           <strong>{entry.speaker === 'guardian' ? 'Voice Guardian' : 'You'}</strong>
           <p lang={languageTags[entry.language]} dir="auto" translate="no">{entry.text}</p>
           {entry.citations?.filter(source => /^https?:\/\//i.test(source.url)).map(source =>
-            <a href={source.url} key={source.url} target="_blank" rel="noreferrer" translate="no">{source.title} ↗</a>)}
+            source.id && source.excerpt && source.organization
+              ? <SourceCitation citation={source as Citation} key={source.id} />
+              : <a href={source.url} key={source.id ?? source.url} target="_blank" rel="noreferrer" translate="no">{source.title} ↗</a>)}
+          {!!entry.facts?.length && <details className="guardian-facts"><summary>Supporting data</summary>
+            {entry.facts.map(fact => <Metric fact={fact} key={fact.id} />)}</details>}
+          {!!entry.gaps?.length && <details className="guardian-facts"><summary>Missing information</summary>
+            <ul>{entry.gaps.map(gap => <li key={gap}>{gap}</li>)}</ul></details>}
         </div>)}
       </div>
       {error && <p role="alert" className="guardian-notice">{error}</p>}
-      {active && <div className="guardian-playback">
+      {active && !isLive && <div className="guardian-playback">
         {speechAvailable && !muted && !audioSrc && lastReply && entries.length === 1 && call.reason === 'accessibility' &&
           <button type="button" className="text-button" disabled={busy} onClick={() => post({ type: 'speak' }, false)}>
             <Volume2 size={15} />Listen to introduction</button>}
@@ -267,17 +331,21 @@ function GuardianCall({ call, close, onConfirm }: {
             stopPlayback();
             const speech = new SpeechSynthesisUtterance(lastReply.text);
             speech.voice = deviceVoice; speech.lang = deviceVoice.lang; utterance.current = speech;
+            speech.onstart = () => setManualSpeaking(true);
+            speech.onend = speech.onerror = () => setManualSpeaking(false);
             window.speechSynthesis.speak(speech);
           }}><Volume2 size={15} />Read aloud with device voice</button> : lastReply && !ignoreAudio.current ? <p className="guardian-note">Voice playback is unavailable for this reply.</p> : null}
-        {audioSrc && <audio key={audioSrc} ref={speaker} src={audioSrc} autoPlay controls aria-label="Spoken reply" />}
+        {audioSrc && <audio key={audioSrc} ref={speaker} src={audioSrc} autoPlay controls aria-label="Spoken reply"
+          onPlaying={() => setManualSpeaking(true)} onPause={() => setManualSpeaking(false)} onEnded={() => setManualSpeaking(false)} />}
       </div>}
       {active && <>
-        {capabilities.stt ? <GuardianMicrophone key={`${language}/${activity}/${activity === 'translate' ? target : ''}`} disabled={busy || (activity === 'translate' && !capabilities.llm)} onCapture={enabled => {
+        {!isLive && (capabilities.stt ? <GuardianMicrophone key={`${language}/${activity}/${activity === 'translate' ? target : ''}`} disabled={busy || (activity === 'translate' && !capabilities.llm)} onCapture={enabled => {
           capturing.current = enabled;
+          setManualRecording(enabled);
           if (enabled) stopPlayback();
         }} onSend={(mime, data) => post({ type: 'audio', mime, data, ...turn })} />
-          : <p className="guardian-note">Voice transcription is unavailable. Type your message below.</p>}
-        <form className="guardian-compose" onSubmit={e => {
+          : <p className="guardian-note">Voice transcription is unavailable. Type your message below.</p>)}
+        {!isLive && <form className="guardian-compose" onSubmit={e => {
           e.preventDefault();
           const text = draft.trim();
           if ((text || activity === 'present') && post({ type: 'message', text, ...turn })) {
@@ -289,11 +357,11 @@ function GuardianCall({ call, close, onConfirm }: {
           onChange={e => setDraft(e.target.value)} /></label>
           {activity === 'translate' && !capabilities.llm && <small className="guardian-note">Translation needs a connected language model.</small>}
           <button type="submit" className="button button-primary" disabled={busy || (!draft.trim() && activity !== 'present') || (activity === 'translate' && !capabilities.llm)}><Send size={15} />{submitLabel}</button>
-        </form>
+        </form>}
         {pending && <p role="status" className="guardian-note">Checking your request…</p>}
-        {activity === 'ask' && call.context.site_id && <button type="button" className="text-button" aria-expanded={recordingObservation} onClick={() => setRecordingObservation(!recordingObservation)}>
+        {!isLive && activity === 'ask' && call.context.site_id && <button type="button" className="text-button" aria-expanded={recordingObservation} onClick={() => setRecordingObservation(!recordingObservation)}>
           <MessageSquareText size={15} />Record observation</button>}
-        {activity === 'ask' && call.context.site_id && recordingObservation && <form className="guardian-review" onSubmit={e => {
+        {!isLive && activity === 'ask' && call.context.site_id && recordingObservation && <form className="guardian-review" onSubmit={e => {
           e.preventDefault(); if (observation.trim() && post({ type: 'observation', text: observation.trim() })) {
             setEntries(previous => [...previous.slice(-59), { speaker: 'farmer', text: observation.trim(), language }]);
             setObservation(''); setRecordingObservation(false);
@@ -303,7 +371,7 @@ function GuardianCall({ call, close, onConfirm }: {
           {lastFarmer && <button type="button" className="text-button" onClick={() => setObservation(lastFarmer.text)}>Use my last message</button>}
           <button type="submit" className="button button-secondary" disabled={busy || !observation.trim()}>Save observation</button>
         </form>}
-        {activity === 'ask' && currentQuota !== undefined && currentQuota > 0 && !confirmed && <details className="guardian-review">
+        {!isLive && activity === 'ask' && currentQuota !== undefined && currentQuota > 0 && !confirmed && <details className="guardian-review">
           <summary>Review a new quota</summary>
           <form onSubmit={e => { e.preventDefault(); if (quota !== '' && post({ type: 'propose', quota_m3: Number(quota) })) setProposal(undefined); }}>
             <label className="field"><span>Proposed withdrawal limit (m³)</span><input type="number" min={0} max={Math.ceil(currentQuota) - 1} step={1}
@@ -339,6 +407,7 @@ export default function VoiceGuardian({ context, incoming, onConfirm }: {
   context: GuardianContext; incoming?: GuardianOffer | null; onConfirm?: (value: GuardianConfirmation) => void;
 }) {
   const [call, setCall] = useState<Call>();
+  const launchLive = useRef<() => void>(null);
   const language: SpeechLanguage = useLanguage();
   const [handled, setHandled] = useState<string[]>([]);
   const offer = incoming && !handled.includes(incoming.id) ? incoming : null;
@@ -347,9 +416,19 @@ export default function VoiceGuardian({ context, incoming, onConfirm }: {
     setHandled(previous => [...previous.slice(-99), offer.id]);
     if (accept) setCall({ context: offer.context ?? context, reason: offer.reason, language });
   }
+  const dock = document.getElementById('live-voice-launcher');
+  const liveButton = <button type="button" className="button guardian-live-launch" aria-haspopup="dialog" aria-label="Start live voice"
+    title="Live voice sends each phrase for transcription after you pause." onClick={() => {
+      // Open the audio device inside the original gesture, including on mobile.
+      flushSync(() => setCall({ context, reason: 'accessibility', language }));
+      launchLive.current?.();
+    }}><AudioLines size={20} aria-hidden="true"/><span>Start live voice</span></button>;
   return <>
-    {!call && <button type="button" className="guardian-launch button button-secondary" aria-haspopup="dialog"
-      onClick={() => setCall({ context, reason: 'accessibility', language })}><AudioLines size={17} aria-hidden="true"/><span>Voice assistant</span></button>}
+    {!call && <div className="guardian-launch">
+      {dock ? createPortal(liveButton, dock) : liveButton}
+      <button type="button" className="text-button" aria-haspopup="dialog"
+        onClick={() => setCall({ context, reason: 'accessibility', language })}><MessageSquareText size={16}/><span>Voice assistant</span></button>
+    </div>}
     {!call && offer && <section className="guardian-incoming" aria-label="Guardian alert">
       <div className="guardian-incoming-head"><span className="guardian-phone-mark"><BellRing size={21} /></span>
         <div><small>Voice Guardian</small><h2 role="status">{reasonLabels[offer.reason]}</h2></div></div>
@@ -358,6 +437,6 @@ export default function VoiceGuardian({ context, incoming, onConfirm }: {
       <div className="guardian-actions"><button type="button" className="button button-primary" onClick={() => handleOffer(true)}>Explain alert</button>
         <button type="button" className="button button-secondary" onClick={() => handleOffer(false)}>Dismiss</button></div>
     </section>}
-    {call && <GuardianCall call={call} close={() => setCall(undefined)} onConfirm={onConfirm} />}
+    {call && <GuardianCall call={call} close={() => setCall(undefined)} onConfirm={onConfirm} liveLaunch={launchLive} />}
   </>;
 }

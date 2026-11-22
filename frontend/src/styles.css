@@ -360,8 +360,11 @@ body::before {
 
 .assistant-launch {
   position: fixed; z-index: 5; right: max(18px, 4vw); bottom: max(18px, env(safe-area-inset-bottom));
-  padding: 12px 17px; border-radius: 999px; box-shadow: 0 8px 33px #070e0ccd;
+  display: flex; align-items: center; gap: 6px;
 }
+.assistant-launch:has(> span:empty):not(:has(button)) { display: none; }
+.assistant-launch > span { display: contents; }
+.assistant-launch .button { min-height: 44px; border-radius: 999px; padding: 10px 15px; box-shadow: 0 6px 24px #070e0ca6; }
 .assistant-modal {
   width: min(560px, calc(100vw - 24px)); max-height: min(760px, calc(100dvh - 28px));
   inset: auto max(12px, 4vw) max(14px, env(safe-area-inset-bottom)) auto; margin: 0;

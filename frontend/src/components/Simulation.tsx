@@ -2,7 +2,7 @@ import {
   BadgeCheck, CalendarClock, CircleAlert, CloudSun, Droplets, Gauge, Play, Radio, RotateCcw, Settings2, Sun, TriangleAlert, Zap,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ApiError, compare, type DataMode, type FieldErrors } from '../api.ts';
+import { ApiError, assistantSolarContext, compare, type DataMode, type FieldErrors } from '../api.ts';
 import { hour, percent, value } from '../format.ts';
 import { defaultOperating, parseOperating, type OperatingInputs } from '../operating.ts';
 import OperatingEditor from './OperatingEditor.tsx';
@@ -270,6 +270,8 @@ export default function Simulation({ site, visible, scenarios, mode, solar, onCl
   const guardian = mode === 'live' && visible && !cinematic && <VoiceGuardian
     key={`${revision}-${Boolean(current)}-${selectedPlan}-${stress}`}
     context={{ site_id: site.properties.site_id, comparison: stress ? undefined : assistantContext,
+      selected_scenario_id: scenario.id, simulation_pending: stress || !assistantContext,
+      ...assistantSolarContext(solar),
       telemetry: !stress && current ? telemetry : undefined }}
     incoming={!stress && current && guardianEvent?.context.comparison === calculated?.request &&
       guardianEvent?.context.telemetry.plan === selectedPlan ? guardianEvent : undefined}

@@ -1,4 +1,12 @@
 export const guardianJa: Record<string, string> = {
+  'Start live voice': '音声で話し始める',
+  'Pause microphone': 'マイクを一時停止',
+  'Resume live voice': '音声会話を再開',
+  'Speak freely. Pause for an answer, or interrupt by speaking again.': 'そのままお話しください。ひと息おくと返事が始まります。話しかけると途中でも質問できます。',
+  'Live voice sends each phrase for transcription after you pause.': '音声会話では、話が途切れるごとに音声を送信して文字にします。',
+  'Live listening stopped. Resume when you are ready.': 'マイクを停止しました。準備ができたら再開してください。',
+  'That phrase was too long to send. Try saying it in shorter parts.': '発話が長く、送信できませんでした。短く区切ってお話しください。',
+  'Supporting data': '回答の根拠となるデータ',
   'Voice Guardian': '音声ガーディアン',
   'Voice assistant': '音声アシスタント',
   'Guardian alert': 'ガーディアンからのお知らせ',
@@ -70,6 +78,14 @@ export const guardianJa: Record<string, string> = {
 };
 
 export const guardianTn: Record<string, string> = {
+  'Start live voice': 'ابدا احكي بالميكرو',
+  'Pause microphone': 'سكّر الميكرو شوية',
+  'Resume live voice': 'كمّل الحديث بالميكرو',
+  'Speak freely. Pause for an answer, or interrupt by speaking again.': 'احكي على راحتك. كي تسكت شوية نجاوبك، وتنجم تقاطعني وتحكي وقت ما تحبّ.',
+  'Live voice sends each phrase for transcription after you pause.': 'كي تحكي بالميكرو وتسكت شوية، كلامك يتبعث باش يتكتب.',
+  'Live listening stopped. Resume when you are ready.': 'الميكرو تسكّر. وقت اللي تحبّ، تنجم تكمّل الحديث.',
+  'That phrase was too long to send. Try saying it in shorter parts.': 'كلامك كان طويل وما تبعثش. جرّب قسّمو لجمل أقصر.',
+  'Supporting data': 'المعطيات اللي اعتمدنا عليها',
   'Voice Guardian': 'المعاون الصوتي متاع ميزهو',
   'Voice assistant': 'المعاون الصوتي',
   'Guardian alert': 'تنبيه من المعاون',

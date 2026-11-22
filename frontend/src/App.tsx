@@ -1,6 +1,6 @@
 import { Activity, ArrowLeft, ArrowUpRight, Droplets, FlaskConical, Globe2, Map, MapPin, Radio, Sparkles, Sun, Waves } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { getCatalog, getTunisia, type Catalog } from './api.ts';
+import { assistantSolarContext, getCatalog, getTunisia, type Catalog } from './api.ts';
 import { nearestSiteCity, siteFromLocation } from './siteLocation.ts';
 import EvidencePanel from './components/EvidencePanel.tsx';
 import SiteMap from './components/SiteMap.tsx';
@@ -183,7 +183,10 @@ export default function App() {
       </nav>}
       {catalog?.mode === 'live' && !(page === 'simulation' && site && (site.properties.field_zone || scenarios.length > 0)) &&
         <Suspense fallback={null}><VoiceGuardian key={activeCity ? [activeCity.id, period?.start, period?.end].join('/') : activeSite?.properties.site_id ?? 'national'}
-          context={{ site_id: activeSite?.properties.site_id, city_id: activeCity?.id, city_period: activeCity ? period : undefined }}
+          context={{ site_id: activeSite?.properties.site_id, city_id: activeCity?.id, city_period: activeCity ? period : undefined,
+            ...(activeSite?.properties.field_zone && zonePlan ? { zone_plan: zonePlan } : assistantSolarContext(activeSite ? solar : null)),
+            ...(activeSite && assistantSimulation && { comparison: assistantSimulation.comparison,
+              selected_scenario_id: assistantSimulation.scenarioId, simulation_pending: !assistantSimulation.comparison || assistantSimulation.pending }) }}
           incoming={page === 'simulation' && activeSite?.properties.survey_available ? {
             id: activeSite.properties.site_id + '/missing-planning-inputs', reason: 'clarification',
             context: { site_id: activeSite.properties.site_id },
@@ -256,8 +259,11 @@ export default function App() {
         setSolar(option); setSolarIds(null); navigate('simulation');
       }} />}
     {catalog && source && <EvidencePanel key={source} source={source} mode={catalog.mode} close={() => setSource(null)} />}
-    {(activeCity || activeSite) && <button type="button" className="assistant-launch button button-primary" aria-haspopup="dialog"
-      onClick={() => setAssistantOpen(true)}><Sparkles size={19} /> Ask Mizhuo</button>}
+    <div className="assistant-launch">
+      <span id="live-voice-launcher" />
+      {(activeCity || activeSite) && <button type="button" className="button button-primary" aria-haspopup="dialog"
+        onClick={() => setAssistantOpen(true)}><Sparkles size={19} /> Ask Mizhuo</button>}
+    </div>
     {(activeCity || activeSite) && assistantOpen !== undefined && <Suspense fallback={null}>
       <AssistantPanel site={activeSite} city={activeCity ?? undefined} period={activeCity ? period : undefined}
         mode={activeCity ? 'live' : catalog?.mode ?? 'demo'}

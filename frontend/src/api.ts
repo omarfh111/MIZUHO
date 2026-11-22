@@ -278,6 +278,12 @@ export function getAssistantHealth(signal: AbortSignal): Promise<AssistantHealth
   return request('assistant/health', signal, undefined, 12000);
 }
 
+export function assistantSolarContext(option: SolarOption | null): Pick<AssistantRequest, 'solar_option_id' | 'pvgis_option_id'> {
+  if (!option) return {};
+  if (option.source_id !== 'pvgis-sarah3-jendouba-2023') return { solar_option_id: option.id };
+  return option.id === 'ombriere' || option.id === 'toiture' ? { pvgis_option_id: option.id } : {};
+}
+
 export function askAssistant(body: AssistantRequest, signal: AbortSignal): Promise<AssistantAnswer> {
   return request('assistant/chat', signal, body, 50000);
 }
