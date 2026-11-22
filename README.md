@@ -45,7 +45,7 @@ The manager schedules deliveries and growers receive them. A regional authority 
 | **M1 · Assila survey** | Explore five mapped parcels and dated WaPOR estimates with source metadata. Inspect missing farmer, demand, quota and scheduling data. |
 | **M2/M3 · Energy and telemetry** | Use archived PVGIS profiles, inspect a held-out load forecast and replay virtual sensors with controlled faults. |
 | **M6 · API and irrigation planning** | Load the site and scenarios, compare solar options, and run the M4 simulator and M5 CP-SAT optimizer through FastAPI. |
-| **M7 · National map and 3D dashboard** | Zoom from Tunisia to one of its 24 governorate capitals. In **Site map**, compare three researched agricultural zones, the Assila survey, and the Jendouba planning pilot. |
+| **M7 · National map and 3D dashboard** | Zoom from Tunisia to one of its 24 governorate capitals. In **Site map**, compare six agricultural study zones, the Assila survey, and the Jendouba planning pilot. |
 | **M8 · Evidence assistant** | Search official passages with Qdrant dense retrieval and BM25. Ask about a city's archive or the current site simulation with the same LangGraph agent. |
 
 ## How it works
@@ -189,9 +189,11 @@ flowchart TD
 
 City profiles show the source, coverage, and retrieval date. A city needs verified parcels, water allocation, equipment specifications, and starting conditions before it can be used for operational planning. The built-in planning pilot uses simulated conditions. [National data refresh and sources](data/tunisia/README.md) · [Data manifest](data/manifest.json)
 
-The agricultural selector includes three georeferenced study windows at Korba, Chebika on the Kairouan plain and Gafsa–El Ksar. Inspect a location on its WorldCover and elevation surfaces. Each planner uses two archived local days of NASA POWER hourly irradiation and explicit assumptions for equipment, water and demand. Its playback shows simulated volumes at two hypothetical sectors anchored on classified cropland. [Zone studies](data/field_zones/README.md) · [Regional replay inputs and API example](data/zone_planning/README.md) · [V5 capability audit](docs/v5-capability-audit.md)
+The six georeferenced study windows cover Korba, Chebika, Gafsa–El Ksar, Mateur, Sidi Bouzid and El Hajeb near Sfax. At Mateur the water-management question concerns seasonal diversions near the Ichkeul wetlands. At Sidi Bouzid it concerns groundwater recharge and mineralization. At El Hajeb the research concerns treated wastewater in olive cultivation. Each window has its own terrain, land cover and satellite image. Each planner combines local NASA POWER archives with explicit assumptions for equipment, water and demand. Chebika and Sidi Bouzid share the same hourly solar values on the two replay dates. Their precipitation and reference evapotranspiration differ. [Zone studies and sources](data/field_zones/README.md) · [Regional replay inputs and API example](data/zone_planning/README.md)
 
 ## Run MIZUHO
+
+Choose **English** or **日本語** in the opening or dashboard. Changing language keeps the selected site, unsaved planning inputs and calculated comparison. The browser remembers the choice. A link such as `/?lang=ja&intro=0&site=sfax-el-hajeb#simulation` opens El Hajeb in Japanese. The assistant accepts questions and explains results in the chosen language. Publisher excerpts retain their original wording.
 
 Use Git, Python **3.12** and Node.js **22.12 or later**. Once dependencies are installed, the local backend and frontend run the maps, optimizer, digital twin, forecast and event demonstrations without credentials or network access. Configure OpenAI and Qdrant in step 2 for conversational answers and indexed retrieval.
 
@@ -276,7 +278,7 @@ To review a completed day, open **Check a recorded delivery day**, download the 
 | Location | What you can verify |
 | --- | --- |
 | Jendouba pilot | Compare five simulated parcel commitments, your own rotation, and a fair plan. Inspect virtual meters during replay. The separate Bouhertma instrument archive and the PVGIS equipment comparison belong to this area. |
-| Korba, Chebika and Gafsa–El Ksar | Load or enter station assumptions. Compare rotations, test stored water only, and replay outages on each area's own terrain. The two delivery sectors are hypothetical. Their locations use WorldCover cropland cells and the solar input uses the selected day's NASA POWER archive. |
+| Korba, Chebika, Gafsa–El Ksar, Mateur, Sidi Bouzid and El Hajeb | Load or enter station assumptions. Compare rotations, test stored water only, and replay outages on each area's own terrain. The two delivery sectors are hypothetical. Their locations use WorldCover cropland cells and the solar input uses the selected day's NASA POWER archive. |
 | Assila | Inspect five mapped parcel boundaries and dated WaPOR estimates. Review a recorded delivery day from a local CSV. A planning run requires field data on demand, equipment and authorized withdrawals. |
 | 24 governorate capitals | Inspect local climate and relief. Test household electricity continuity with a user-specified circuit. A city link opens a nearby registered site when there is one unambiguous match. Otherwise the user chooses a site explicitly. |
 
