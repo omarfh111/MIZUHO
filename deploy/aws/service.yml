@@ -1,0 +1,122 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: MIZUHO judge deployment on Fargate with an AWS-managed HTTPS endpoint.
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: Image from the release repository, pinned by digest.
+    AllowedPattern: '[0-9]{12}\.dkr\.ecr\.[a-z0-9-]+\.amazonaws\.com/[a-z0-9._/-]+@sha256:[0-9a-f]{64}'
+  RuntimeSecretArn:
+    Type: String
+    Description: Full ARN of the runtime JSON secret in this account and region, encrypted with aws/secretsmanager.
+    AllowedPattern: 'arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+-[A-Za-z0-9]{6}'
+  QdrantCollection:
+    Type: String
+    Description: Existing evidence collection in the configured Qdrant cluster.
+    Default: mizhuo_m8_evidence_v1
+    AllowedPattern: '(?!\.{1,2}$)[A-Za-z0-9_.-]{1,100}'
+
+Resources:
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Isolate application services from the account's default cluster.
+        must: [Use Fargate for the supervised demo.]
+    Properties:
+      ClusterName: !Ref 'AWS::StackName'
+      CapacityProviders: [FARGATE]
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Weight: 1
+  ApplicationLogs:
+    Type: AWS::Logs::LogGroup
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Bound the duration of operational logs for the demo.
+        must: [Keep user recordings and request bodies out of the log stream.]
+    Properties:
+      LogGroupName: !Sub '/mizuho/${AWS::StackName}/application'
+      RetentionInDays: 14
+  ApplicationTask:
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: A named task family scopes deployment permissions and records every image digest.
+        must: [Allow the ECS agent alone to retrieve runtime secrets.]
+    Properties:
+      Family: !Ref 'AWS::StackName'
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: '2048'
+      Memory: '4096'
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      ExecutionRoleArn: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/mizuho-demo-task-execution'
+      ContainerDefinitions:
+        - Name: Main
+          Essential: true
+          Image: !Ref ImageUri
+          PortMappings:
+            - Name: http
+              ContainerPort: 8000
+              Protocol: tcp
+          LinuxParameters:
+            InitProcessEnabled: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-group: !Ref ApplicationLogs
+              awslogs-stream-prefix: dashboard
+          Environment:
+            - Name: QDRANT_COLLECTION
+              Value: !Ref QdrantCollection
+            - Name: MIZHUO_CORS_ORIGINS
+              Value: ''
+          Secrets:
+            - Name: MIZUHO_JUDGE_USER
+              ValueFrom: !Sub '${RuntimeSecretArn}:MIZUHO_JUDGE_USER::'
+            - Name: MIZUHO_JUDGE_PASSWORD_HASH
+              ValueFrom: !Sub '${RuntimeSecretArn}:MIZUHO_JUDGE_PASSWORD_HASH::'
+            - Name: MIZHUO_MANAGER_APPROVAL_CODE
+              ValueFrom: !Sub '${RuntimeSecretArn}:MIZHUO_MANAGER_APPROVAL_CODE::'
+            - Name: OPENAI_API_KEY
+              ValueFrom: !Sub '${RuntimeSecretArn}:OPENAI_API_KEY::'
+            - Name: QDRANT_URL
+              ValueFrom: !Sub '${RuntimeSecretArn}:QDRANT_URL::'
+            - Name: QDRANT_API_KEY
+              ValueFrom: !Sub '${RuntimeSecretArn}:QDRANT_API_KEY::'
+            - Name: LLM_API_KEY
+              ValueFrom: !Sub '${RuntimeSecretArn}:LLM_API_KEY::'
+            - Name: VULTR_INFERENCE_API_KEY
+              ValueFrom: !Sub '${RuntimeSecretArn}:VULTR_INFERENCE_API_KEY::'
+  Service:
+    Type: AWS::ECS::ExpressGatewayService
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Serve the dashboard, API and voice socket together on the AWS hostname.
+        must: [Keep one steady-state replica while conversations use process-local memory.]
+    Properties:
+      Cluster: !GetAtt Cluster.Arn
+      ServiceName: !Ref 'AWS::StackName'
+      InfrastructureRoleArn: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/mizuho-demo-express-infrastructure'
+      HealthCheckPath: /deploy-healthz
+      TaskDefinitionArn: !Ref ApplicationTask
+      ScalingTarget:
+        MinTaskCount: 1
+        MaxTaskCount: 1
+
+Outputs:
+  Endpoint:
+    Description: Public HTTPS address assigned and certified by ECS.
+    Value: !Sub 'https://${Service.Endpoint}'
+  ServiceArn:
+    Description: ECS Express Mode service ARN for operational checks.
+    Value: !GetAtt Service.ServiceArn
