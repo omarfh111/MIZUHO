@@ -207,6 +207,27 @@ def test_explicit_one_time_confirmation_revalidates_scope(client):
         assert exchange(ws, type="propose", quota_m3=4)["code"] == "invalid_proposal"
 
 
+@pytest.mark.parametrize(("prompt", "amount"), [
+    ("Set the quota to 4 m³.", 4),
+    ("Set the quota to 0.", 0),
+    ("Set the quota to ٤ m³.", 4),
+    ("Set the quota to 4.5 m³.", None),
+    ("Set the quota to 4,5 m³.", None),
+    ("Set the quota to −4 m³.", None),
+    ("Set the quota between 3 and 4 m³.", None),
+    ("Set the quota for pump4.", None),
+])
+def test_voice_quota_commands_preview_only_an_unambiguous_whole_volume(client, prompt, amount):
+    with connect(client) as ws:
+        exchange(ws, **context(language="en"))
+        reply = exchange(ws, type="message", text=prompt)
+        assert reply["type"] == "reply"
+        if amount is None:
+            assert "proposal" not in reply and "quota" in reply["text"]
+        else:
+            assert reply["proposal"]["quota_m3"] == amount
+
+
 def test_manager_code_never_enters_chat_and_limits_failed_confirmations(client, monkeypatch):
     monkeypatch.setitem(client.app.state._state, "guardian_manager_code", b"demo-for-test")
     with connect(client) as ws:

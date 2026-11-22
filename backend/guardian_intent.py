@@ -45,9 +45,37 @@ _MENTION = re.compile(
     re.I)
 
 
+_QUOTE_END = {'"': '"', "'": "'", "“": "”", "«": "»", "「": "」"}
+
+
+def _word_character(char: str) -> bool:
+    return char.isalnum() or char == "_"
+
+
+def _unquoted_text(prompt: str) -> str:
+    # Check once where each closing mark stops occurring. An unmatched opener
+    # must not hide the rest of the request or trigger another scan of that suffix.
+    last = {mark: prompt.rfind(mark) for mark in _QUOTE_END.values()}
+    pieces = []
+    start = 0
+    for index, mark in enumerate(prompt):
+        closing = _QUOTE_END.get(mark)
+        if index < start or closing is None or index >= last[closing]:
+            continue
+        if mark == "'" and index and _word_character(prompt[index - 1]):
+            continue
+        end = prompt.index(closing, index + 1)
+        if mark == "'" and (end == index + 1 or (end + 1 < len(prompt) and _word_character(prompt[end + 1]))):
+            continue
+        pieces.extend((prompt[start:index], " "))
+        start = end + 1
+    pieces.append(prompt[start:])
+    return "".join(pieces)
+
+
 def requests_evidence(prompt: str) -> bool:
     # Quoted material is content for translation, rehearsal or discussion.
-    text = re.sub(r'"[^"]*"|“[^”]*”|«[^»]*»|「[^」]*」|(?<!\w)\x27[^\x27]+\x27(?!\w)', " ", prompt)
+    text = _unquoted_text(prompt)
     text = unicodedata.normalize("NFKC", text).casefold().replace("’", "'")
     text = re.sub(r"[\u00c0-\u024f]", lambda m: unicodedata.normalize("NFD", m[0])[0], text)
     text = re.sub(r"[\u064b-\u065f\u0670]", "", text)

@@ -139,6 +139,24 @@ async def proposal(call, quota):
     return {"type": "reply", "text": text, "proposal": preview, "citations": []}
 
 
+def requested_quota(prompt: str) -> int | None:
+    """Read one standalone, unsigned whole volume from a quota command."""
+    amount = None
+    for digits in re.finditer(r"\d+", prompt):
+        start, end = digits.span()
+        before = prompt[start - 1] if start else ""
+        after = prompt[end:end + 1]
+        if (before.isalnum() or before in {"_", ".", ",", "-", "−", "٫", "٬"}
+                or after.isalnum() or after == "_"):
+            continue
+        if after in {".", ",", "٫", "٬"} and prompt[end + 1:end + 2].isdecimal():
+            continue
+        if amount is not None:
+            return None
+        amount = int(digits.group())
+    return amount
+
+
 def quantities(text):
     # Require the same digits, including signs and decimals. Arabic-Indic and full-width digits are equivalent.
     normalized = "".join(str(unicodedata.decimal(c)) if c.isdecimal() else c for c in text)
@@ -310,9 +328,9 @@ async def respond(call, provider, prompt, message, send):
         return await translate_request(call, provider, prompt, restatement)
     call.pitch_topic = ""
     if QUOTA_COMMAND.search(prompt):
-        amounts = re.findall(r"(?<![\w.,-])\d+(?!\w|[.,]\d)", prompt)
-        if len(amounts) == 1:
-            return await proposal(call, int(amounts[0]))
+        amount = requested_quota(prompt)
+        if amount is not None:
+            return await proposal(call, amount)
         return {"type": "reply", "mode": "conversation", "citations": [], "text": call.say(
             "Quel nouveau quota veux-tu essayer en m³ ?", "What new quota would you like to try in m³?",
             "試したい取水枠を m³ で教えてください。", "قدّاش الحصّة الجديدة اللي تحبّ تجرّبها بالـ m³؟")}
