@@ -8,10 +8,10 @@
 <p align="center"><em>When a power cut interrupts pumping, which parcels can still receive their promised water on time?</em></p>
 
 <p align="center">
-  <a href="#how-it-works"><img alt="M4–M6 · Simulation &amp; CP-SAT" src="https://img.shields.io/static/v1?label=M4%E2%80%93M6&amp;message=Simulation%20%26%20CP-SAT&amp;color=66dce4&amp;labelColor=102523&amp;style=for-the-badge"></a>
-  <a href="#use-the-dashboard"><img alt="M7 · 3D dashboard" src="https://img.shields.io/static/v1?label=M7&amp;message=3D%20dashboard&amp;color=c6ea88&amp;labelColor=102523&amp;style=for-the-badge"></a>
-  <a href="#voice-and-evidence"><img alt="M8 · Evidence assistant" src="https://img.shields.io/static/v1?label=M8&amp;message=Evidence%20assistant&amp;color=f5ce80&amp;labelColor=102523&amp;style=for-the-badge"></a>
-  <a href="#voice-and-evidence"><img alt="M9 · Voice Guardian" src="https://img.shields.io/static/v1?label=M9&amp;message=Voice%20Guardian&amp;color=c5bbf5&amp;labelColor=102523&amp;style=for-the-badge"></a>
+  <a href="#how-it-works"><img alt="Simulation &amp; CP-SAT" src="https://img.shields.io/static/v1?label=&amp;message=Simulation%20%26%20CP-SAT&amp;color=66dce4&amp;style=for-the-badge"></a>
+  <a href="#use-the-dashboard"><img alt="3D dashboard" src="https://img.shields.io/static/v1?label=&amp;message=3D%20dashboard&amp;color=c6ea88&amp;style=for-the-badge"></a>
+  <a href="#voice-and-evidence"><img alt="Evidence assistant" src="https://img.shields.io/static/v1?label=&amp;message=Evidence%20assistant&amp;color=f5ce80&amp;style=for-the-badge"></a>
+  <a href="#voice-and-evidence"><img alt="Voice Guardian" src="https://img.shields.io/static/v1?label=&amp;message=Voice%20Guardian&amp;color=c5bbf5&amp;style=for-the-badge"></a>
   <a href="#reproduce-the-pilot"><img alt="Pilot · Jendouba, Tunisia" src="https://img.shields.io/static/v1?label=Pilot&amp;message=Jendouba%2C%20Tunisia&amp;color=e9f3ea&amp;labelColor=102523&amp;style=for-the-badge"></a>
 </p>
 
