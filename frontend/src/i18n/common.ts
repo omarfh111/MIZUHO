@@ -7,7 +7,7 @@ export const commonJa: Record<string, string> = {
   'RESOURCE MAPPING': '資源マップ', 'RESOURCE ASSESSMENT': '資源評価', 'IRRIGATION CONTINUITY': '灌漑の継続性',
   'Irrigation': '灌漑', 'observatory': '観測所', 'Water': '水', '& energy': 'とエネルギー',
   'Daily water': '一日の', 'deliveries': '配水', 'Back to map': '地図に戻る',
-  'Agricultural site': '農業サイト', 'Ask Mizhuo': 'Mizhuo に質問',
+  'Agricultural site': '農業サイト', 'Ask Mizuho': 'Mizuho に質問',
   'Inspect the terrain, land cover, and evidence behind this agricultural zone.': 'この農業地域の地形、土地被覆と出典を確認できます。',
   'Explore the site, compare solar options, and plan irrigation.': '現地を調べ、太陽光発電の選択肢を比較して灌漑を計画できます。',
   'Inspect the water and solar inputs available for the selected site.': '選択した地点で利用できる水資源と日射のデータを確認できます。',

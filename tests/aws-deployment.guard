@@ -1,0 +1,34 @@
+let registries = Resources.*[ Type == "AWS::ECR::Repository" ]
+let services = Resources.*[ Type == "AWS::ECS::ExpressGatewayService" ]
+let tasks = Resources.*[ Type == "AWS::ECS::TaskDefinition" ]
+
+rule immutable_release_registry when %registries !empty {
+    %registries {
+        DeletionPolicy == "Retain"
+        Properties.ImageTagMutability == "IMMUTABLE"
+        Properties.ImageScanningConfiguration.ScanOnPush == true
+    }
+}
+
+rule single_demo_replica when %services !empty {
+    %services.Properties {
+        HealthCheckPath == "/deploy-healthz"
+        ScalingTarget.MinTaskCount == 1
+        ScalingTarget.MaxTaskCount == 1
+        TaskDefinitionArn exists
+    }
+}
+
+rule authenticated_container when %tasks !empty {
+    %tasks.Properties {
+        TaskRoleArn !exists
+        RuntimePlatform.CpuArchitecture == "X86_64"
+        ContainerDefinitions[ Name == "Main" ] !empty
+        ContainerDefinitions[*] {
+            PortMappings[*].ContainerPort == 8000
+            Secrets[ Name == "MIZUHO_JUDGE_PASSWORD_HASH" ] !empty
+            Secrets[ Name == "MIZHUO_MANAGER_APPROVAL_CODE" ] !empty
+            Environment[ Name IN ["OPENAI_API_KEY", "LLM_API_KEY", "QDRANT_API_KEY", "VULTR_INFERENCE_API_KEY", "MIZUHO_JUDGE_PASSWORD_HASH", "MIZHUO_MANAGER_APPROVAL_CODE"] ] empty
+        }
+    }
+}

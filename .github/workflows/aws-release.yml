@@ -1,0 +1,114 @@
+name: AWS release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: mizuho-aws-demo-release
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify main release candidate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - run: python3 deploy/aws/verify_release.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  deploy:
+    name: Deploy verified image
+    needs: verify
+    if: github.ref == 'refs/heads/main'
+    environment: aws-demo
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      CFN_ROLE: ${{ vars.AWS_CLOUDFORMATION_ROLE_ARN }}
+      RUNTIME_SECRET: ${{ vars.MIZUHO_RUNTIME_SECRET_ARN }}
+      REGISTRY_STACK: mizuho-demo-registry
+      SERVICE_STACK: mizuho-demo-service
+      AWS_PAGER: ''
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Recheck main after environment approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ROLE: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          : "${AWS_REGION:?Missing AWS_REGION}" "${RELEASE_ROLE:?Missing AWS_DEPLOY_ROLE_ARN}"
+          : "${CFN_ROLE:?Missing AWS_CLOUDFORMATION_ROLE_ARN}" "${RUNTIME_SECRET:?Missing MIZUHO_RUNTIME_SECRET_ARN}"
+          python3 deploy/aws/verify_release.py
+      - name: Assume the release role using GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: mizuho-release-${{ github.run_id }}
+          mask-aws-account-id: true
+      - name: Provision or reuse the image registry
+        id: registry
+        run: |
+          aws cloudformation deploy --stack-name "$REGISTRY_STACK" --template-file deploy/aws/registry.yml \
+            --role-arn "$CFN_ROLE" --no-fail-on-empty-changeset
+          uri=$(aws cloudformation describe-stacks --stack-name "$REGISTRY_STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='RepositoryUri'].OutputValue | [0]" --output text)
+          [[ -n "$uri" && "$uri" != None ]]
+          echo "uri=$uri" >> "$GITHUB_OUTPUT"
+      - name: Publish or reuse the commit image
+        id: image
+        env:
+          REPOSITORY_URI: ${{ steps.registry.outputs.uri }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash deploy/aws/publish_image.sh "$REPOSITORY_URI"
+      - name: Deploy the immutable image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_URI: ${{ steps.image.outputs.image_uri }}
+        run: |
+          python3 deploy/aws/verify_release.py
+          aws cloudformation deploy --stack-name "$SERVICE_STACK" --template-file deploy/aws/service.yml \
+            --parameter-overrides "ImageUri=$IMAGE_URI" "RuntimeSecretArn=$RUNTIME_SECRET" \
+            --role-arn "$CFN_ROLE" --no-fail-on-empty-changeset
+      - name: Verify the live revision and judge access
+        env:
+          IMAGE_URI: ${{ steps.image.outputs.image_uri }}
+        run: |
+          endpoint=$(aws cloudformation describe-stacks --stack-name "$SERVICE_STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='Endpoint'].OutputValue | [0]" --output text)
+          [[ "$endpoint" == https://* && "$endpoint" != *[[:space:]]* ]]
+          endpoint=${endpoint%/}
+          for attempt in {1..24}; do
+            if curl --fail --silent --show-error --max-time 10 "$endpoint/deploy-healthz" |
+              jq -e --arg sha "$GITHUB_SHA" '.status == "ok" and .revision == $sha' >/dev/null; then break; fi
+            if [[ "$attempt" == 24 ]]; then echo "::error::HTTPS health did not report the release revision"; exit 1; fi
+            sleep 5
+          done
+          for path in / /api/health; do
+            status=$(curl --silent --show-error --max-time 10 --output /dev/null --write-out '%{http_code}' "$endpoint$path")
+            [[ "$status" == 401 ]] || { echo "::error::Judge authentication failed its smoke check"; exit 1; }
+          done
+          printf 'Revision `%s`\n\nImage digest `%s`\n\n[Open the judge dashboard](%s)\n' \
+            "$GITHUB_SHA" "${IMAGE_URI##*@}" "$endpoint" >> "$GITHUB_STEP_SUMMARY"

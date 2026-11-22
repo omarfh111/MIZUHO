@@ -46,8 +46,8 @@ try {
   await visible(page.getByText(/Simulated plan approved/));
 
   await page.route('**/api/assistant/health', (route) => route.fulfill({ status: 503 }), { times: 1 });
-  await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
-  const panel = page.getByRole('dialog', { name: 'Mizhuo assistant' });
+  await page.getByRole('button', { name: 'Ask Mizuho' }).click();
+  const panel = page.getByRole('dialog', { name: 'Mizuho assistant' });
   const unavailable = panel.getByText(/The assistant needs a connected evidence service/);
   await visible(unavailable);
   await panel.getByRole('button', { name: 'Retry evidence connection' }).click();
@@ -109,7 +109,7 @@ try {
     await twin.getByText('Virtual sensors and event injection', { exact: true }).click();
     await twin.getByLabel('Water-balance discrepancy').check();
     await twin.getByText(/Unexplained water balance/).waitFor();
-    await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
+    await page.getByRole('button', { name: 'Ask Mizuho' }).click();
     await panel.getByRole('textbox', { name: 'Your question' }).fill('What water-balance anomaly do the virtual meters show at the selected replay hour?');
     const pending = waitForChat(page);
     await panel.getByRole('button', { name: 'Send question' }).click();
@@ -122,12 +122,12 @@ try {
   await page.getByRole('button', { name: 'Replay the intro' }).click();
   await page.getByRole('button', { name: 'Skip intro' }).click();
   await visible(page.getByText(/Simulated plan approved/));
-  await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
+  await page.getByRole('button', { name: 'Ask Mizuho' }).click();
   await visible(panel.getByText(/ANME · Solar PV potential in Tunisia/).first());
   await page.keyboard.press('Escape');
   await page.getByLabel(/Starting water stock/).fill('9');
   await visible(page.getByText(/Result out of date/));
-  await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
+  await page.getByRole('button', { name: 'Ask Mizuho' }).click();
   await visible(page.getByRole('dialog').getByText('Site and evidence'));
   await visible(panel.getByText('Historical result · earlier inputs').first());
   await visible(panel.getByText(/ANME · Solar PV potential in Tunisia/).first());
@@ -137,7 +137,7 @@ try {
     await page.getByRole('button', { name: 'Back to map', exact: true }).click();
     await page.getByRole('combobox', { name: 'Agricultural site' }).selectOption('TN-32-BALTABOUAWENE-ASSILA');
     await page.getByRole('region', { name: 'Agricultural survey' }).waitFor();
-    await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
+    await page.getByRole('button', { name: 'Ask Mizuho' }).click();
     await panel.getByLabel('Answer model').selectOption(provider);
     await panel.getByRole('textbox', { name: 'Your question' }).fill('What does WaPOR estimate for parcel P-01?');
     const pending = waitForChat(page);
@@ -156,7 +156,7 @@ try {
     const canopy = (await archiveResponse.json()).options.find(option => option.id === 'ombriere');
     await comparison.getByRole('button', { name: /Solar canopy/ }).click();
     await comparison.getByRole('button', { name: 'Use in simulation' }).click();
-    await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
+    await page.getByRole('button', { name: 'Ask Mizuho' }).click();
     await panel.getByLabel('Answer model').selectOption(provider);
     await panel.getByRole('textbox', { name: 'Your question' }).fill(
       'How much does the selected archived PVGIS solar canopy generate on its reference day?',
@@ -200,7 +200,7 @@ try {
   assert.equal(cityProfile.status(), 200);
   const climate = (await cityProfile.json()).climate;
   await visible(analysis.getByText(/7 days/));
-  await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
+  await page.getByRole('button', { name: 'Ask Mizuho' }).click();
   await visible(panel.getByText('City archive and evidence'));
   if (provider === 'nvidia') await panel.getByLabel('Answer model').selectOption(provider);
   await panel.getByRole('textbox', { name: 'Your question' }).fill('What was the archived mean air temperature for this city in the selected window?');
@@ -226,7 +226,7 @@ try {
   const planPending = page.waitForResponse(r => new URL(r.url()).pathname.endsWith('/planning') && r.request().method() === 'POST');
   await page.getByRole('button', { name: 'Compare regional plans' }).click();
   const computed = await (await planPending).json();
-  await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
+  await page.getByRole('button', { name: 'Ask Mizuho' }).click();
   await visible(panel.getByText('Regional comparison available'));
   if (provider === 'nvidia') await panel.getByLabel('Answer model').selectOption(provider);
   await panel.getByRole('textbox', { name: 'Your question' }).fill('Explain the water allocation to the west sector in my current regional plan.');
@@ -241,7 +241,7 @@ try {
     f.text.includes(`Hypothetical west sector: ${west.delivered_on_time_m3} m³`)));
   await page.keyboard.press('Escape');
   await page.getByRole('spinbutton', { name: 'Withdrawal limit' }).fill('0');
-  await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
+  await page.getByRole('button', { name: 'Ask Mizuho' }).click();
   await visible(panel.getByText('Historical result · earlier inputs'));
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
   mobile.on('pageerror', (error) => errors.push(error.message));
@@ -249,7 +249,7 @@ try {
   offline.searchParams.set('mode', 'demo');
   await mobile.goto(offline.href);
   await visible(mobile.locator('.terrain-surface canvas'));
-  await mobile.getByRole('button', { name: 'Ask Mizhuo' }).click();
+  await mobile.getByRole('button', { name: 'Ask Mizuho' }).click();
   await visible(mobile.getByText('The assistant needs a connected evidence service.', { exact: false }));
   assert.deepEqual(errors, []);
   console.log('Chrome passed live allocation, ANME citation, session continuity, stale history, approval, and mobile offline fallback.');

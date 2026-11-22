@@ -48,7 +48,7 @@ export const resourcesJa: Record<string, string> = {
   'Loading the source…': '出典を読み込み中…', 'Open source': '出典を開く', 'Source data': '出典データ', 'Open dataset': 'データセットを開く',
   'Publisher excerpt': '出典原文からの抜粋', 'MIZUHO assessment:': 'MIZUHOによる解釈：', 'Read the source': '出典を読む', 'Missing information': '不足している情報',
   'The assistant is busy. Try again shortly.': 'アシスタントが混み合っています。少し待って再試行してください。', 'The assistant could not answer. Try again in a moment.': '回答を取得できませんでした。少し待って再試行してください。',
-  'Mizhuo assistant': 'Mizhuoアシスタント', 'City archive and evidence': '都市の記録と根拠資料',
+  'Mizuho assistant': 'Mizuhoアシスタント', 'City archive and evidence': '都市の記録と根拠資料',
   'Regional comparison available': '地域別の計画比較を参照中', 'Current comparison available': '現在の計画比較を参照中',
   'Site and evidence': 'サイト情報と根拠資料', 'Evidence index incomplete': '資料の索引が不完全です', 'Answer model': '回答モデル',
   'The assistant needs a connected evidence service. Site maps and simulations remain available.': 'アシスタントの利用には根拠資料サービスへの接続が必要です。地図とシミュレーションは引き続き利用できます。',

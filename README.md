@@ -76,7 +76,7 @@ Set credentials in the root `.env`. Keep it private. The frontend only needs the
 | --- | --- |
 | OpenAI answers and embeddings | Set `OPENAI_API_KEY`. The shipped configuration selects `OPENAI_MODEL=gpt-6-luna`, `OPENAI_EMBEDDING_MODEL=text-embedding-3-small` and `EMBEDDING_DIMENSIONS=1536`. |
 | Qdrant Cloud | Set `QDRANT_URL` to the HTTPS cluster origin and `QDRANT_API_KEY` to a key that can read and write the collection. The default `QDRANT_COLLECTION` is `mizhuo_m8_evidence_v1`. |
-| Optional NVIDIA answer model | Set `LLM_API_KEY` and `LLM_MODEL=nvidia/nemotron-3.5-lightning-30b-a3b` to enable this choice in **Ask Mizhuo**. OpenAI still supplies the embeddings. |
+| Optional NVIDIA answer model | Set `LLM_API_KEY` and `LLM_MODEL=nvidia/nemotron-3.5-lightning-30b-a3b` to enable this choice in **Ask Mizuho**. OpenAI still supplies the embeddings. |
 | Voice Guardian | Set `VULTR_INFERENCE_API_KEY` for live speech. The template selects Whisper for transcription, Qwen3 for English/Japanese speech and a Vultr language model for conversation and translation. Derja playback uses Chatterbox’s Arabic voice. |
 | Manager review | Set `MIZHUO_MANAGER_APPROVAL_CODE` to require a private code when confirming a withdrawal quota reduction through Guardian. With the default empty value, the local demonstration trusts its operator. |
 
@@ -123,7 +123,7 @@ Choose English, Japanese or Tunisian Derja from the language selector. The three
 ## Reproduce the pilot
 
 1. Open **Irrigation planning**, select **Jendouba** and **A/B demo**, then **Calculate schedules**. Switch between the fixed and optimized schedules and inspect the time of delivery in the replay.
-2. Ask **Ask Mizhuo** “Why did grower A receive only 5 m³?” with that result selected. Then ask “What does ANME say about photovoltaic potential in northwest Tunisia?” and open the cited excerpt. The first answer uses computed deliveries. The second uses documentary evidence.
+2. Ask **Ask Mizuho** “Why did grower A receive only 5 m³?” with that result selected. Then ask “What does ANME say about photovoltaic potential in northwest Tunisia?” and open the cited excerpt. The first answer uses computed deliveries. The second uses documentary evidence.
 3. Select **Day-ahead weather reserve**. With adverse weather and a 7 m³ remaining quota, the reserve plan pumps 2 m³ before 11:00 and delivers 8 m³ on time. The nominal plan, calculated for central weather and replayed on that same adverse day, delivers 6 m³. With a 5 m³ quota both deliver 6 m³ and leave 2 m³ unmet. The stable profile delivers 8 m³ with either rule and needs no early pumping.
 4. At a regional site such as **Gafsa · El Ksar**, select an archived day and review the equipment and parcel assumptions before calculating. Compare January and July with the same inputs. The terrain, irradiation and resulting electric output belong to the selected place and date. [Regional inputs and reproduction](data/zone_planning/README.md)
 
@@ -166,7 +166,7 @@ The catalogue contains **eight sites**. Jendouba is the fictional engineering pi
 
 During a replay, trigger an unexpected outage or pump shutdown to see which commitments can still be met. Inject a missing or inconsistent meter reading to compare the instrument with the physical ledger. The day-ahead load forecast evaluates a Ridge model against held-out simulated load history. [Operating scenarios and verification](docs/integration-v5.md#judge-walkthrough)
 
-Site, solar and weather data supply the planning inputs. The physical simulator tracks water and energy balances. The OR-Tools CP-SAT optimizer searches for a schedule, which the simulator then replays to check feasibility. The React, TypeScript and Three.js dashboard accesses these services through FastAPI and Pydantic. Ask Mizhuo explains the results, and Voice Guardian supports spoken interaction. [Integration architecture and module history](docs/integration-v5.md)
+Site, solar and weather data supply the planning inputs. The physical simulator tracks water and energy balances. The OR-Tools CP-SAT optimizer searches for a schedule, which the simulator then replays to check feasibility. The React, TypeScript and Three.js dashboard accesses these services through FastAPI and Pydantic. Ask Mizuho explains the results, and Voice Guardian supports spoken interaction. [Integration architecture and module history](docs/integration-v5.md)
 
 ```mermaid
 flowchart TD
@@ -195,7 +195,7 @@ flowchart TD
 
 ## Voice and evidence
 
-**Ask Mizhuo** uses one LangGraph agent. Its tools can consult site and city data, agricultural insights, current simulation results, decision explanations, sensor anomalies and documentary evidence. Search combines OpenAI embeddings in Qdrant with local BM25 and fuses the rankings. Citations open the source passage and its provenance. Numerical simulation claims come from application tools. The seven indexed passages cover sources including ANME, FAO, INS, SONEDE, DGRE and the World Bank. Missing local borehole and site-economics evidence is recorded explicitly. [Verified excerpts](docs/evidence/) · [English, French and Arabic retrieval benchmark](docs/m8-retrieval-benchmark.md)
+**Ask Mizuho** uses one LangGraph agent. Its tools can consult site and city data, agricultural insights, current simulation results, decision explanations, sensor anomalies and documentary evidence. Search combines OpenAI embeddings in Qdrant with local BM25 and fuses the rankings. Citations open the source passage and its provenance. Numerical simulation claims come from application tools. The seven indexed passages cover sources including ANME, FAO, INS, SONEDE, DGRE and the World Bank. Missing local borehole and site-economics evidence is recorded explicitly. [Verified excerpts](docs/evidence/) · [English, French and Arabic retrieval benchmark](docs/m8-retrieval-benchmark.md)
 
 ```mermaid
 flowchart TD
@@ -260,5 +260,7 @@ GitHub Actions runs backend tests, frontend tests, TypeScript, the production bu
 For an opt-in provider check, `npm --prefix frontend run test:browser` exercises the cinematic and connected evidence flows. `python -m tools.guardian_smoke --live` checks the speech service. `node frontend/tests/guardian-live-browser.mjs --live` runs the browser voice path with synthetic speech. These live checks can incur provider charges. [Voice smoke test](tools/guardian_smoke.py) · [Voice browser test](frontend/tests/guardian-live-browser.mjs)
 
 ### Serving a build
+
+The AWS judge deployment serves the dashboard, API and Voice Guardian from one AWS-managed HTTPS address. The deployment guide covers the CloudFormation setup, judge sign-in, release checks, rollback and teardown. [Deploy the judge demo on AWS](docs/aws-deployment-plan.md)
 
 Set `VITE_DATA_MODE=live` before `npm --prefix frontend run build` and serve `frontend/dist`. Route same-origin `/api` requests to FastAPI and forward WebSocket upgrades on `/api/guardian/call`. Preserve the public host and scheme at the proxy or allow its exact HTTPS origin in `MIZHUO_CORS_ORIGINS`. Browser microphone access requires HTTPS or localhost. For local development with a different backend address, set `MIZU_API_TARGET` for Vite. Keep provider credentials on the backend. The included manager confirmation and process-local assistant sessions are designed for a supervised demonstration.

@@ -1,0 +1,197 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Owner-managed IAM roles for the MIZUHO release stacks and ECS runtime.
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+
+Parameters:
+  RuntimeSecretArn:
+    Type: String
+    Description: Full ARN of the runtime JSON secret in this account and region, encrypted with aws/secretsmanager.
+    AllowedPattern: 'arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+-[A-Za-z0-9]{6}'
+
+Resources:
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Fargate fetches the image and injects credentials before application startup.
+        must: [Limit secret and repository reads to the release inputs.]
+    Properties:
+      RoleName: mizuho-demo-task-execution
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs-tasks.amazonaws.com}
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: {'aws:SourceAccount': !Ref 'AWS::AccountId'}
+              ArnLike: {'aws:SourceArn': !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*'}
+      Policies:
+        - PolicyName: FetchRelease
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                Resource: !Sub 'arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/mizuho-demo-registry'
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref RuntimeSecretArn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/mizuho/mizuho-demo-service/application:log-stream:*'
+  InfrastructureRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: ECS provisions the HTTPS listener and manages traffic during releases.
+        must: [Reserve this role for the ECS service principal.]
+    Properties:
+      RoleName: mizuho-demo-express-infrastructure
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonECSInfrastructureRoleforExpressGatewayServices'
+  CloudFormationRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: The release workflow delegates provisioning of the two named demo stacks.
+        must: [Keep IAM role authoring and provider secret access in the owner bootstrap.]
+    Properties:
+      RoleName: mizuho-demo-cloudformation
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: cloudformation.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ProvisionDemo
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReleaseRegistry
+                Effect: Allow
+                Action:
+                  - ecr:CreateRepository
+                  - ecr:DescribeRepositories
+                  - ecr:GetRepositoryPolicy
+                  - ecr:GetLifecyclePolicy
+                  - ecr:PutLifecyclePolicy
+                  - ecr:PutImageScanningConfiguration
+                  - ecr:PutImageTagMutability
+                  - ecr:TagResource
+                  - ecr:UntagResource
+                  - ecr:ListTagsForResource
+                Resource: !Sub 'arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/mizuho-demo-registry'
+              - Sid: DemoResources
+                Effect: Allow
+                Action:
+                  - ecs:CreateCluster
+                  - ecs:DeleteCluster
+                  - ecs:DescribeClusters
+                  - ecs:PutClusterCapacityProviders
+                  - ecs:UpdateCluster
+                  - ecs:UpdateClusterSettings
+                  - ecs:CreateExpressGatewayService
+                  - ecs:UpdateExpressGatewayService
+                  - ecs:DeleteExpressGatewayService
+                  - ecs:DescribeExpressGatewayService
+                  - ecs:DescribeServices
+                  - ecs:ListServiceDeployments
+                  - ecs:DescribeServiceDeployments
+                  - ecs:DescribeServiceRevisions
+                  - ecs:RegisterTaskDefinition
+                  - ecs:TagResource
+                  - ecs:UntagResource
+                  - ecs:ListTagsForResource
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/mizuho-demo-service'
+                  - !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/mizuho-demo-service/mizuho-demo-service'
+                  - !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service-revision/mizuho-demo-service/mizuho-demo-service/*'
+                  - !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service-deployment/mizuho-demo-service/mizuho-demo-service/*'
+                  - !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/mizuho-demo-service:*'
+              # Express creates the gateway before its generated ARN is known.
+              - Sid: CreateRegionalGateway
+                Effect: Allow
+                Action: ecs:CreateGateway
+                Resource: !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:gateway/*'
+              - Sid: AssociateDemoGateway
+                Effect: Allow
+                Action: ecs:AssociateGatewayWithCluster
+                Resource: !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:gateway/*'
+                Condition:
+                  ArnEquals:
+                    'ecs:cluster': !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:cluster/mizuho-demo-service'
+              - Sid: TagGatewayDuringCreation
+                Effect: Allow
+                Action: ecs:TagResource
+                Resource: !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:gateway/*'
+                Condition:
+                  StringEquals: {'ecs:CreateAction': CreateGateway}
+              - Sid: ApplicationLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:DeleteLogGroup
+                  - logs:PutRetentionPolicy
+                  - logs:GetDataProtectionPolicy
+                  - logs:ListTagsForResource
+                  - logs:TagResource
+                  - logs:UntagResource
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/mizuho/mizuho-demo-service/application'
+                  - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/mizuho/mizuho-demo-service/application:*'
+              # These handler read actions do not support resource-level permissions.
+              - Sid: ReadRegionalDefinitions
+                Effect: Allow
+                Action:
+                  - ecs:DescribeTaskDefinition
+                  - logs:DescribeLogGroups
+                  - logs:DescribeIndexPolicies
+                  - logs:DescribeResourcePolicies
+                Resource: '*'
+                Condition:
+                  StringEquals: {'aws:RequestedRegion': !Ref 'AWS::Region'}
+              - Sid: ReadBootstrapRoles
+                Effect: Allow
+                Action: iam:GetRole
+                Resource: [!GetAtt TaskExecutionRole.Arn, !GetAtt InfrastructureRole.Arn]
+              - Sid: PassRuntimePermissions
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt TaskExecutionRole.Arn
+                Condition:
+                  StringEquals: {'iam:PassedToService': ecs-tasks.amazonaws.com}
+              - Sid: PassInfrastructurePermissions
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt InfrastructureRole.Arn
+                Condition:
+                  StringEquals: {'iam:PassedToService': ecs.amazonaws.com}
+              - Sid: InitializeEcsInNewAccounts
+                Effect: Allow
+                Action: iam:CreateServiceLinkedRole
+                Resource: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/ecs.amazonaws.com/AWSServiceRoleForECS'
+                Condition:
+                  StringEquals: {'iam:AWSServiceName': ecs.amazonaws.com}
+
+Outputs:
+  CloudFormationRoleArn:
+    Description: Execution role supplied to the registry and service stack deployments.
+    Value: !GetAtt CloudFormationRole.Arn

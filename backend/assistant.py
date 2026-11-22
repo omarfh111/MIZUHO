@@ -25,7 +25,7 @@ MAX_ROUNDS = 4
 MAX_CALLS = 6
 TURN_TIMEOUT = 42
 
-INSTRUCTIONS = """You are Mizhuo's evidence and irrigation assistant. Use only tool results to answer.
+INSTRUCTIONS = """You are Mizuho's evidence and irrigation assistant. Use only tool results to answer.
 Prior answers contain verified citations, surveyed parcel facts, and simulated facts from earlier turns in this session.
 Use their registered IDs to answer follow-ups about those same results or sources. Use the tools for new
 calculations and comparisons. Keep prior hypothetical or preset results distinct from the current comparison.

@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Private registry for immutable MIZUHO release images and rollback digests.
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+
+Resources:
+  ReleaseImages:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: The registry must be available before the first service deployment.
+        must: [Keep tagged release and rollback images until explicitly retired.]
+    Properties:
+      RepositoryName: !Ref 'AWS::StackName'
+      ImageTagMutability: IMMUTABLE
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"Expire untagged build layers after two weeks","selection":{"tagStatus":"untagged","countType":"sinceImagePushed","countUnit":"days","countNumber":14},"action":{"type":"expire"}}]}
+
+Outputs:
+  RepositoryUri:
+    Description: Docker push destination for the reviewed source revision.
+    Value: !GetAtt ReleaseImages.RepositoryUri
+  RepositoryArn:
+    Description: ECR permission boundary for the release execution role.
+    Value: !GetAtt ReleaseImages.Arn

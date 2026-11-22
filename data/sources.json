@@ -9,7 +9,7 @@
   },
   "demo-site": {
     "title": "Jendouba pilot site",
-    "organization": "Mizhuo",
+    "organization": "Mizuho",
     "date": "2026-11-21",
     "page": null,
     "url": null,
@@ -41,7 +41,7 @@
   },
   "telemetry": {
     "title": "Demo water and energy readings",
-    "organization": "Mizhuo",
+    "organization": "Mizuho",
     "date": "2026-11-21",
     "page": null,
     "url": null,
@@ -97,7 +97,7 @@
   },
   "jendouba-borehole": {
     "title": "Jendouba pilot borehole measurements",
-    "organization": "Mizhuo evidence register",
+    "organization": "Mizuho evidence register",
     "date": null,
     "page": null,
     "url": null,
@@ -113,7 +113,7 @@
   },
   "site-pvgis": {
     "title": "Site-level photovoltaic yield and loads",
-    "organization": "Mizhuo evidence register",
+    "organization": "Mizuho evidence register",
     "date": null,
     "page": null,
     "url": null,

@@ -22,8 +22,8 @@ async function checkCityOnlyLinks(page) {
   await page.getByText(/leave the Tozeur city profile/).waitFor();
   assert.equal(await picker.inputValue(), '');
   assert.equal(await page.getByRole('combobox', { name: 'Scenario', exact: true }).count(), 0);
-  await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Mizhuo assistant' });
+  await page.getByRole('button', { name: 'Ask Mizuho' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Mizuho assistant' });
   await dialog.getByText('Tozeur', { exact: true }).waitFor();
   await dialog.getByText('City archive and evidence').waitFor();
   await page.keyboard.press('Escape');

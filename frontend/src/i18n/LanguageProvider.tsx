@@ -15,7 +15,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.lang = language === 'aeb' ? 'aeb-TN' : language;
     document.documentElement.dir = language === 'aeb' ? 'rtl' : 'ltr';
-    document.title = { en: 'Mizhuo · Irrigation Observatory', ja: 'Mizhuo · 灌漑観測所', aeb: 'Mizhuo · مرصد السقي' }[language];
+    document.title = { en: 'Mizuho · Irrigation Observatory', ja: 'Mizuho · 灌漑観測所', aeb: 'Mizuho · مرصد السقي' }[language];
   }, [language]);
   return <LanguageContext.Provider value={language}>{children}</LanguageContext.Provider>;
 }
