@@ -68,11 +68,26 @@ class Dialogue:
     live_remainder: str | None = None
     last_language: str = ""
     presentation_brief: str = ""
+    pitch_topic: str = ""
+    pitch_depth: int = 0
+    microphone_language: str = ""
+    presenter_notes: str = ""
+    notes_language: str = ""
+    script_offset: int | None = None
     rag_session: UUID = field(default_factory=uuid4)
     rag_memory: AssistantMemory = field(default_factory=AssistantMemory)
 
     def say(self, fr: str, en: str, ja: str, aeb: str) -> str:
         return {"fr": fr, "en": en, "ja": ja, "aeb": aeb}[self.start.language]
+
+    @property
+    def input_language(self) -> str:
+        return self.microphone_language or self.start.language
+
+    def set_output_language(self, language: str):
+        if language != self.start.language:
+            self.microphone_language = self.input_language
+            self.start = self.start.model_copy(update={"language": language})
 
     def open(self):
         ctx, catalog = self.start, self.service.catalog
@@ -156,10 +171,10 @@ class Dialogue:
                             f"Welcome! We're looking at {self.site_label}. I can walk you through the map, help you introduce it, or translate a phrase for your audience.",
                             f"{self.site_label}の地図へようこそ。地図の説明や発表の練習をしましょう。伝えたい言葉の翻訳もお手伝いします。",
                             f"عسلامة! توّا نشوفو في خريطة {self.site_label}. ننجّم نفسّرلك الخريطة، نعاونك تحضّر العرض، وإلا نترجملك جملة للحاضرين.")
-        return self.say(f"Bienvenue à {self.site_label} ! Tu veux discuter du projet, répéter ta présentation ou traduire une phrase ?",
-                        f"Hi! We're at {self.site_label}. What would help you most: walking through this screen, practicing your introduction or translating a phrase?",
-                        f"{self.site_label}を一緒に見てみましょう。画面の説明、発表の練習、伝えたい言葉の翻訳をお手伝いします。",
-                        f"عسلامة! توّا إحنا في {self.site_label}. شنوة تحبّ نعملو مع بعضنا؟ نفسّرلك الشاشة، نحضّروا العرض، وإلا نترجمولك جملة؟")
+        return self.say(f"Salut ! On regarde {self.site_label} sur la carte. Tu peux me poser ta question ou me passer la parole quand tu veux présenter le projet.",
+                        f"Hi! We’re looking at {self.site_label} on the map. Ask me anything about the project, or hand me the mic when you’re ready to present.",
+                        f"こんにちは。いま地図で見ているのは{self.site_label}です。プロジェクトについて気になることを聞いてください。発表のときは、私にマイクを渡してくださいね。",
+                        f"عسلامة! توّا نشوفوا في {self.site_label} على الخريطة. اسألني على المشروع، وكي تحبّني نقدّم للحاضرين عطيني الكلمة.")
 
     def inspect_site(self):
         scope = self.start

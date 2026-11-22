@@ -1,0 +1,248 @@
+{
+  "topics": {
+    "overview": [["opening", "approach", "handover"], ["map", "fairness", "evidence"], ["outage", "audit"]],
+    "features": [["map", "twin", "voice"], ["survey", "estimate"], ["laboratory", "audit"]],
+    "water_energy": [["water", "electricity"], ["outage", "fairness"], ["upgrades", "reserve"]],
+    "field_data": [["terrain", "survey"], ["gafsa", "estimate"], ["audit", "records"]],
+    "evidence": [["evidence", "attribution"], ["meter", "records"], ["survey", "human"]],
+    "demo": [["show_jendouba", "twin"], ["meter", "outage"], ["gafsa", "audit"]],
+    "architecture": [["engines", "evidence"], ["terrain", "twin"], ["records", "human"]]
+  },
+  "model_context": ["approach", "map", "survey", "gafsa", "fairness", "electricity", "reserve", "laboratory", "twin", "meter", "audit", "evidence", "engines", "human"],
+  "sections": {
+    "opening": {
+      "basis": ["backend/compare.py", "data/scenarios/announced.json"],
+      "spoken": {
+        "en": "Hello everyone. Imagine you are waiting for your irrigation turn when the power goes out. Do you stay by your field, or can someone tell you when water will reach you? That is the decision we built MIZUHO to help with in Tunisia.",
+        "ja": "皆さま、こんにちは。畑で自分の水の順番を待っているときに、停電したと想像してください。そのまま待つべきか、いつなら水が届くのか。チュニジアの農家と配水の担当者がこの問いに向き合うために、私たちはMIZUHOを作りました。",
+        "aeb": "عسلامة الناس الكل. تصوّر روحك في أرضك تستنّى في نوبتك متاع السقي، وفجأة الضوّ يقصّ. تقعد تستنّى وإلا فمّا شكون ينجم يقولك وقتاش يوصلك الما؟ على خاطر السؤال هذا خدمنا MIZUHO في تونس.",
+        "fr": "Bonjour à toutes et à tous. Imaginez que vous attendez votre tour d’eau au bord du champ quand une coupure arrête la pompe. Faut-il rester là ? Qui peut vous dire quand l’eau arrivera ? C’est pour aider les agriculteurs et les responsables de l’irrigation en Tunisie à répondre à cette question que nous avons créé MIZUHO."
+      }
+    },
+    "approach": {
+      "basis": ["backend/compare.py", "backend/optimizer.py", "frontend/src/components/DigitalTwin.tsx"],
+      "spoken": {
+        "en": "Our prototype puts the water left in the reservoir, the withdrawal allowance and the power available to the pump into the same simulation. We compare a fixed rotation with an optimized schedule under the same constraints. The map then shows whose turn changes and lets us replay the deliveries.",
+        "ja": "この試作システムでは、貯水量、取水枠、ポンプに使える電力を一緒に扱います。同じ条件でいつもの配水順と別の計画を比べ、どの畑の順番が変わるのかを地図で確かめながら、配水を再生できます。",
+        "aeb": "في النموذج متاعنا، نحطّوا في نفس المحاكاة الما اللي بقى في الخزّان، والكمّية المسموح نسحبوها، والضوّ اللي تنجّم تخدم بيه البومبة. نقارنوا النوبة العادية ببرنامج آخر بنفس الشروط، وبعد نشوفوا على الخريطة شكون تبدّلت نوبتو وكيفاش مشى التوزيع.",
+        "fr": "Notre prototype réunit dans une même simulation le stock du réservoir, le quota de prélèvement et la puissance disponible pour la pompe. Nous comparons le tour habituel avec une autre répartition sous les mêmes contraintes. Sur la carte, nous pouvons alors suivre les livraisons et voir pour qui le tour change."
+      }
+    },
+    "handover": {
+      "basis": ["backend/guardian.py", "frontend/src/components/VoiceGuardian.tsx"],
+      "spoken": {
+        "en": "A grower can ask why their turn moved, listen to the explanation in Tunisian Derja, and discuss it with the manager. The manager reviews the proposed change. Let me show you the moment when a different pumping decision can make a difference to the person waiting.",
+        "ja": "農家の方は、なぜ自分の順番が変わったのか、音声で尋ね、チュニジアの言葉で説明を聞けます。提案を確認して判断するのは配水の担当者です。それでは、ポンプを動かすタイミングが、畑で待つ人の一日をどう変えうるか、ご覧ください。",
+        "aeb": "الفلّاح ينجم يسأل علاش تبدّلت نوبتو ويسمع التفسير بالدارجة ويحكي فيه مع المسؤول. والمسؤول يراجع المقترح قبل ما يأكّدو. خلّينا نوريّوكم كيفاش توقيت تشغيل البومبة ينجم يبدّل نهار اللي يستنّى في أرضو.",
+        "fr": "Un agriculteur peut demander pourquoi son tour change, écouter l’explication en derja et en discuter avec le responsable. C’est le responsable qui examine la proposition. Regardons ensemble ce que l’heure de pompage peut changer pour la personne qui attend."
+      }
+    },
+    "map": {
+      "basis": ["backend/field_zones.py", "backend/tunisia.py", "data/zone_planning/README.md"],
+      "spoken": {
+        "en": "On the map of Tunisia, choose a city, then explore a study area such as the coast near Korba or the oasis landscape at Gafsa. Each has its own terrain and archived climate. Where planning inputs are available or supplied as assumptions, we can try a delivery schedule there.",
+        "ja": "チュニジアの地図で都市を選び、コルバの海岸部やガフサのオアシスといった調査地域を見られます。地形と過去の気象は地域ごとに異なります。計画に必要な条件がそろう場所では、仮定を明示して配水計画を試せます。",
+        "aeb": "من خريطة تونس نختاروا مدينة ونقرّبوا لمنطقة دراسة، كيف ساحل قربة وإلا واحة قفصة. كل بلاصة عندها تضاريسها وأرشيف الطقس متاعها. وين تتوفّر معطيات التخطيط وإلا ندخّلوا فرضيّات واضحة، نجموا نجرّبوا برنامج توزيع.",
+        "fr": "Sur la carte de Tunisie, on choisit une ville, puis on explore une zone comme la côte de Korba ou l’oasis de Gafsa. Chacune a son relief et ses archives climatiques. Là où les données de planification sont disponibles ou renseignées comme hypothèses, on peut essayer un programme de distribution."
+      }
+    },
+    "twin": {
+      "basis": ["backend/telemetry.py", "frontend/src/components/DigitalTwin.tsx"],
+      "spoken": {
+        "en": "On the digital twin, pause the replay at the hour a grower expected water. You can check whether the pump was running, how much water was still stored and which plot received a delivery. The moving equipment and virtual sensors follow the simulated water and energy balances.",
+        "ja": "デジタルツインの再生を、農家が水を待っていた時刻で止めてみましょう。ポンプは動いていたか、貯水槽にはどれだけ残っていたか、どの畑に届いたかを確認できます。設備の動きと仮想センサーには、シミュレーションの水収支とエネルギー収支が反映されます。",
+        "aeb": "في التوأم الرقمي نوقّفوا الإعادة في الساعة اللي كان الفلّاح يستنّى فيها الما. نشوفوا البومبة كانت تخدم وإلا لا، قدّاش بقى في الخزّان ولأيّ قطعة مشى الما. حركة التجهيزات والقراءات متاع الحسّاسات الافتراضية يتبعوا حساب الما والطاقة في المحاكاة.",
+        "fr": "Dans le jumeau numérique, arrêtons la lecture à l’heure où l’agriculteur attendait l’eau. On voit si la pompe tournait, ce qui restait dans le réservoir et quelle parcelle était servie. Le mouvement des équipements et les capteurs virtuels suivent les bilans de la simulation."
+      }
+    },
+    "voice": {
+      "basis": ["backend/guardian.py", "backend/guardian_rag.py", "frontend/src/components/VoiceGuardian.tsx"],
+      "spoken": {
+        "en": "Someone standing beside the screen can ask about a simulated alert, rehearse an explanation or translate it for the next listener. Voice Guardian speaks English, Japanese and Tunisian Derja. When someone asks for a source, it can bring up the passage for everyone to read.",
+        "ja": "画面の前で、模擬警報の意味を声で聞いたり、説明を練習したり、次に聞く人のために翻訳したりできます。Voice Guardianは英語、日本語、チュニジア方言に対応しています。出典を求めれば、その場で皆さんが読めるように資料の該当箇所を表示できます。",
+        "aeb": "اللي واقف قدّام الشاشة ينجم يسأل بصوتو على تنبيه في المحاكاة، يتمرّن كيفاش يفسّر القرار، وإلا يترجم كلامو للي يسمع فيه. Voice Guardian يحكي بالإنقليزية واليابانية والدارجة التونسية. وإذا تطلب المصدر ينجم يورّيكم الفقرة باش تقراوها مع بعضكم.",
+        "fr": "Devant l’écran, on peut poser une question sur une alerte simulée, répéter une explication ou la traduire pour son interlocuteur. Voice Guardian parle anglais, japonais et derja tunisienne. À la demande, il peut afficher le passage documentaire pour que chacun puisse le lire."
+      }
+    },
+    "water": {
+      "basis": ["backend/optimizer.py", "backend/models.py"],
+      "spoken": {
+        "en": "Water in the tank and permission to draw more water are separate limits. A nearly empty tank can leave a grower waiting even if quota remains. A full tank can supply a turn even when the manager cannot withdraw any more. We follow both quantities as each parcel’s delivery window approaches.",
+        "ja": "貯水槽にある水と、これから取ることを許された水は、別々に管理します。取水枠が残っていても、槽が空に近ければ農家は待つことになります。逆に、取水枠を使い切っても、槽に水があれば配れる場合があります。畑ごとの配水時間に合わせて、この二つを追います。",
+        "aeb": "الما اللي في الخزّان والحصّة اللي مازال مسموحلنا نسحبوها موش نفس الحاجة. الخزّان ينجم يفرغ والفلّاح يستنّى حتى كان مازالت حصّة. وإذا وفات الحصّة والخزّان فيه ما، مازال ينجم يخدم نوبة. نتبّعوا الزوز مع وقت السقي المتّفق عليه لكل قطعة.",
+        "fr": "L’eau stockée et l’autorisation de prélever davantage sont deux limites distinctes. Un réservoir presque vide peut faire attendre un agriculteur même s’il reste du quota. À l’inverse, une réserve pleine peut alimenter un tour après épuisement du quota. Le simulateur suit les deux à l’approche du créneau de chaque parcelle."
+      }
+    },
+    "electricity": {
+      "basis": ["backend/optimizer.py", "backend/telemetry.py", "backend/solar.py"],
+      "spoken": {
+        "en": "Pumping uses electricity at the hour water enters the tank. We can compare solar options and see when the grid would have to supply the rest. Archived PVGIS production profiles are available for the pilot. Alongside the deliveries, the manager sees grid energy and peak demand and can judge whether a different pumping time is worthwhile.",
+        "ja": "電力が必要なのは、ポンプで水を槽に入れる時です。太陽光の設置案を比べ、足りない分をいつ系統電力で補うのかを確認できます。試験地区ではPVGISの発電量推定の記録も使えます。担当者は畑への配水とともに、系統から使う電力量やピーク電力を見て、ポンプを動かす時刻を変える意味を判断できます。",
+        "aeb": "البومبة تستهلك الضوّ في الساعة اللي تعمّر فيها الخزّان. نجموا نقارنوا اختيارات الطاقة الشمسية ونشوفوا وقتاش الشبكة يلزمها تكمّل الباقي. في الموقع التجريبي فمّا زادة تقديرات إنتاج مؤرشفة من PVGIS. المسؤول يشوف توزيع الما واستهلاك الشبكة وأعلى قدرة مطلوبة، ويحكم إذا تبديل ساعة الضخّ ينفع.",
+        "fr": "La pompe consomme de l’électricité au moment où elle remplit le réservoir. Nous comparons des options solaires et regardons quand le réseau doit prendre le relais. Pour le pilote, des profils de production PVGIS archivés sont disponibles. À côté des livraisons, le responsable voit l’énergie tirée du réseau et la puissance de pointe. Il peut juger de l’intérêt d’un autre horaire."
+      }
+    },
+    "outage": {
+      "basis": ["backend/optimizer.py", "backend/resilience.py"],
+      "spoken": {
+        "en": "Suppose an outage is announced just before a parcel’s turn. We can try filling the tank earlier while the pump has power, within the same withdrawal allowance. During the outage the pump stops without a suitable backup. Gravity can still carry stored water to the parcel if the distribution line is available.",
+        "ja": "たとえば配水の直前に停電する予定なら、同じ取水枠のまま、電力が使えるうちに槽を満たす案を試せます。停電に対応した予備電源がなければポンプは止まります。それでも配水路が使えれば、先にためた水は高低差で畑まで届けられます。",
+        "aeb": "نفرضوا قالولنا الضوّ باش يقصّ قبل نوبة قطعة أرض. نجرّبوا نعمّروا الخزّان بكري كي البومبة مازالت تنجم تخدم، وبنفس حصّة السحب. وقت القصّان البومبة توقف إذا ما فماش تغذية احتياطية مناسبة. أمّا الما المخزّن ينجم يوصل بالجاذبية إذا مجرى التوزيع محلول.",
+        "fr": "Imaginons une coupure annoncée juste avant le tour d’une parcelle. On peut essayer de remplir le réservoir plus tôt, dans le même quota. Pendant la coupure, la pompe s’arrête sans alimentation de secours adaptée. Si la conduite reste disponible, la gravité peut encore acheminer l’eau déjà stockée."
+      }
+    },
+    "fairness": {
+      "basis": ["backend/compare.py", "backend/optimizer.py", "data/scenarios/mini.json"],
+      "spoken": {
+        "en": "Giving the first grower their whole turn can leave the last grower with nothing. The fair plan asks how much of the agreed need the least-served parcel can receive by its deadline. A gain can come from sharing the same water differently. Any demand left unmet stays visible.",
+        "ja": "最初の農家に予定どおり全量を配ると、最後の農家には水が残らないことがあります。公平性を重視する計画では、最も給水の少ない畑が期限内に必要量のどこまで受け取れるかを考えます。同じ水でも分け方には選択肢があり、残った不足も画面で確認できます。",
+        "aeb": "كان نعطيوا أوّل فلّاح نوبتو كاملة، آخر واحد ينجم ما يلقاش حتى شي. في البرنامج اللي يراعي العدل نشوفوا أقلّ قطعة وصلها الما، وقدّاش من حاجتها تنجم تاخو في وقتها. نفس الما ينجم يتقسّم بطريقة أخرى، واللي ما توفّاش يبقى ظاهر.",
+        "fr": "Servir intégralement le premier agriculteur peut laisser le dernier sans eau. Le plan équitable examine quelle part du besoin convenu la parcelle la moins servie peut recevoir avant son échéance. Avec la même eau, une répartition différente peut changer la situation. Le déficit qui subsiste reste visible."
+      }
+    },
+    "upgrades": {
+      "basis": ["backend/resilience.py"],
+      "spoken": {
+        "en": "A larger tank can hold water pumped before an outage. A backup supply can power the pump during it. We can replay the same incident with each option and compare missed deliveries and energy use. Extra tank space helps only if there is water, quota and time to fill it.",
+        "ja": "大きな貯水槽には停電前にくみ上げた水を蓄えられます。一方、予備電源があれば停電中もポンプを動かせます。同じ障害を両方の条件で再生し、配水の不足と消費電力を比べます。槽を大きくしても、事前に満たす水と取水枠と時間がなければ効果は限られます。",
+        "aeb": "الخزّان الأكبر ينجم يشدّ ما ضخّيناه قبل ما يقصّ الضوّ. والتغذية الاحتياطية تنجم تخدّم البومبة وقت القصّان. نعاودوا نفس الحادثة بالاختيارين ونقارنوا النقص في التوزيع والطاقة المستهلكة. كبر الخزّان ينفع كان نلقاو الما والحصّة والوقت باش نعمّروه.",
+        "fr": "Un réservoir agrandi retient l’eau pompée avant la coupure. Une alimentation de secours peut faire tourner la pompe pendant celle-ci. Nous rejouons le même incident avec chaque option pour comparer les livraisons manquées et l’énergie consommée. La capacité supplémentaire sert si l’on peut remplir le réservoir à temps et dans le quota."
+      }
+    },
+    "reserve": {
+      "basis": ["data/scenarios/jplus1.json", "backend/resilience.py"],
+      "spoken": {
+        "en": "There is also a choice across days. Under an adverse weather scenario, releasing the whole reserve today could leave tomorrow’s growers short. We carry the simulated stock forward and check the remaining quota so the manager can see the consequence before choosing.",
+        "ja": "今日と明日の間にも判断があります。天候が厳しくなる想定で、今日すべての予備水を配ると、明日の農家に足りなくなるかもしれません。貯水量を翌日のシミュレーションに引き継ぎ、残りの取水枠も確認して、その影響を選択の前に確かめます。",
+        "aeb": "ثمّة زادة قرار بين اليوم وغدوة. في فرضيّة طقس صعيب، كان نصرفوا الاحتياطي الكل اليوم، الفلّاحة اللي نوبتهم غدوة ينجم ينقصلهم الما. نعدّيو المخزون من نهار للّي بعدو في المحاكاة ونثبّتوا في الحصّة الباقية باش المسؤول يشوف النتيجة قبل ما يختار.",
+        "fr": "Le choix se joue aussi entre aujourd’hui et demain. Dans un scénario météo défavorable, distribuer toute la réserve aujourd’hui peut pénaliser les agriculteurs de demain. Nous reportons le stock simulé et vérifions le quota restant pour rendre cette conséquence visible avant la décision."
+      }
+    },
+    "terrain": {
+      "basis": ["data/field_zones/README.md", "backend/field_zones.py"],
+      "spoken": {
+        "en": "The study areas use local Copernicus terrain, satellite imagery and archived NASA POWER weather. These sources describe the landscape and regional conditions. On a regional replay, the pipes, tank and service points illustrate an installation whose actual layout still needs a survey.",
+        "ja": "調査地域には、現地のコペルニクスの地形データ、衛星画像、NASA POWERの過去の気象データを使っています。これらから分かるのは地形や広域の気象です。地域の再生画面に描く配管、貯水槽、給水地点は仮設例で、実際の配置には現地調査が必要です。",
+        "aeb": "مناطق الدراسة فيها التضاريس متاع البلاصة من كوبرنيكوس، تصاور الأقمار الصناعية وأرشيف الطقس من ناسا باور. هاذم يفسّروا شكل الأرض والطقس في المنطقة. في الإعادة الجهوية، القنوات والخزّان ونقاط التوزيع تركيب افتراضي، ومواقع التجهيزات الحقيقية تستحقّ معاينة على الميدان.",
+        "fr": "Les zones étudiées utilisent le relief local de Copernicus, des images satellite et les archives météo de NASA POWER. Ces produits décrivent le paysage et le contexte régional. Dans le rejeu régional, les conduites, le réservoir et les points de desserte illustrent un aménagement dont le tracé réel reste à relever."
+      }
+    },
+    "survey": {
+      "basis": ["data/agriculture/assila/sources.json", "backend/main.py"],
+      "spoken": {
+        "en": "At Assila, the parcel outlines come from OpenStreetMap. WaPOR estimates water lost through evaporation and plant transpiration. To calculate a real irrigation turn we would also need the planted crop, the permitted withdrawal and the grower’s delivery window. The survey leaves those fields open.",
+        "ja": "アシラでは、畑の輪郭はオープンストリートマップに基づき、ワポールからは土や植物を通じて失われる水の推定量が得られます。実際の配水順を決めるには、植えた作物、許された取水量、農家が水を受け取れる時間も必要です。調査で未確認の項目は未入力のままです。",
+        "aeb": "في أصيلة حدود القطع جاية من أوبن ستريت ماب. وابور يقدّر الما اللي يخرج من التربة والنبات. باش نحسبوا نوبة سقي حقيقية يلزمنا زادة الزرع الموجود، حصّة السحب ووقتاش الفلّاح ينجم ياخو الما. المعلومات اللي ناقصة تبقى فارغة.",
+        "fr": "À Assila, les contours des parcelles viennent d’OpenStreetMap. WaPOR estime l’eau perdue par évaporation et transpiration des plantes. Pour calculer un véritable tour d’eau, il faudrait aussi connaître la culture, le prélèvement autorisé et le créneau du producteur. Les champs encore inconnus restent ouverts."
+      }
+    },
+    "gafsa": {
+      "basis": ["data/field_zones/gafsa-oasis.json", "data/zone_planning/README.md"],
+      "spoken": {
+        "en": "Take El Ksar in Gafsa. The mapped oasis and archived local weather give us a place and a day to study. To promise water to a particular grower, someone still has to verify the canal flow, the agreed turn and the volume owed. Regional planning lets us enter assumptions explicitly and see their effect.",
+        "ja": "ガフサのエル・クサールを例にしましょう。オアシスの地図と地域の気象記録から、検討する場所と日を選べます。ある農家に配水を約束するには、水路の流量、取り決めた順番、約束した水量を現地で確認する必要があります。地域の計画画面では仮定を明示して、その影響を試せます。",
+        "aeb": "ناخذوا القصر في قفصة كمثال. خريطة الواحة وأرشيف طقس البلاصة يخلّيوْنا نختاروا وين ووقتاش ندرسوا الحالة. أمّا باش نوعدوا فلّاح بالما يلزم شكون يثبّت في دفق الساقية، وقت النوبة والكمّية المتّفق عليها. في التخطيط نصرّحوا بالفرضيّات ونشوفوا تأثيرها.",
+        "fr": "Prenons El Ksar à Gafsa. La carte de l’oasis et la météo archivée permettent de choisir un lieu et une journée d’étude. Pour promettre une livraison à un agriculteur, il reste à vérifier le débit du canal, le tour convenu et le volume dû. La planification régionale rend les hypothèses explicites et permet d’en observer l’effet."
+      }
+    },
+    "estimate": {
+      "basis": ["backend/zone_planning.py", "data/zone_planning/README.md"],
+      "spoken": {
+        "en": "The regional demand estimate starts with archived weather and reference evapotranspiration. Change the assumed area, crop coefficient, usable rain or application efficiency and the estimate changes. A grower’s local knowledge can improve those inputs before anyone uses them to agree a turn.",
+        "ja": "地域の必要水量の見積もりには、過去の気象と基準蒸発散量を使います。面積、作物係数、有効な雨の割合、灌漑効率の仮定を変えれば、結果も変わります。配水を取り決める前に、農家の方の知識でこうした条件を確かめることができます。",
+        "aeb": "تقدير الحاجة للما يبدا بطقس مؤرشف وحساب التبخّر والنتح المرجعي. كان نبدّلوا المساحة المفترضة، معامل الزرع، المطر اللي انتفعنا بيه وإلا نجاعة السقي، يتبدّل التقدير. معرفة الفلّاح بأرضو تنجّم تصلّح المعطيات قبل ما نتّفقوا على نوبتو.",
+        "fr": "L’estimation régionale des besoins part de la météo archivée et de l’évapotranspiration de référence. Modifier la surface supposée, le coefficient cultural, la pluie utile ou l’efficacité de l’irrigation change l’estimation. Le producteur peut aider à vérifier ces hypothèses avant de convenir d’un tour."
+      }
+    },
+    "laboratory": {
+      "basis": ["backend/resilience.py"],
+      "spoken": {
+        "en": "In the outage test, choose when a cut starts and how long it lasts. Open a case to see whose demand is left unmet, compare a fixed turn with fair or urgent sharing and inspect the starting reserve needed for the chosen coverage target when it is attainable.",
+        "ja": "停電テストでは、開始時刻と長さを選べます。気になる条件を開き、どの畑に不足が残るか、固定順・公平性重視・緊急度重視の配水でどう違うかを見られます。設定した供給目標が達成できる場合は、最初に必要な貯水量も調べられます。",
+        "aeb": "في اختبار القصّان نختاروا وقتاش يبدا وقدّاش يطوّل. نحلّوا الحالة ونشوفوا شكون ما وصلوش حقّو، ونقارنوا النوبة الثابتة بالتقاسم العادل وإلا بتقديم المستعجل. وكي يكون الهدف ممكن، نشوفوا قدّاش يلزمنا مخزون في البداية باش نوصلولو.",
+        "fr": "Le test de résistance permet de choisir l’heure et la durée de la coupure. On ouvre un cas pour voir quelles demandes restent insatisfaites, comparer le tour fixe avec une répartition équitable ou urgente et examiner la réserve initiale nécessaire lorsque l’objectif de couverture est réalisable."
+      }
+    },
+    "meter": {
+      "basis": ["backend/resilience.py", "backend/telemetry.py"],
+      "spoken": {
+        "en": "Imagine the inlet meter and the level in the tank disagree. In the replay we can inject a physical loss that lowers the stock, then a faulty reading that leaves the stock unchanged. The practical question for the operator is which reading to check before calling it a leak.",
+        "ja": "流入計の値と貯水槽の水位が合わないとします。再生では、実際に槽の水が減る模擬損失と、槽の水はそのままで計器の表示だけがずれる故障を試せます。現場の方にとって大事なのは、漏水と判断する前にどの値を確かめればよいかです。",
+        "aeb": "نفرضوا العدّاد متاع الدخول ومستوى الما في الخزّان ما يتوافقوش. في الإعادة نجرّبوا ضياع ما ينقص المخزون، وبعد قراءة غالطة والمخزون يبقى كيف ما هو. السؤال اللي يهمّ العون هو أنهي قراءة يلزمو يتثبّت منها قبل ما يقول فمّا تسرّب.",
+        "fr": "Imaginons que le compteur d’entrée et le niveau du réservoir ne concordent plus. Dans le rejeu, on peut injecter une perte physique qui diminue le stock, puis une erreur de compteur qui le laisse intact. La question utile pour l’agent est de savoir quelle mesure vérifier avant de conclure à une fuite."
+      }
+    },
+    "audit": {
+      "basis": ["frontend/src/components/FieldDayAudit.tsx"],
+      "spoken": {
+        "en": "After a completed day, the operator can import anonymized parcel records in the browser. The check compares promised water and the delivery window with what the operator recorded. A late turn and a short delivery are different problems, even if the station’s daily total looks reasonable.",
+        "ja": "一日が終わったら、担当者は畑ごとの匿名化した運用記録をブラウザーで読み込めます。約束した水量と時間帯を記録上の実績と照合します。施設全体の日量が妥当でも、ある畑に届くのが遅れたことと、水量が足りなかったことは区別して見られます。",
+        "aeb": "كي يوفى النهار، المسؤول ينجم يدخل في المتصفّح سجلّ القطع من غير أسماء. نقارنوا الكمّية والوقت المتّفق عليهم باللي تسجّل في التوزيع. التأخير موش كيف نقص الكمّية، حتى كان مجموع المحطّة في آخر النهار ظاهر معقول.",
+        "fr": "Une fois la journée terminée, le responsable peut charger dans le navigateur les relevés anonymisés des parcelles. Le contrôle compare le volume et le créneau promis avec ce qu’il a enregistré. Un retard et une livraison incomplète sont deux difficultés différentes, même si le total journalier de la station paraît satisfaisant."
+      }
+    },
+    "records": {
+      "basis": ["frontend/src/components/FieldDayAudit.tsx", "data/field_zones/README.md"],
+      "spoken": {
+        "en": "The operator records an anonymous parcel code, the local day, deadline and agreed volume, then enters the meter readings they have for the deadline and day’s end. A missing reading stays unknown. Satellite imagery cannot supply those deliveries. The operator’s file stays in the browser during the check.",
+        "ja": "担当者は、匿名の区画コード、現地の日付、約束した時刻と水量に加え、期限時点と一日の終わりに確認できた水量を入力します。欠けた値は不明のままです。配水実績は衛星画像からは得られません。担当者のファイルは確認中もブラウザー内で扱われます。",
+        "aeb": "العون يكتب رمز للقطعة من غير اسم، تاريخ بالتوقيت المحلّي، الوقت والكمّية المتّفق عليهم. وبعد يدخل قياسات الما اللي عندو لوقت نهاية النوبة وآخر النهار. القراءة اللي ناقصة تبقى مجهولة، وتصويرة القمر الصناعي ما تعوّضهاش. الملفّ متاع العون يبقى في المتصفّح وقت التثبّت.",
+        "fr": "L’agent renseigne un code de parcelle anonyme, la date locale, l’échéance et le volume convenus, puis les relevés disponibles à l’échéance et en fin de journée. Une mesure manquante reste inconnue. Une image satellite ne fournit pas ces livraisons. Le fichier de l’opérateur reste dans son navigateur pendant la vérification."
+      }
+    },
+    "evidence": {
+      "basis": ["backend/assistant.py", "backend/assistant_tools.py", "backend/guardian_rag.py"],
+      "spoken": {
+        "en": "Ask why a parcel received less and the assistant can consult the calculated plan. Ask for documentary support and it can retrieve a passage, identify the publisher and open the original source. That lets a grower ask a practical question and a judge inspect the basis for the answer.",
+        "ja": "ある畑の配水が少ない理由を尋ねると、アシスタントは計算済みの計画を参照できます。資料を求めれば、関係する箇所と発行元を示し、原典も開けます。農家の方は自分の疑問をそのまま尋ね、審査員の皆さまは回答の根拠をたどれます。",
+        "aeb": "اسأل علاش قطعة خذات ما أقلّ، والمعاون ينجم يرجع للبرنامج المحسوب. اطلب وثيقة، وينجم يلقالك الفقرة ويورّيك شكون نشرها ورابط الأصل. هكّا الفلّاح يسأل على اللي يهمّو، واللجنة تنجّم تتثبّت في أساس الجواب.",
+        "fr": "Demandez pourquoi une parcelle a reçu moins et l’assistant peut consulter le plan calculé. Demandez un document et il peut retrouver un passage, identifier l’éditeur et ouvrir l’original. Un agriculteur peut ainsi poser sa question concrète, et le jury peut suivre le raisonnement jusqu’à sa source."
+      }
+    },
+    "attribution": {
+      "basis": ["backend/assistant_tools.py", "backend/assistant.py"],
+      "spoken": {
+        "en": "A publication may explain why solar pumping is relevant in Tunisia. The energy shown for our chosen pump and day comes from the selected model or archive. Keeping those origins visible helps everyone tell which claim the document really supports.",
+        "ja": "公的資料からは、チュニジアで太陽光による揚水を検討する理由を学べます。一方、選んだ日やポンプについて画面に出る電力量は、選択したモデルや過去の記録に由来します。出所を表示すれば、その資料が実際にどの説明を裏付けているか確かめられます。",
+        "aeb": "وثيقة تنجّم تفسّر علاش الضخّ بالطاقة الشمسية يهمّ تونس. أمّا الطاقة اللي تظهر للبومبة والنهار اللي اخترناهم تجي من النموذج وإلا من الأرشيف اللي حدّدناه. كي يكون الأصل واضح، كل واحد ينجم يشوف الوثيقة على شنوة تشهد بالضبط.",
+        "fr": "Une publication peut expliquer l’intérêt du pompage solaire en Tunisie. L’énergie affichée pour la pompe et la journée choisies vient du modèle ou de l’archive sélectionnée. Afficher ces origines permet de voir précisément quelle affirmation le document soutient."
+      }
+    },
+    "human": {
+      "basis": ["backend/guardian.py", "backend/guardian_dialogue.py"],
+      "spoken": {
+        "en": "The irrigation manager can review a proposed quota change, inspect the simulated deliveries and confirm a revised plan. The prototype changes the simulation only. On an actual station, the people responsible still need verified meters, authorized water rights and a locally agreed schedule.",
+        "ja": "配水の担当者は取水枠の変更案と配水の試算を見て、改めた計画を確認できます。この試作機で変更されるのはシミュレーションです。実際の施設で運用するには、検証済みの計器、正式な取水権、現地で合意した配水順が必要です。",
+        "aeb": "المسؤول على السقي ينجم يراجع مقترح تبديل الحصّة، يشوف التوزيع في المحاكاة ويأكّد البرنامج الجديد. التبديل يصير كان في المحاكاة. في محطّة حقيقية يبقى يلزم عدّادات متثبّت منها، حقوق سحب مرخّص فيها ونوبات متّفق عليها محلّيّا.",
+        "fr": "Le responsable peut examiner un changement de quota, vérifier les livraisons simulées et confirmer le plan révisé. Le prototype modifie la simulation. Sur une station réelle, il faudrait des compteurs vérifiés, des droits de prélèvement autorisés et un calendrier validé localement."
+      }
+    },
+    "show_jendouba": {
+      "basis": ["data/scenarios/mini.json", "backend/compare.py"],
+      "spoken": {
+        "en": "Let’s open the Jendouba pilot and calculate the A and B example. Follow the last grower in the fixed rotation. Now switch to the fair plan and compare the parcel cards. This is a deliberately fictional case that anyone can replay with the same inputs.",
+        "ja": "ジェンドゥーバの試験地区を開き、畑Aと畑Bの例を計算してみましょう。固定順で最後の農家に注目してから、公平性を重視する計画に切り替え、各区画の表示を見比べます。この例は同じ条件で誰でも再現できるように作った架空のケースです。",
+        "aeb": "نحلّوا الديمو متاع جندوبة ونحسبوا مثال القطعتين A وB. نتبّعوا آخر فلّاح في النوبة الثابتة، وبعد نبدّلوا للبرنامج اللي يراعي العدل ونقارنوا بطاقات القطع. المثال هذا افتراضي عن قصد باش أيّ واحد ينجم يعاودو بنفس الشروط.",
+        "fr": "Ouvrons le pilote de Jendouba et calculons l’exemple des parcelles A et B. Suivons le dernier agriculteur dans le tour fixe, puis passons au plan équitable et comparons les fiches des parcelles. Ce cas est volontairement fictif pour que chacun puisse le rejouer avec les mêmes conditions."
+      }
+    },
+    "engines": {
+      "basis": ["backend/main.py", "backend/optimizer.py", "backend/compare.py", "backend/assistant.py"],
+      "spoken": {
+        "en": "The React dashboard calls a FastAPI backend. The OR-Tools planning solver chooses pumping and delivery times under the scenario constraints, then the physical simulator checks the water and energy balances. The language model can explain those computed results.",
+        "ja": "Reactで作った画面はFastAPIを通じて計算を依頼します。OR-Toolsの計画ソルバーが設定した条件の下で揚水と配水の時刻を選び、物理シミュレーターが水とエネルギーの収支を確認します。言語モデルは、この計算結果を使って説明できます。",
+        "aeb": "الواجهة معمولة برياكت وتتّصل بخادم فاست إيه بي آي. محرّك OR-Tools يختار ساعات الضخّ والتوزيع حسب شروط السيناريو، وبعد المحاكي الفيزيائي يتثبّت في حساب الما والطاقة. النموذج اللغوي ينجم يفسّر الحصيلة المحسوبة.",
+        "fr": "Le tableau de bord React appelle un service FastAPI. Le solveur OR-Tools choisit des créneaux de pompage et de distribution sous les contraintes du scénario. Le simulateur physique vérifie ensuite les bilans d’eau et d’énergie. Le modèle de langage peut expliquer ces résultats calculés."
+      }
+    },
+    "next_topic": {
+      "basis": ["backend/resilience.py", "frontend/src/components/FieldDayAudit.tsx"],
+      "spoken": {
+        "en": "Shall we follow a grower’s turn through a power cut on the map, or look at how an operator checks what actually arrived at the end of the day?",
+        "ja": "次は、停電中の農家の順番を地図で追ってみましょうか。それとも、一日の終わりに、実際に届いた量を担当者がどう確かめるかをご覧になりますか？",
+        "aeb": "تحبّوا توّا نتبّعوا نوبة فلّاح على الخريطة وقت قصّان الضوّ، وإلا نشوفوا كيفاش العون يثبّت في الما اللي وصل بالفعل آخر النهار؟",
+        "fr": "Voulez-vous suivre le tour d’un agriculteur pendant une coupure sur la carte, ou voir comment l’agent vérifie en fin de journée ce qui est réellement arrivé ?"
+      }
+    }
+  }
+}

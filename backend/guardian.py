@@ -20,6 +20,8 @@ from .compare import InputError
 from .guardian_conversation import companion_reply, conversational_reply, unfocused_spoken_opening
 from .guardian_dialogue import CallStart, Dialogue
 from .guardian_intent import requests_evidence
+from .guardian_pitch import pitch_request, project_pitch, requested_language
+from .guardian_script import passage, script_start
 from .guardian_presentation import audience_question
 from .guardian_provider import GuardianProvider, GuardianProviderError
 from .guardian_progress import VoiceProgress, send_speech
@@ -151,7 +153,7 @@ async def translation(call, provider, passage, target, *, source=None):
     if target not in {"en", "ja", "aeb"}:
         raise ValueError("Unsupported translation language")
     try:
-        translated = await provider.translate(passage, source or call.start.language, target)
+        translated = await provider.translate(passage, source or call.input_language, target)
         if not isinstance(translated, str) or not 0 < len(translated.strip()) <= 3500:
             raise GuardianProviderError("llm")
         if quantities(passage) != quantities(translated):
@@ -240,8 +242,38 @@ def remember(call, prompt, text):
 
 async def respond(call, provider, prompt, message, send):
     activity = message.get("mode", "ask")
+    offset = script_start(prompt, call.script_offset) if activity in {"ask", "present"} else None
+    if offset is not None:
+        language = requested_language(prompt, call.start.language)
+        source_language = call.notes_language or call.input_language
+        text, end = passage(call.presenter_notes, offset, 400 if source_language != language else 1300)
+        if not text:
+            call.set_output_language(language)
+            text = (call.say("C’est la fin de ton texte.", "That was the end of your script.",
+                             "原稿はここまでです。", "هوني وفى النصّ متاعك.") if call.presenter_notes else
+                    call.say("Ajoute ton texte dans les notes de présentation.", "Add your script under Presenter notes.",
+                             "「発表用メモ」に原稿を追加してください。", "حطّ النصّ متاعك في نوتات العرض."))
+            call.script_offset = None
+        else:
+            if language != source_language:
+                response = await translation(call, provider, text, language, source=source_language)
+                text = response["text"]
+                if len(text) > 1600:
+                    raise CallError("translation_unverified", call.say(
+                        "Essaie un paragraphe plus court.", "Try a shorter paragraph.",
+                        "段落をもう少し短くしてください。", "جرّب فقرة أقصر."))
+            call.set_output_language(language)
+            call.script_offset = end
+        call.pitch_topic = ""
+        return {"type": "reply", "activity": "present", "mode": "presenter_script", "text": text,
+                "language": language, "has_more": call.script_offset is not None and end < len(call.presenter_notes),
+                "citations": [], "facts": [], "tools_used": []}
+    call.script_offset = None
     if activity == "present":
-        reply = await presentation(call, provider, prompt)
+        request = pitch_request(call, prompt) if prompt else None
+        reply = await project_pitch(call, provider, prompt, request) if request else await presentation(call, provider, prompt)
+        if not request:
+            call.pitch_topic = ""
         remember(call, prompt.strip() or "Present the current view", reply["text"])
         return reply
     prompt = short_text(prompt)
@@ -251,6 +283,7 @@ async def respond(call, provider, prompt, message, send):
     restatement = _RESTATE.fullmatch(prompt)
     translating = restatement or TRANSLATION_REQUEST.search(prompt)
     if activity == "evidence" or (not translating and requests_evidence(prompt)):
+        call.pitch_topic = ""
         if "turn_id" in message and message.get("progress_audio") is True and voice["tts"]:
             progress = VoiceProgress(call, provider, send, message["turn_id"], message.get("stream_audio") is True)
             try:
@@ -262,12 +295,20 @@ async def respond(call, provider, prompt, message, send):
         return await research(call, prompt)
 
     spoken = message["type"] == "audio"
-    text = conversational_reply(call, prompt, spoken=spoken, voice_input_available=voice["stt"])
+    text = conversational_reply(call, prompt, spoken=spoken, voice_input_available=provider.capabilities_for(call.input_language)["stt"])
     if text:
         return {"type": "reply", "mode": "conversation", "text": text,
                 "citations": [], "facts": [], "tools_used": [], "missing_information": []}
+    # A bare language switch during a pitch addresses the judges. An explicit
+    # request to translate a passage remains a one-off translation.
+    request = pitch_request(call, prompt)
+    if request and not TRANSLATION_REQUEST.search(prompt) and (not restatement or call.pitch_topic):
+        reply = await project_pitch(call, provider, prompt, request)
+        remember(call, prompt, reply["text"])
+        return reply
     if translating:
         return await translate_request(call, provider, prompt, restatement)
+    call.pitch_topic = ""
     if QUOTA_COMMAND.search(prompt):
         amounts = re.findall(r"(?<![\w.,-])\d+(?!\w|[.,]\d)", prompt)
         if len(amounts) == 1:
@@ -321,12 +362,13 @@ async def handle(socket, call, provider, message):
         if language not in LANGUAGES:
             raise ValueError("Unsupported language")
         call.start = call.start.model_copy(update={"language": language})
+        call.microphone_language = ""
         if not (call.start.city_id or call.start.site_id):
             call.site_label = call.say("Tunisie", "Tunisia", "チュニジア", "تونس")
         call.last_text = ""
         return {"type": "language", "language": language, "voice": provider.capabilities_for(language)}
     if kind == "audio":
-        if not provider.capabilities_for(call.start.language)["stt"]:
+        if not provider.capabilities_for(call.input_language)["stt"]:
             raise CallError("stt_unavailable", call.say("La transcription est indisponible. Écrivez votre réponse.",
                             "Transcription is unavailable. Type your answer.", "文字起こしを利用できません。入力で回答してください。", "تحويل الصوت لكتابة موش متوفّر توّا. تنجّم تكتب جوابك."))
         mime = short_text(message.get("mime"), 100).split(";")[0]
@@ -335,7 +377,7 @@ async def handle(socket, call, provider, message):
         data = base64.b64decode(message["data"], validate=True)
         if not 0 < len(data) <= MAX_AUDIO_BYTES:
             raise ValueError("Invalid audio size")
-        prompt = short_text(await provider.transcribe(data, mime, call.start.language))
+        prompt = short_text(await provider.transcribe(data, mime, call.input_language))
         tag = {"turn_id": message["turn_id"]} if "turn_id" in message else {}
         await socket.send_json({"type": "transcript", "text": prompt, **tag})
         return await respond(call, provider, prompt, message, socket.send_json)
@@ -354,6 +396,23 @@ async def handle(socket, call, provider, message):
             return None
         audio, mime = await provider.speak(text, call.last_language)
         return {"type": "audio", "mime": mime, "data": base64.b64encode(audio).decode("ascii")}
+    if kind == "presentation_notes":
+        notes = message.get("notes")
+        source_language = message.get("language", call.input_language)
+        if source_language not in LANGUAGES or not isinstance(notes, str) or len(notes) > 4000 or any(
+                ord(c) < 32 and c not in "\n\r\t" for c in notes):
+            raise ValueError("Invalid presentation notes")
+        notes = notes.strip()
+        if notes != call.presenter_notes or source_language != call.notes_language:
+            if call.script_offset is not None:
+                call.last_text = ""
+                call.live_remainder = None
+            call.presenter_notes = notes
+            call.notes_language = source_language
+            call.script_offset = None
+            call.presentation_brief = ""
+            call.history.clear()
+        return {"type": "notes_saved", "has_notes": bool(notes)}
     if kind == "observation":
         note = short_text(message.get("text"))
         call.observations.append(note)

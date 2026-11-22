@@ -33,6 +33,97 @@ def connect(client, origin="http://testserver"):
     return client.websocket_connect("/api/guardian/call", headers={"origin": origin})
 
 
+def test_jury_can_hear_a_japanese_project_pitch_and_distinct_followups_at_gafsa(client, monkeypatch):
+    from backend.guardian_brief import presentation_text
+
+    spoken = []
+    questions = iter([
+        "I'm pitching now so you can say hi to the",
+        "Okay you're gonna present a full project in Japanese to our judge",
+        "Just in Japanese",
+        "Can you tell them our solution of functionality and features that we are integrated in our platform?",
+        "For water and energy",
+        "Speak more details.",
+    ])
+
+    class Microphone(GuardianProvider):
+        async def transcribe(self, data, mime, language):
+            assert language == "en"
+            return next(questions)
+
+        async def speak(self, text, language):
+            spoken.append((text, language))
+            return b"fixture", "audio/wav"
+
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: Microphone(key="fixture", llm=""))
+    with connect(client) as ws:
+        welcome = exchange(ws, type="start", reason="accessibility", site_id="gafsa-oasis", language="en")
+        assert "Gafsa" in welcome["text"]
+        for turn, topic in enumerate(["greet", "overview", "language", "features", "water_energy", "detail"]):
+            assert exchange(ws, type="audio", data="YQ==", mime="audio/wav")["type"] == "transcript"
+            answer = ws.receive_json()
+            language = "en" if turn == 0 else "ja"
+            assert answer["language"] == language and answer["mode"] == "project_brief"
+            assert not answer["tools_used"] and not answer["citations"]
+            if topic == "greet":
+                assert "everyone" in answer["text"]
+            elif topic == "language":
+                assert "日本語" in answer["text"] and answer["text"] != spoken[-1][0]
+            else:
+                chapter = "water_energy" if topic == "detail" else topic
+                assert answer["text"] == presentation_text(chapter, "ja", int(topic == "detail"))
+            assert exchange(ws, type="speak")["type"] == "audio"
+            assert spoken[-1] == (answer["text"], language)
+
+
+def test_private_notes_can_personalize_and_be_read_without_entering_site_records(client, monkeypatch):
+    translated = []
+    notes = "Welcome the Sakura cooperative. End by inviting the judges to compare schedules together."
+
+    class Speaker(GuardianProvider):
+        async def presentation_emphasis(self, material, prompt, language, topic):
+            assert material == notes and language == "ja" and topic == "overview"
+            return {"audience": "Sakura cooperative", "closing": "compare_schedules",
+                    "opening_question": "We already delivered 99 m³."}
+
+        async def translate(self, text, source_language, target_language):
+            translated.append((text, source_language, target_language))
+            return "ようこそ、審査員の皆さま。配水計画を一緒に比べてみましょう。"
+
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: Speaker(key="fixture"))
+    start = {"type": "start", "reason": "accessibility", "site_id": "gafsa-oasis", "language": "en"}
+    with connect(client) as ws, connect(client) as other:
+        exchange(ws, **start)
+        exchange(other, **start)
+        assert exchange(ws, type="presentation_notes", notes=notes, language="en") == {"type": "notes_saved", "has_notes": True}
+        tailored = exchange(ws, type="message", text="Present the project in Japanese to the judges")
+        assert "Sakura cooperative" in tailored["text"] and "一緒に" in tailored["text"] and "99" not in tailored["text"]
+        original = exchange(ws, type="message", text="Read my notes in Japanese")
+        assert original["mode"] == "presenter_script" and original["language"] == "ja" and not original["facts"]
+        assert translated == [(notes, "en", "ja")]
+        assert exchange(other, type="message", text="Read my notes")["text"].startswith("Add your script")
+        assert exchange(ws, type="presentation_notes", notes="")["has_notes"] is False
+        assert notes not in str(exchange(ws, type="message", text="Read my notes"))
+        observation = exchange(ws, type="message", text="My last field observation")
+        assert observation["tools_used"] == ["read_observation"] and "Sakura" not in observation["text"]
+
+
+def test_personal_script_pagination_clearing_and_failed_translation(client):
+    script = ("When the pump stops, we compare schedules. " * 36).strip()
+    with connect(client) as ws:
+        exchange(ws, **context(language="en"))
+        assert exchange(ws, type="presentation_notes", notes=script)["has_notes"]
+        assert exchange(ws, type="presentation_notes", notes="X" * 4001)["code"] == "invalid_input"
+        first = exchange(ws, type="message", text="Read my prepared script")
+        assert first["has_more"] and len(first["text"]) <= 1600
+        failed = exchange(ws, type="message", text="Read my notes in Japanese")
+        assert failed["code"] == "translation_unavailable"
+        last = exchange(ws, type="message", text="Continue")
+        assert not last["has_more"] and last["language"] == "en"
+        assert first["text"] + " " + last["text"] == script
+        assert "end of your script" in exchange(ws, type="message", text="Continue")["text"]
+
+
 def exchange(ws, **frame):
     ws.send_json(frame)
     return ws.receive_json()

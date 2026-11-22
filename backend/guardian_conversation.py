@@ -42,7 +42,7 @@ CAPABILITIES = re.compile(
 
 def unfocused_spoken_opening(call, prompt: str) -> bool:
     """Brief Derja transcripts are uncertain without a prior topic or an explicitly selected result."""
-    return (call.start.language == "aeb" and call.start.reason == "accessibility" and len(prompt.split()) <= 12
+    return (call.input_language == "aeb" and call.start.reason == "accessibility" and len(prompt.split()) <= 12
             and not any((call.history, call.observations, call.proposal, call.presentation_brief, call.start.comparison,
                          call.start.zone_plan, call.start.selected_scenario_id, call.start.solar_option_id,
                          call.start.pvgis_option_id, call.start.city_id)))
@@ -157,7 +157,9 @@ async def companion_reply(call, provider, prompt: str) -> dict:
     if provider.capabilities["llm"]:
         try:
             async with asyncio.timeout(12):
-                draft = await provider.companion(prompt, call.start.language, call.history)
+                notes = getattr(call, "presenter_notes", "")
+                draft = await provider.companion(prompt, call.start.language, call.history,
+                                                 **({"presenter_notes": notes} if notes else {}))
             script = SPOKEN_SCRIPT.get(call.start.language)
             if (isinstance(draft, str) and len(draft) <= 1000 and clean_text(PROJECT_TERMS.sub(" ", draft), 1000)
                     and (script is None or script.search(draft))
