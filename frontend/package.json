@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "test:browser": "node tests/cinematic-browser.mjs && node tests/m8-browser.mjs",
-    "test:integration": "node tests/twin-browser.mjs && node tests/agriculture-browser.mjs && node tests/operating-browser.mjs && node tests/judge-scenarios-browser.mjs && node tests/tunisia-browser.mjs && node tests/field-zones-browser.mjs && node tests/themes-browser.mjs && node tests/outage-browser.mjs && node tests/service-browser.mjs && node tests/language-browser.mjs"
+    "test:integration": "node tests/twin-browser.mjs && node tests/agriculture-browser.mjs && node tests/operating-browser.mjs && node tests/judge-scenarios-browser.mjs && node tests/tunisia-browser.mjs && node tests/field-zones-browser.mjs && node tests/themes-browser.mjs && node tests/outage-browser.mjs && node tests/service-browser.mjs && node tests/language-browser.mjs && node tests/guardian-browser.mjs && node tests/guardian-media-browser.mjs"
   },
   "engines": {
     "node": ">=22.12.0"
