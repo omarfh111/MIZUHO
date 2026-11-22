@@ -1,22 +1,22 @@
-"""Generate the animated and static README banners.
+"""Generate the script-free animated and reduced-motion README artwork.
 
-Run from the repository root:  python docs/tools/readme_hero.py
-
-The banner is pure SVG + CSS animation, so it plays inside GitHub's image
-renderer (no script). Tunisia is drawn as a floating isometric slab from the
-same simplified outline the cinematic uses; positions are approximate.
-The static SVG uses the same artwork without the animation stylesheet.
-The README selects it through a reduced-motion picture source.
+Run `python docs/tools/readme_hero.py` from the repository root. The stylized
+outline and river follow the cinematic map; the site markers use the catalogue
+coordinates. The relief texture is illustrative.
 """
 from __future__ import annotations
 
+import json
 import math
-import random
 from pathlib import Path
+from xml.sax.saxutils import escape
+
 
 W, H = 1280, 560
-OUT = Path(__file__).resolve().parents[1] / "readme-hero.svg"
-STILL_OUT = OUT.with_name("readme-hero-still.svg")
+DOCS = Path(__file__).resolve().parents[1]
+DATA = DOCS.parent / "data"
+OUT = DOCS / "readme-hero.svg"
+STILL_OUT = DOCS / "readme-hero-still.svg"
 
 TUNISIA = [
     (8.62, 36.94), (8.76, 36.96), (8.98, 37.02), (9.22, 37.23), (9.52, 37.25), (9.85, 37.34),
@@ -38,10 +38,6 @@ MEDJERDA = [
     (9.4, 36.58), (9.5, 36.6), (9.61, 36.66), (9.75, 36.76), (9.86, 36.83), (9.98, 36.9),
     (10.08, 37.0), (10.17, 37.06),
 ]
-DAMS = [(9.41, 36.58), (8.74, 36.63), (8.73, 36.3), (9.07, 37.03), (10.02, 35.95)]
-JENDOUBA = (8.78, 36.5)
-TOZEUR = (8.13, 33.92)
-WIND = [(10.9, 37.02), (9.72, 37.2)]
 
 # --- isometric projection --------------------------------------------------
 ANGLE = math.radians(-24)
@@ -85,243 +81,158 @@ def smooth_path(points) -> str:
     return d
 
 
+def catalogue_sites():
+    pilot = json.loads((DATA / "sites.geojson").read_text(encoding="utf-8"))["features"]
+    for site in pilot:
+        yield site["properties"]["site_id"], site["geometry"]["coordinates"]
+
+    survey = json.loads((DATA / "agriculture/assila/site.geojson").read_text(encoding="utf-8"))
+    yield survey["properties"]["site_id"], survey["properties"]["centroid_lon_lat"]
+
+    for file in sorted((DATA / "field_zones").glob("*.json")):
+        site = json.loads(file.read_text(encoding="utf-8"))["site"]
+        yield site["properties"]["site_id"], site["geometry"]["coordinates"]
+
+
+# Printed names are kept to a few well-spaced sites at this scale.
+CALLOUTS = {
+    "jendouba-pilote": ("Jendouba", -42, 32, "end"),
+    "korba-cap-bon": ("Korba", 55, 7, "start"),
+    "gafsa-oasis": ("Gafsa", -44, 35, "end"),
+}
+
+ANIMATION = """
+@keyframes outline { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes water { to { stroke-dashoffset: -.2; } }
+@keyframes locate { from { transform: scale(.5); opacity: .85; } to { transform: scale(2.5); opacity: 0; } }
+@keyframes light { from { transform: translate(-360px, 80px); } to { transform: translate(360px, -80px); } }
+@keyframes signal { 0%,100% { transform: scaleY(.55); } 50% { transform: scaleY(1); } }
+@media (prefers-reduced-motion: no-preference) {
+  .coast { stroke-dasharray: 1; animation: outline 2.8s cubic-bezier(.34,.68,.24,1) both; }
+  .current { animation: water 3.4s linear infinite; }
+  .pulse { transform-box: fill-box; transform-origin: center; animation: locate 4s ease-out infinite; }
+  .light { display: inline; animation: light 9s ease-in-out infinite alternate; }
+  .bar { transform-box: fill-box; transform-origin: center; animation: signal 1.7s ease-in-out infinite; }
+}
+"""
+
+
 def build(*, animated: bool = True) -> str:
-    rnd = random.Random(2026)
     land = path(TUNISIA, close=True)
-    djerba = path(DJERBA, close=True)
+    island = path(DJERBA, close=True)
     river = smooth_path(MEDJERDA)
-    north, south = P(9.6, 37.3), P(9.6, 30.4)
-    jx, jy = P(*JENDOUBA)
-    tx, ty = P(*TOZEUR)
-
-    out: list[str] = []
+    out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" role="img" aria-labelledby="title desc">',
+           '<title id="title">MIZUHO · Irrigation planning for Tunisia</title>',
+           '<desc id="desc">An illustrated map marks Tunisian study sites including Jendouba, Korba and Gafsa. '
+           'MIZUHO compares irrigation plans under water and power limits and explains them through its digital twin and Voice Guardian.</desc>']
     add = out.append
-    add(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" role="img" aria-labelledby="title description">')
-    add('<title id="title">MIZUHO · Renewable-powered water intelligence for Tunisian agriculture</title>')
-    add('<desc id="description">An isometric map of Tunisia showing the Jendouba pilot, the Medjerda river, '
-        'reservoirs, wind turbines and Tozeur solar power beside the MIZUHO wordmark and its three modules.</desc>')
-
     add("""<style>
-  .t { font-family: 'Space Grotesk', 'Segoe UI', Inter, Helvetica, Arial, sans-serif; }
-  .b { font-family: Manrope, 'Segoe UI', Inter, Helvetica, Arial, sans-serif; }""")
+text { font-family: 'Segoe UI', Arial, sans-serif; }
+.word { font-size: 139px; font-weight: 750; letter-spacing: -7px; }
+.head { font-size: 21px; font-weight: 650; letter-spacing: 3.2px; }
+.line { font-size: 43px; font-weight: 550; letter-spacing: -.8px; }
+.caption { font-size: 20px; font-weight: 600; }
+.mapLabel { font-size: 23px; font-weight: 650; paint-order: stroke; stroke: #111e18; stroke-width: 5px; stroke-linejoin: round; }
+.light { display: none; } .pulse { opacity: 0; }
+@media (max-width: 650px) {
+  .detail { display: none; }
+  .head { font-size: 36px; letter-spacing: 2px; }
+  .word { font-size: 158px; }
+  .line { font-size: 51px; }
+}""")
     if animated:
-        add("""  @keyframes draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
-  @keyframes rise { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
-  @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes flow { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
-  @keyframes travel { from { offset-distance: 0%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } to { offset-distance: 100%; opacity: 0; } }
-  @keyframes ring { 0% { transform: scale(.25); opacity: .95; } 100% { transform: scale(3.4); opacity: 0; } }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  @keyframes breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
-  @keyframes twinkle { 0%, 100% { opacity: .15; } 50% { opacity: .9; } }
-  @keyframes drift { from { transform: translateY(0); } to { transform: translateY(-40px); } }
-  @keyframes fall { 0% { transform: translateY(-330px) scale(1.3); opacity: 0; } 8% { opacity: 1; }
-                    30% { transform: translateY(0) scale(1); opacity: 1; } 33%, 100% { transform: translateY(0) scale(.2); opacity: 0; } }
-  @keyframes splash { 0%, 30% { transform: scale(.1); opacity: 0; } 32% { opacity: 1; } 75%, 100% { transform: scale(1); opacity: 0; } }
-  @keyframes sweep { 0% { transform: translateX(-620px) skewX(-18deg); } 100% { transform: translateX(760px) skewX(-18deg); } }
-  @keyframes shimmer { 0%, 55% { transform: translateX(-560px); } 100% { transform: translateX(620px); } }
-  .coast { stroke-dasharray: 1; animation: draw 3.2s cubic-bezier(.65,0,.35,1) both; }
-  .slab { animation: rise 1.6s cubic-bezier(.2,.8,.2,1) both; }
-  .fade1 { animation: fadein 1.2s ease .4s both; }
-  .fade2 { animation: fadein 1.2s ease 1.4s both; }
-  .fade3 { animation: fadein 1.2s ease 2.2s both; }
-  .riverflow { stroke-dasharray: .045 .055; animation: flow 3.6s linear infinite; }
-  .pulse { offset-path: path('""" + river + """'); offset-rotate: 0deg; animation: travel 4.8s cubic-bezier(.45,0,.55,1) infinite; opacity: 0; }
-  .ring { transform-box: fill-box; transform-origin: center; animation: ring 3.2s cubic-bezier(.2,.7,.3,1) infinite; opacity: 0; }
-  .rotor { transform-box: view-box; animation: spin 3.4s linear infinite; }
-  .rays { transform-box: fill-box; transform-origin: center; animation: spin 26s linear infinite; }
-  .breathe { animation: breathe 4.5s ease-in-out infinite; }
-  .star { animation: twinkle 3s ease-in-out infinite; }
-  .mote { animation: drift 9s linear infinite alternate; }
-  .drop { transform-box: fill-box; transform-origin: 50% 100%; animation: fall 5.5s cubic-bezier(.55,0,.85,.35) 1.2s infinite; opacity: 0; }
-  .splash { transform-box: fill-box; transform-origin: center; animation: splash 5.5s cubic-bezier(.2,.7,.3,1) 1.2s infinite; opacity: 0; }
-  .sweep { animation: sweep 7s cubic-bezier(.45,0,.55,1) 1s infinite; }
-  .shimmer { animation: shimmer 6s cubic-bezier(.45,0,.55,1) 1.5s infinite; }
-  .rise1 { animation: rise 1.1s cubic-bezier(.2,.8,.2,1) .15s both; }
-  .rise2 { animation: rise 1.1s cubic-bezier(.2,.8,.2,1) .35s both; }
-  .rise3 { animation: rise 1.1s cubic-bezier(.2,.8,.2,1) .6s both; }
-  .rise4 { animation: rise 1.1s cubic-bezier(.2,.8,.2,1) .85s both; }
-  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } .loop { display: none; } }""")
-    else:
-        add("  .loop { display: none; }")
-    add("</style>")
-
-    # ---------------------------------------------------------------- defs
-    add(f"""<defs>
-  <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
-    <stop stop-color="#030b0b"/><stop offset=".55" stop-color="#071a19"/><stop offset="1" stop-color="#0b1f1c"/>
+        add(ANIMATION)
+    add("""</style>
+<defs>
+  <linearGradient id="ground" x1="0" y1="0" x2="1" y2="1">
+    <stop stop-color="#10261e"/><stop offset=".55" stop-color="#101d18"/><stop offset="1" stop-color="#0b1713"/>
   </linearGradient>
-  <radialGradient id="glowWater" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate({jx} {jy + 40}) scale(420 260)">
-    <stop stop-color="#62e3f0" stop-opacity=".22"/><stop offset="1" stop-color="#62e3f0" stop-opacity="0"/>
+  <radialGradient id="halo">
+    <stop stop-color="#6d8c58" stop-opacity=".35"/><stop offset="1" stop-color="#6d8c58" stop-opacity="0"/>
   </radialGradient>
-  <radialGradient id="glowSun" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate({tx} {ty}) scale(260 180)">
-    <stop stop-color="#f7ce76" stop-opacity=".3"/><stop offset="1" stop-color="#f7ce76" stop-opacity="0"/>
-  </radialGradient>
-  <radialGradient id="glowLeaf" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(180 520) scale(520 260)">
-    <stop stop-color="#c9ef86" stop-opacity=".1"/><stop offset="1" stop-color="#c9ef86" stop-opacity="0"/>
-  </radialGradient>
-  <linearGradient id="landTop" gradientUnits="userSpaceOnUse" x1="{north[0]}" y1="{north[1]}" x2="{south[0]}" y2="{south[1]}">
-    <stop stop-color="#2f5d3c"/><stop offset=".32" stop-color="#4f6a3a"/><stop offset=".55" stop-color="#8a7d4c"/><stop offset="1" stop-color="#c79858"/>
+  <linearGradient id="land" gradientUnits="userSpaceOnUse" x1="880" y1="30" x2="1120" y2="480">
+    <stop stop-color="#607a4d"/><stop offset=".3" stop-color="#789361"/><stop offset=".62" stop-color="#a99963"/><stop offset="1" stop-color="#d7b17c"/>
   </linearGradient>
-  <linearGradient id="word" x1="0" y1="0" x2="1" y2="0">
-    <stop stop-color="#62e3f0"/><stop offset=".5" stop-color="#c9ef86"/><stop offset="1" stop-color="#f7ce76"/>
+  <linearGradient id="type" x1="0" y1="0" x2="1" y2=".4">
+    <stop stop-color="#edf9d7"/><stop offset=".67" stop-color="#d4f785"/><stop offset="1" stop-color="#a9dc81"/>
   </linearGradient>
-  <linearGradient id="band" x1="0" y1="0" x2="1" y2="0">
-    <stop stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".75"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+  <linearGradient id="scan">
+    <stop stop-color="#f8ffe3" stop-opacity="0"/><stop offset=".56" stop-color="#f8ffe3" stop-opacity=".22"/><stop offset="1" stop-color="#f8ffe3" stop-opacity="0"/>
   </linearGradient>
-  <linearGradient id="scan" x1="0" y1="0" x2="1" y2="0">
-    <stop stop-color="#62e3f0" stop-opacity="0"/><stop offset=".5" stop-color="#b8fbff" stop-opacity=".35"/><stop offset="1" stop-color="#62e3f0" stop-opacity="0"/>
-  </linearGradient>
-  <radialGradient id="vignette" cx=".5" cy=".5" r=".75">
-    <stop offset=".6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".55"/>
-  </radialGradient>
-  <filter id="blur6" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter>
-  <filter id="blur2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2"/></filter>
-  <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%"><feGaussianBlur stdDeviation="14"/></filter>
-  <clipPath id="landClip"><path d="{land}"/><path d="{djerba}"/></clipPath>
-  <clipPath id="wordClip"><text x="68" y="262" class="t" font-size="138" font-weight="700" letter-spacing="-5">MIZUHO</text></clipPath>
-</defs>""")
+  <pattern id="grid" width="56" height="56" patternUnits="userSpaceOnUse">
+    <path d="M56 0H0V56" fill="none" stroke="#deecca" stroke-opacity=".07"/>
+    <circle r="1.3" fill="#dae8c6" fill-opacity=".14"/>
+  </pattern>
+  <pattern id="fields" width="23" height="23" patternUnits="userSpaceOnUse" patternTransform="rotate(-19)">
+    <path d="M0 0H23M0 6H23M0 12H23M0 18H23" fill="none" stroke="#f4f3d4" stroke-width=".8" opacity=".2"/>
+  </pattern>
+  <filter id="shadow" x="-.25" y="-.25" width="1.5" height="1.6"><feGaussianBlur stdDeviation="11"/></filter>""")
+    add(f'<path id="mainland" d="{land}"/><path id="djerba" d="{island}"/>')
+    add(f'<clipPath id="surface"><path d="{land}"/><path d="{island}"/></clipPath></defs>')
+    add(f'<rect width="{W}" height="{H}" fill="url(#ground)"/>')
+    add('<ellipse cx="972" cy="220" rx="510" ry="390" fill="url(#halo)"/>')
+    add(f'<rect width="{W}" height="{H}" fill="url(#grid)"/>')
 
-    # ------------------------------------------------------- atmosphere
-    add(f'<rect width="{W}" height="{H}" fill="url(#sky)"/>')
-    add(f'<rect width="{W}" height="{H}" fill="url(#glowLeaf)"/>')
-    add(f'<rect width="{W}" height="{H}" fill="url(#glowWater)" class="breathe"/>')
-    add(f'<rect width="{W}" height="{H}" fill="url(#glowSun)"/>')
-    stars = []
-    for _ in range(70):
-        x, y = rnd.uniform(0, W), rnd.uniform(0, H)
-        r = rnd.choice([0.6, 0.8, 1, 1.2, 1.6])
-        color = rnd.choice(["#b8fbff", "#b8fbff", "#c9ef86", "#f7ce76"])
-        stars.append(f'<circle class="star" cx="{x:.0f}" cy="{y:.0f}" r="{r}" fill="{color}" '
-                     f'style="animation-delay:{rnd.uniform(0, 3):.2f}s;animation-duration:{rnd.uniform(2.2, 5):.1f}s"/>')
-    add('<g opacity=".8">' + "".join(stars) + "</g>")
+    # The scene shares the cinematic map projection. Layers give the land thickness.
+    add('<use href="#mainland" transform="translate(0 36)" fill="#020905" opacity=".65" filter="url(#shadow)"/>')
+    for depth, color in ((19, "#334b39"), (14, "#4e6041"), (8, "#657347"), (4, "#83915d")):
+        add(f'<use href="#mainland" transform="translate(0 {depth})" fill="{color}" stroke="{color}"/>')
+    add('<use href="#djerba" transform="translate(0 5)" fill="#445841"/>')
+    add('<use href="#mainland" fill="url(#land)"/><use href="#djerba" fill="url(#land)"/>')
+    add('<g clip-path="url(#surface)">')
+    add(f'<rect x="720" y="15" width="550" height="505" fill="url(#fields)"/>')
 
-    # ------------------------------------------------------- the slab
-    add('<g class="slab">')
-    # Drop shadow under the floating country.
-    add(f'<path d="{land}" transform="translate(0 46)" fill="#000" opacity=".55" filter="url(#shadow)"/>')
-    # Extruded edge: stacked copies, darkest at the bottom.
-    for i in range(10, 0, -1):
-        add(f'<path d="{land}" transform="translate(0 {i * 2.1:.1f})" fill="rgb({8 + i},{30 + i * 2},{32 + i * 2})"/>')
-    add(f'<path d="{djerba}" transform="translate(0 6)" fill="#0d2a2a"/>')
-    add(f'<path d="{land}" fill="url(#landTop)"/>')
-    add(f'<path d="{djerba}" fill="url(#landTop)"/>')
+    # A cartographic engraving, kept visibly distinct from a measured elevation layer.
+    for ridge in range(-4, 28):
+        y = 4 + ridge * 17
+        add(f'<path d="M714 {y}q82 30 135 -1t118 0t142 7t158 -2" fill="none" '
+            'stroke="#354a37" stroke-width="1.4" opacity=".25"/>')
+    add(f'<path d="{river}" fill="none" stroke="#1b564a" stroke-width="6" stroke-linecap="round"/>')
+    add(f'<path d="{river}" fill="none" stroke="#a9e7d2" stroke-width="3" stroke-linecap="round"/>')
+    add(f'<path class="current" pathLength="1" d="{river}" fill="none" stroke="#edfdef" '
+        'stroke-width="2" stroke-dasharray=".035 .065" stroke-linecap="round"/>')
+    add('<g class="light"><path d="M890 -20h140l125 550h-140Z" fill="url(#scan)"/></g></g>')
+    for shape in (land, island):
+        add(f'<path class="coast" d="{shape}" pathLength="1" stroke="#e3f4c3" stroke-width="1.8" fill="none"/>')
 
-    # Inside the land: graticule, relief speckle, the satellite scan.
-    add('<g clip-path="url(#landClip)">')
-    grid = []
-    for lon in range(7, 13):
-        grid.append(path([(lon, 29.5), (lon, 38)]))
-    for lat in range(30, 38):
-        grid.append(path([(7, lat), (12, lat)]))
-    add('<g stroke="#62e3f0" stroke-opacity=".16" stroke-width=".8" fill="none">' + "".join(f'<path d="{d}"/>' for d in grid) + "</g>")
-    speck = []
-    for _ in range(420):
-        lon, lat = rnd.uniform(7.4, 11.6), rnd.uniform(30.2, 37.4)
-        x, y = P(lon, lat)
-        north_ness = (lat - 30) / 7.4
-        color = "#c9ef86" if north_ness > 0.7 and rnd.random() < 0.6 else "#f2d7a0"
-        speck.append(f'<circle cx="{x}" cy="{y}" r="{rnd.uniform(.4, 1.1):.1f}" fill="{color}" opacity="{rnd.uniform(.08, .28):.2f}"/>')
-    add("<g>" + "".join(speck) + "</g>")
-    add(f'<rect class="sweep loop" x="{BOX[0] - 80}" y="0" width="160" height="{H}" fill="url(#scan)"/>')
-    add("</g>")
+    for site_id, coordinates in catalogue_sites():
+        x, y = P(*coordinates)
+        color = "#d4f785" if site_id == "jendouba-pilote" else "#e7f7ec"
+        add(f'<g><title>{escape(site_id)}</title>')
+        if site_id == "jendouba-pilote":
+            add(f'<circle class="pulse" cx="{x}" cy="{y}" r="10" fill="none" stroke="#ddffa1" stroke-width="2"/>')
+        add(f'<circle cx="{x}" cy="{y}" r="5.6" fill="{color}" stroke="#1c392c" stroke-width="2.8"/>')
+        if site_id in CALLOUTS:
+            name, dx, dy, anchor = CALLOUTS[site_id]
+            direction = 1 if dx > 0 else -1
+            end_x, end_y = x + dx, y + dy
+            add(f'<g class="detail"><path d="M{x + 7 * direction} {y + 3} L{end_x - direction * 12} {end_y} H{end_x}" '
+                f'fill="none" stroke="{color}" stroke-width="1.4"/>'
+                f'<text x="{end_x + direction * 6}" y="{end_y + 7}" class="mapLabel" text-anchor="{anchor}" fill="{color}">{name}</text></g>')
+        add('</g>')
 
-    # Coastline: soft glow + crisp line drawn on.
-    add(f'<path d="{land}" fill="none" stroke="#62e3f0" stroke-width="5" opacity=".35" filter="url(#blur6)"/>')
-    add(f'<path class="coast" pathLength="1" d="{land}" fill="none" stroke="#9ff3fb" stroke-width="1.6" stroke-linejoin="round"/>')
-    add(f'<path class="coast" pathLength="1" d="{djerba}" fill="none" stroke="#9ff3fb" stroke-width="1.2"/>')
-
-    # The Medjerda: glowing bed, flowing dashes, a travelling light.
-    add(f'<path d="{river}" fill="none" stroke="#62e3f0" stroke-width="6" opacity=".35" filter="url(#blur2)"/>')
-    add(f'<path d="{river}" fill="none" stroke="#3cc7d8" stroke-width="2" stroke-linecap="round"/>')
-    add(f'<path class="riverflow" pathLength="1" d="{river}" fill="none" stroke="#e8feff" stroke-width="2.2" stroke-linecap="round"/>')
-    add('<circle class="pulse loop" r="4.5" fill="#e8feff" filter="url(#blur2)"/>')
-    add('<circle class="pulse loop" r="2" fill="#ffffff"/>')
-
-    # Reservoirs: real dams, approximate positions, staggered pulses.
-    for i, (lon, lat) in enumerate(DAMS):
-        x, y = P(lon, lat)
-        add(f'<ellipse class="ring loop" cx="{x}" cy="{y}" rx="7" ry="{7 * SQUASH:.1f}" fill="none" stroke="#62e3f0" stroke-width="1.4" '
-            f'style="animation-delay:{0.5 + i * 0.6:.1f}s"/>')
-        add(f'<circle cx="{x}" cy="{y}" r="3" fill="#62e3f0"/><circle cx="{x}" cy="{y}" r="1.4" fill="#eaffff"/>')
-
-    # Tozeur solar plant: a warm sun on the desert.
-    add(f'<circle cx="{tx}" cy="{ty}" r="26" fill="#f7ce76" opacity=".25" filter="url(#blur6)" class="breathe"/>')
-    rays = "".join(
-        f'<line x1="{tx + math.cos(a) * 9:.1f}" y1="{ty + math.sin(a) * 9:.1f}" x2="{tx + math.cos(a) * 15:.1f}" y2="{ty + math.sin(a) * 15:.1f}"/>'
-        for a in [k * math.pi / 6 for k in range(12)])
-    add(f'<g class="rays" stroke="#f7ce76" stroke-width="1.6" stroke-linecap="round">{rays}</g>')
-    add(f'<circle cx="{tx}" cy="{ty}" r="6" fill="#f7ce76"/>')
-    add("</g>")  # slab
-
-    # Wind farms: upright turbines standing on the slab.
-    for k, (lon, lat) in enumerate(WIND):
-        x, y = P(lon, lat)
-        for j, (dx, h) in enumerate([(-9, 30), (4, 38), (16, 27)]):
-            bx, by = x + dx, y + j * 2 - 2
-            hx, hy = bx, by - h
-            blades = "".join(
-                f'<path d="M{hx},{hy} q-1.4,-6 0,-{h * 0.42:.0f} q1.4,6 0,{h * 0.42:.0f} Z" transform="rotate({a} {hx} {hy})"/>'
-                for a in (0, 120, 240))
-            add(f'<g class="fade2"><line x1="{bx}" y1="{by}" x2="{hx}" y2="{hy}" stroke="#eef6ef" stroke-width="1.4" stroke-linecap="round"/>'
-                f'<g class="rotor" style="transform-origin:{hx}px {hy}px;animation-duration:{2.6 + j * 0.7 + k * 0.4:.1f}s" fill="#eef6ef">{blades}</g>'
-                f'<circle cx="{hx}" cy="{hy}" r="1.6" fill="#eef6ef"/></g>')
-
-    # The drop: falls on the Jendouba pilot, then ripples.
-    add(f'<g class="loop"><ellipse class="splash" cx="{jx}" cy="{jy}" rx="30" ry="{30 * SQUASH:.0f}" fill="none" stroke="#b8fbff" stroke-width="1.6"/>'
-        f'<ellipse class="splash" style="animation-delay:1.45s" cx="{jx}" cy="{jy}" rx="18" ry="{18 * SQUASH:.0f}" fill="none" stroke="#62e3f0" stroke-width="1.2"/>'
-        f'<path class="drop" d="M{jx},{jy - 26} C{jx},{jy - 26} {jx - 8},{jy - 13} {jx - 8},{jy - 7} a8,8 0 0 0 16,0 C{jx + 8},{jy - 13} {jx},{jy - 26} {jx},{jy - 26} Z" '
-        f'fill="#b8fbff"/></g>')
-    add(f'<circle cx="{jx}" cy="{jy}" r="4" fill="#c9ef86"/><circle cx="{jx}" cy="{jy}" r="9" fill="none" stroke="#c9ef86" stroke-width="1" opacity=".6" class="breathe"/>')
-
-    # Labels.
-    def label(x, y, text, color, anchor="start", dx=12, dy=4):
-        return (f'<text class="b fade3" x="{x + dx}" y="{y + dy}" font-size="13" font-weight="600" fill="{color}" text-anchor="{anchor}" '
-                f'style="paint-order:stroke" stroke="#04100f" stroke-width="4" stroke-linejoin="round">{text}</text>')
-    add(label(jx, jy, "Jendouba pilot", "#c9ef86", "start", 14, 16))
-    add(label(tx, ty, "Tozeur solar", "#f7ce76", "start", 20, 5))
-    wx, wy = P(*WIND[0])
-    add(label(wx, wy, "Sidi Daoud wind", "#eef6ef", "start", 26, -4))
-    sx, sy = P(*DAMS[0])
-    add(label(sx, sy, "Sidi Salem dam", "#9ff3fb", "start", 12, -8))
-
-    # Floating motes over everything.
-    motes = []
-    for _ in range(26):
-        x, y = rnd.uniform(700, 1260), rnd.uniform(40, 540)
-        motes.append(f'<circle class="mote" cx="{x:.0f}" cy="{y:.0f}" r="{rnd.uniform(.8, 1.8):.1f}" fill="#e8feff" opacity="{rnd.uniform(.2, .6):.2f}" '
-                     f'style="animation-delay:-{rnd.uniform(0, 9):.1f}s"/>')
-    add("<g>" + "".join(motes) + "</g>")
-
-    # --------------------------------------------------------- wordmark
-    add('<g>')
-    add('<text class="t rise1" x="72" y="118" font-size="13" font-weight="600" letter-spacing="5" fill="#62e3f0">TUNISIA · IRRIGATION INTELLIGENCE</text>')
-    add('<g class="rise2">')
-    add('<text x="68" y="262" class="t" font-size="138" font-weight="700" letter-spacing="-5" fill="url(#word)">MIZUHO</text>')
-    add('<g clip-path="url(#wordClip)"><rect class="shimmer loop" x="0" y="120" width="180" height="170" fill="url(#band)" transform="skewX(-18)"/></g>')
-    add('</g>')
-    add('<text class="b rise3" x="74" y="318" font-size="27" font-weight="500" fill="#eef6ef">Renewable-powered water intelligence</text>')
-    add('<text class="b rise3" x="74" y="354" font-size="27" font-weight="500" fill="#eef6ef" opacity=".7">for Tunisian agriculture.</text>')
-
-    chips = [("M6", "CP-SAT irrigation planning", "#62e3f0"), ("M7", "3D dashboard", "#c9ef86"), ("M8", "Evidence assistant", "#f7ce76")]
-    x = 74
-    add('<g class="rise4">')
-    for code, text, color in chips:
-        width = 54 + len(text) * 7.6
-        add(f'<rect x="{x}" y="392" width="{width:.0f}" height="36" rx="18" fill="#ffffff" fill-opacity=".05" stroke="{color}" stroke-opacity=".55"/>'
-            f'<circle cx="{x + 18}" cy="410" r="4" fill="{color}"/>'
-            f'<text class="b" x="{x + 30}" y="415" font-size="13" fill="#eef6ef"><tspan font-weight="700" fill="{color}">{code}</tspan>  {text}</text>')
-        x += width + 10
-    add('</g>')
-    add('<text class="t fade3" x="74" y="486" font-size="12" letter-spacing="6" fill="#eef6ef" opacity=".45">WATER · LAND · SUN</text>')
-    add('</g>')
-
-    add(f'<rect width="{W}" height="{H}" fill="url(#vignette)" pointer-events="none"/>')
-    add("</svg>")
+    # Left-aligned wording stays visible on the first frame and on small screens.
+    add('<g transform="translate(70 78)" fill="none" stroke="#d4f785" stroke-width="3.6" stroke-linecap="round">')
+    for y in (0, 8, 16):
+        add(f'<path d="M0 {y}q5 -4 10 0t10 0t10 0"/>')
+    add('</g><text class="head" x="119" y="97" fill="#bbd6bc">TUNISIA</text>')
+    add('<text x="63" y="251" class="word" fill="url(#type)">MIZUHO</text>')
+    add('<g fill="#eef4e9" class="line"><text x="70" y="337">Plan irrigation around</text>'
+        '<text x="70" y="397">water and power limits.</text></g>')
+    add('<g class="detail"><path d="M70 444h584" stroke="#5b7560" stroke-opacity=".6"/>')
+    add('<text x="70" y="489" class="caption" fill="#c0d1bf">Plan comparison</text>'
+        '<text x="266" y="489" class="caption" fill="#c0d1bf">Digital twin</text>'
+        '<text x="456" y="489" class="caption" fill="#c0d1bf">Voice Guardian</text>')
+    add('<path d="M246 475v16m134 -16v16" stroke="#6b806d"/>')
+    for index, height in enumerate((7, 16, 24, 12, 19)):
+        x = 407 + index * 6
+        add(f'<path class="bar" d="M{x} {482 - height / 2}v{height}" stroke="#83e2ca" stroke-width="3.2" '
+            f'stroke-linecap="round" style="animation-delay:-{index * .14:.2f}s"/>')
+    add('</g></svg>')
     return "\n".join(out) + "\n"
 
 
 if __name__ == "__main__":
     for output, animated in ((OUT, True), (STILL_OUT, False)):
-        output.write_text(build(animated=animated), encoding="utf-8")
+        output.write_text(build(animated=animated), encoding="utf-8", newline="\n")
         print(f"wrote {output.name} ({output.stat().st_size:,} bytes)")
