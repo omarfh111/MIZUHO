@@ -1,0 +1,41 @@
+# AWS deployment plan for the judge demo
+
+Deploy the connected MIZUHO dashboard and FastAPI application at one HTTPS address. The first release candidate is `6d066a8b9e100e7e54d62ab877197abefdc5ca2f` from `main`. Its backend, frontend, browser and security checks passed. This branch contains the plan. Infrastructure, container builds and deployment are implementation work. [CI on the candidate](https://github.com/omarfh111/MIZUHO/actions/runs/44989221737) · [Security checks](https://github.com/omarfh111/MIZUHO/actions/runs/44989221714)
+
+## Proposed first deployment
+
+For a supervised demonstration, start with one x86-64 EC2 instance in Paris (`eu-west-3`), provisionally 2 vCPUs and 4 GiB RAM. Measure solver latency and peak memory under the expected simultaneous judge sessions before settling on this size. A single Uvicorn worker preserves the current process-local conversation model. A host failure or restart interrupts calls and clears assistant session memory. The corpus and reproducible planning inputs can be restored from the release artifacts.
+
+| Component | Implementation |
+| --- | --- |
+| Browser entry | Point a demo hostname to an Elastic IP. Let Caddy serve the static Vite build and terminate HTTPS. For the supervised demo, use individual judge credentials with Caddy's hashed-password `basic_auth` across the site, including API requests and the WebSocket handshake. Test browser audio with the same access controls the judges will use. |
+| API and voice | Proxy `/api/*` unchanged to Uvicorn on a private container network. Give API routes precedence over the frontend fallback. Preserve the public host and forwarded HTTPS scheme, allow the exact public origin through `MIZHUO_CORS_ORIGINS`, and pass WebSocket upgrades on `/api/guardian/call`. Configure proxy timeouts to accommodate the application's 120-second idle window. |
+| Runtime and data | Build two images in CI, a static web image and a Python 3.12 API image. Package `backend/`, `data/`, `docs/evidence/` and `tools/m2m3/` with their repository-relative paths. Install `requirements.txt`. Build the frontend using Node 22.12+ and `npm ci` with `VITE_DATA_MODE=live`. Serve the resulting `frontend/dist`. |
+| External services | Keep the existing Qdrant Cloud collection and the configured OpenAI, NVIDIA and Vultr integrations. Only the API container receives provider credentials. The deployment must allow outbound HTTPS for enabled providers. Read the index before considering re-ingestion. |
+| Host and access | Use encrypted EBS and persist Caddy's certificate state across container replacement. Expose only the web listener on ports 80/443; port 80 handles HTTPS redirects and certificate validation. Administer the host through Systems Manager Session Manager. Enable IMDSv2 and restrict access to the instance role from app containers. |
+
+Implementation references include [Caddy HTTPS](https://caddyserver.com/docs/automatic-https), [judge authentication](https://caddyserver.com/docs/caddyfile/directives/basic_auth), [WebSocket proxying](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy) and [AWS Systems Manager access](https://docs.aws.amazon.com/prescriptive-guidance/latest/aws-startup-security-baseline/wkld-06.html).
+
+## Release sequence
+
+1. **Establish account access and scope.** The account owner signs in through the AWS browser with MFA. For account bootstrap, `aws login --profile mizuho-bootstrap` obtains temporary credentials. Verify the account locally with `aws sts get-caller-identity --profile mizuho-bootstrap`. Use a separate scoped deployment role for releases. Confirm the target account, region, DNS control, judge access window and budget before provisioning. [AWS console sign-in for the CLI](https://docs.aws.amazon.com/signin/latest/userguide/command-line-sign-in.html) · [Root identity guidance](https://docs.aws.amazon.com/IAM/latest/UserGuide/root-user-best-practices.html)
+2. **Implement and merge the deployment changes.** On the feature branch, add the image definitions, a build-context allowlist or equivalent exclusions, a reverse-proxy configuration, and a versioned CloudFormation template. Include ECR repositories, networking, instance role, instance, encrypted volume, log retention, secret references and cost tags. Keep local environment files, media and credentials outside the images. Review a change set and estimate before applying it. [AWS Pricing Calculator](https://calculator.aws/)
+3. **Build from the approved main revision.** After manual review and merge, fetch `origin/main` again and resolve its full SHA. Require successful CI, browser and security workflows for that exact SHA. Check out the SHA explicitly, build once, tag both ECR images with it and record both image digests. Deploy those digests. If main advances before release, reselect and verify its new tip. Keep the SHA, digests, template version and previous release together for rollback.
+4. **Separate release and runtime permissions.** Give the release pipeline short-lived GitHub OIDC credentials, restricted to this repository and the approved deployment environment, with main-only deployment permissions. Give the EC2 role access to pull its images, register with Systems Manager, emit operational logs and read only its named runtime secrets. Use Secrets Manager for provider keys, judge access configuration and the manager approval code. The manager code governs simulated quota changes; judge authentication covers the whole application. [AWS OIDC trust guidance](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-idp_oidc.html)
+5. **Validate before sharing the URL.** First run CI with its isolated test configuration. Then run the acceptance checks below against the candidate over its public HTTPS hostname. Monitor HTTP errors, memory, disk and solver latency. Record timings and redacted failure categories. Keep transcripts, microphone audio, authorization headers and provider secrets out of deployment logs.
+
+## Acceptance checks
+
+| Check | Passing evidence |
+| --- | --- |
+| Release identity and reachability | Both container digests match the recorded SHA. An unauthenticated browser receives an access challenge. A judge can open the Tunisia map and zoom into Jendouba. The authenticated same-origin `/api/health` reports `ok`. |
+| Physics and geography | Reproduce Jendouba's A/B fixed 10/0 and optimized 5/5 m³ with zero additional withdrawal. Inspect a second regional site, open a dated Bouhertma instrument reading and replay the outage in the digital twin. |
+| Evidence | `/api/assistant/health` reports `available`. Verify seven expected and seven indexed passages for this corpus. Ask a documentary question, open the source excerpt, then ask a follow-up about the current simulation. Backend liveness alone cannot establish provider readiness. |
+| Voice and human approval | From a judge browser, connect to `wss://<demo-host>/api/guardian/call`, complete a typed start/ready exchange, then test microphone input and Japanese playback. Check a simulated quota reduction with the configured manager code and confirm it requires approval. A live speech or answer check may incur provider charges. |
+| Recovery and capacity | Recreate the containers from the pinned release, verify the same results, and start a fresh voice session. Exercise simultaneous judge sessions and a long-running solve. Confirm that the previous web/API digest pair can be restored together. |
+
+## Cost, rollback and teardown
+
+The estimate should cover EC2 runtime, public IPv4, EBS, ECR, logs, secrets, DNS and outbound traffic. Track external inference and Qdrant charges separately. Set an AWS budget alert with an owner and a teardown date before the demo. The proposed size and region are planning assumptions; actual cost depends on account pricing, uptime and traffic.
+
+If any acceptance check fails, hold publication or restore the previous verified image pair and configuration, then repeat the health, A/B and voice checks. After the event, remove the demo DNS record and release the dedicated address, instance, unused volumes and stale images according to the retention decision. Preserve the shared Qdrant collection. Confirm residual charges in billing.
