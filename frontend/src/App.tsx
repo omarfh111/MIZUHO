@@ -16,6 +16,7 @@ const TunisiaExplorer = lazy(() => import('./components/TunisiaExplorer.tsx'));
 const ResourceView = lazy(() => import('./components/ResourceView.tsx'));
 const RegionalPlanning = lazy(() => import('./components/RegionalPlanning.tsx'));
 const FieldDayAudit = lazy(() => import('./components/FieldDayAudit.tsx'));
+const VoiceGuardian = lazy(() => import('./components/VoiceGuardian.tsx'));
 type Page = 'tunisia' | 'map' | 'energy' | 'simulation';
 const currentPage = (): Page => {
   const hash = window.location.hash;
@@ -178,6 +179,13 @@ export default function App() {
         <a href="#tunisia" aria-current={page === 'tunisia' ? 'page' : undefined}><Globe2 size={15} /> Tunisia</a>
         <a href="#map" aria-current={page === 'map' ? 'page' : undefined}><Map size={15} /> Site map</a>
       </nav>}
+      {catalog?.mode === 'live' && !(page === 'simulation' && site && (site.properties.field_zone || scenarios.length > 0)) &&
+        <Suspense fallback={null}><VoiceGuardian key={activeCity ? [activeCity.id, period?.start, period?.end].join('/') : activeSite?.properties.site_id ?? 'national'}
+          context={{ site_id: activeSite?.properties.site_id, city_id: activeCity?.id, city_period: activeCity ? period : undefined }}
+          incoming={page === 'simulation' && activeSite?.properties.survey_available ? {
+            id: activeSite.properties.site_id + '/missing-planning-inputs', reason: 'clarification',
+            context: { site_id: activeSite.properties.site_id },
+          } : undefined} /></Suspense>}
       {page === 'tunisia' ? <Suspense fallback={<div className="surface page-fallback" role="status">Loading Tunisia explorer…</div>}>
         <TunisiaExplorer selectedCityId={cityId} onCityResolved={setCity} selectedPeriod={period}
           onCityChange={selectCity} onPeriodChange={setPeriod} sites={citySites} />

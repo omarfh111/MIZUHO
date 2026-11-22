@@ -2,13 +2,14 @@ import { createContext, useContext } from 'react';
 import { exploreJa, explorePatterns } from './explore.ts';
 import { planningJa, planningPatterns } from './planning.ts';
 import { commonJa } from './common.ts';
+import { guardianJa } from './guardian.ts';
 
 export type Language = 'en' | 'ja';
 export type PhrasePattern = [RegExp, (...matches: string[]) => string];
 export const LanguageContext = createContext<Language>('en');
 export const useLanguage = () => useContext(LanguageContext);
 
-const phrases: Record<string, string> = { ...exploreJa, ...planningJa, ...commonJa };
+const phrases: Record<string, string> = { ...exploreJa, ...planningJa, ...commonJa, ...guardianJa };
 const patterns: PhrasePattern[] = [...explorePatterns, ...planningPatterns];
 const months = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ');
 

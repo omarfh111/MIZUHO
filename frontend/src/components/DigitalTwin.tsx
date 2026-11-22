@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Activity, Droplets, Pause, Play, RotateCcw, Sun, Zap } from 'lucide-react';
 import { getForecast, getLayer, getReplay } from '../api.ts';
 import { useExperience } from '../experience/index.ts';
@@ -21,6 +21,14 @@ interface Props {
   plan: ReplaySelection['plan'];
   onSelectPlan: (plan: ReplaySelection['plan']) => void;
   onContext: (context: ReplayContext | undefined) => void;
+  onGuardianEvent: (event: GuardianEvent | undefined) => void;
+  guardian: ReactNode;
+}
+
+export interface GuardianEvent {
+  id: string;
+  reason: 'emergency' | 'clarification';
+  context: { site_id: string; comparison: CompareRequest; telemetry: ReplayContext };
 }
 
 function Forecast({ siteId }: { siteId: string }) {
@@ -39,7 +47,7 @@ function Forecast({ siteId }: { siteId: string }) {
       <tr key={p.timestamp}><th>{clock.format(new Date(p.timestamp))}</th><td>{reading(p.load_kw,'kW')}</td></tr>)}</tbody></table></>;
 }
 
-export default function DigitalTwin({ site, request, comparison, plan, onSelectPlan, onContext }: Props) {
+export default function DigitalTwin({ site, request, comparison, plan, onSelectPlan, onContext, onGuardianEvent, guardian }: Props) {
   const [missing, setMissing] = useState<number[]>([]);
   const [imbalance, setImbalance] = useState<number[]>([]);
   const [index, setIndex] = useState(0);
@@ -106,6 +114,22 @@ export default function DigitalTwin({ site, request, comparison, plan, onSelectP
     return () => onContext(undefined);
   }, [body, frame, readings, onContext]);
 
+  // A changed replay or sensor injection supersedes any unanswered call from the old trace.
+  useEffect(() => { onGuardianEvent(undefined); }, [body, onGuardianEvent]);
+
+  useEffect(() => {
+    if (!body || !frame || !readings) return;
+    const atSlot = [...readings.alerts, ...readings.events].filter(item => item.simulation_slot === frame.slot);
+    const event = ['unexplained_water', 'high_pump_energy_intensity', 'pump_shutdown', 'tank_empty', 'grid_outage', 'missing_flow']
+      .map(type => atSlot.find(item => item.type === type)).find(Boolean);
+    if (!event) return;
+    const { comparison: original, ...trace } = body;
+    const siteId = site.properties.site_id;
+    onGuardianEvent({ id: [siteId, plan, event.timestamp, event.type, event.equipment_id].join('/'),
+      reason: event.type === 'missing_flow' ? 'clarification' : 'emergency',
+      context: { site_id: siteId, comparison: original, telemetry: { ...trace, selected_slot: frame.slot } } });
+  }, [body, frame, readings, plan, site.properties.site_id, onGuardianEvent]);
+
   useEffect(() => {
     if (!playing || !replay) return;
     if (index >= replay.frames.length - 1) { play(false); return; }
@@ -149,6 +173,7 @@ export default function DigitalTwin({ site, request, comparison, plan, onSelectP
         <ul><li><Droplets/>Remaining quota <b>{reading(frame.quota_remaining_m3, 'm³')}</b></li><li><Activity/>Delivered <b>{reading(frame.delivered_m3, 'm³')}</b></li>
         <li><Sun/>PV potential <b>{reading(frame.solar_potential_wh, 'Wh')}</b></li><li><Zap/>Grid used <b>{reading(frame.grid_wh, 'Wh')}</b></li></ul>
       </aside>}</div>
+    {guardian}
     {frame && replay && <>
       <div className="twin-transport"><button type="button" aria-label={playing ? 'Pause playback' : 'Play timeline'} onClick={() => {
         if (index >= replay.frames.length - 1) setIndex(0); play(!playing);

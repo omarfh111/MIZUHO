@@ -17,7 +17,7 @@ export default defineConfig(({ mode }) => {
       alias: { '@mizhuo/i18n': fileURLToPath(new URL('./src/i18n', import.meta.url)) },
       dedupe: ['react', 'react-dom', 'three'],
     },
-    server: { proxy: { '/api': env.MIZU_API_TARGET || 'http://127.0.0.1:8000' } },
+    server: { proxy: { '/api': { target: env.MIZU_API_TARGET || 'http://127.0.0.1:8000', ws: true } } },
     build: {
       rollupOptions: {
         output: {
