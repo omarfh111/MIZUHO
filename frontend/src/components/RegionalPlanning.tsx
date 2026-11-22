@@ -289,6 +289,7 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
           <span>{value(day.irradiation_wh_m2.reduce((sum, wh) => sum + wh, 0) / 1000)} kWh/m² ·
             {' '}<a href={day.source.url} target="_blank" rel="noreferrer">NASA POWER hourly estimate <ArrowUpRight size={12}/></a></span>
         </div>}
+        <p className="muted small">Nearby sites can share a NASA POWER solar grid cell. Local rainfall, terrain and operating conditions can still differ.</p>
       </fieldset>
       {day?.weather ? <RegionalDemandEstimator key={selectedDate + estimatorVersion} siteId={id} date={day.date} weather={day.weather} applied={demandBasis}
         onApply={(sector, volume, basis) => {

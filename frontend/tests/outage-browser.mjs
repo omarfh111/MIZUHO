@@ -88,7 +88,8 @@ async function checkLateComparison(page, site, regional) {
 
 try {
   for (const [site,width] of [['jendouba-pilote', 1380], ['korba-cap-bon', 390],
-    ['kairouan-chebika', 1280], ['gafsa-oasis', 390]]) {
+    ['kairouan-chebika', 1280], ['gafsa-oasis', 390], ['bizerte-mateur', 1280],
+    ['sidi-bouzid-plain', 390], ['sfax-el-hajeb', 1280]]) {
     url.searchParams.set('site', site);
     const page = await browser.newPage({ viewport: { width, height: 860 }, reducedMotion: 'reduce' });
     const errors = [];

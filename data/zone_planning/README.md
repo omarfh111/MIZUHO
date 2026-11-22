@@ -1,6 +1,6 @@
 # Regional irrigation replay
 
-Korba, Chebika and Gafsa each have two archived local days, 15 January and 15 July 2025. These dates sample winter and summer and carry no statistical claim about a typical day. Each site file contains its reference coordinates, 24 hourly irradiation values per day, weather summaries, the original NASA query, the UTC retrieval time and a SHA-256 digest of the original response. [NASA POWER Hourly API](https://power.larc.nasa.gov/docs/services/api/temporal/hourly/) · [Study windows and land-cover sources](../field_zones/README.md)
+Korba, Chebika, Gafsa, Mateur, Sidi Bouzid and El Hajeb each have two archived local days, 15 January and 15 July 2025. These dates sample winter and summer and carry no statistical claim about a typical day. Each site file contains its reference coordinates, 24 hourly irradiation values per day, weather summaries, the original NASA query, the UTC retrieval time and a SHA-256 digest of the original response. [NASA POWER Hourly API](https://power.larc.nasa.gov/docs/services/api/temporal/hourly/) · [Study windows and land-cover sources](../field_zones/README.md)
 
 ## Reproduce the data
 
@@ -14,13 +14,15 @@ The importer requests `ALLSKY_SFC_SW_DWN`, `T2M`, `T2MDEW`, `WS2M`, `PS` and `PR
 
 ## Regional weather and optional demand estimation
 
+Each request uses the registered site's own coordinates. Two nearby coordinates can sample the same solar grid cell. For example, Chebika and Sidi Bouzid have identical hourly irradiation on both archived dates. Their meteorology differs. On 15 July their derived reference ET is 8.230 and 8.277 mm/day respectively. Equal equipment and hard constraints can also produce equal whole-m³ operating results in different places.
+
 NASA supplies the gridded meteorological inputs. MIZUHO computes daily grass-reference evapotranspiration (ET₀) using FAO-56 daily Penman–Monteith. The calculation uses the minimum and maximum hourly temperatures, mean wind speed at 2 m, mean surface pressure and mean actual vapour pressure derived from hourly dewpoints. Hourly irradiation summed over the local day converts from Wh/m² to MJ/m² with a factor of 0.0036. Latitude, day of year and NASA grid elevation determine clear-sky radiation. The reference surface has albedo 0.23 and daily soil heat flux zero. Temperature shown in the interface is the arithmetic mean of the 24 gridded hourly estimates. The FAO equation uses the midpoint of the daily extrema. The importer reproduces FAO's Uccle example within 0.01 mm/day. [FAO-56 equations and worked example 18](https://www.fao.org/4/X0490E/x0490e08.htm)
 
 `POST /api/sites/{site_id}/demand-estimate` accepts a replay `date` and four explicit assumptions for a single sector: `area_m2`, `crop_coefficient`, `effective_rain_fraction` and `application_efficiency`. Effective rain in mm is the day's corrected precipitation multiplied by the usable fraction. Net irrigation depth in mm is `max(0, Kc × ET₀ − effective rain)`. Gross volume in m³ is `net depth × area in m² / (1000 × efficiency)`. The response shows the unrounded volume and its ceiling in whole m³, the physical simulator's unit. To use it in the comparison, pass that integer as the sector demand and the complete original estimate request as `demand_basis.west` or `demand_basis.east`. The API recalculates and checks the value for the selected local date. Omitting the basis keeps a manually entered sector demand.
 
 For example, Korba on 15 July has 7.207 mm of estimated reference ET and zero regional rainfall. Assuming 1,000 m², Kc 1.1 and application efficiency 0.8 gives 9.91 m³ gross and a 10 m³ simulation input. A different area, crop or efficiency changes the result. Field soil moisture, rooting depth, pumping records and crop identity are unavailable for these hypothetical sectors. The estimate represents one day's conditional replacement of water use. It excludes soil-water storage, stress coefficients, salinity leaching, runoff and the previous irrigation history.
 
-These six weather records use NASA POWER. During verification Open-Meteo's public ERA5-Land API returned a daily-quota response and ECMWF's official ARCO endpoint required authentication. This archive makes no ERA5-Land weather claim. [Open-Meteo model and variable coverage](https://open-meteo.com/en/docs/historical-weather-api) · [ECMWF ERA5-Land catalogue](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land-timeseries?tab=analysis_ready_data)
+These twelve weather records use NASA POWER. During verification Open-Meteo's public ERA5-Land API returned a daily-quota response and ECMWF's official ARCO endpoint required authentication. This archive makes no ERA5-Land weather claim. [Open-Meteo model and variable coverage](https://open-meteo.com/en/docs/historical-weather-api) · [ECMWF ERA5-Land catalogue](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land-timeseries?tab=analysis_ready_data)
 
 ## Build and compare a scenario
 

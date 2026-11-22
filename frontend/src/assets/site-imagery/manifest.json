@@ -50,5 +50,44 @@
     "source_sha256": "90401f7cd31ce62adfe1f325918444066127767fc5ebf974ea29163df14d25e6",
     "sha256": "5e9942cf851abbe07012adb2f2e50f20b43b0c46f843e3d7417f30727cf6e51c",
     "retrieved_at": "2026-11-21"
+  },
+  "bizerte-mateur": {
+    "bounds": [
+      9.6104,
+      36.98841,
+      9.72294,
+      37.07825
+    ],
+    "asset": "bizerte-mateur.webp",
+    "url": "https://titiler.terrascope.be/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=esa-worldcover-s2rgbnir-10m-2021-v2_tcc&STYLES=&TIME=2021-01-01&CRS=EPSG%3A4326&BBOX=36.98841%2C9.6104%2C37.07825%2C9.72294&WIDTH=768&HEIGHT=768&FORMAT=image%2Fpng&TRANSPARENT=true",
+    "source_sha256": "e666ac7d61631c6852d638e0a05fb240d7e1f3e399d714a06ec3ee0352c1501d",
+    "sha256": "7fd9fb23161c901bc45a28bfd7f3d0af7e892f3ecab58ff8bb42bcbd88133475",
+    "retrieved_at": "2026-11-22"
+  },
+  "sfax-el-hajeb": {
+    "bounds": [
+      10.62869,
+      34.67175,
+      10.73798,
+      34.76158
+    ],
+    "asset": "sfax-el-hajeb.webp",
+    "url": "https://titiler.terrascope.be/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=esa-worldcover-s2rgbnir-10m-2021-v2_tcc&STYLES=&TIME=2021-01-01&CRS=EPSG%3A4326&BBOX=34.67175%2C10.62869%2C34.76158%2C10.73798&WIDTH=768&HEIGHT=768&FORMAT=image%2Fpng&TRANSPARENT=true",
+    "source_sha256": "f41352968536a7a55948b84bb1c03e1819fa27f228f1fd577e4b61f150dc9c8f",
+    "sha256": "d7f181cd10e1400b5e8d2f47e0da0395c642ce8fa3a44c0cc0a37089071a9380",
+    "retrieved_at": "2026-11-22"
+  },
+  "sidi-bouzid-plain": {
+    "bounds": [
+      9.43008,
+      34.99331,
+      9.5398,
+      35.08315
+    ],
+    "asset": "sidi-bouzid-plain.webp",
+    "url": "https://titiler.terrascope.be/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=esa-worldcover-s2rgbnir-10m-2021-v2_tcc&STYLES=&TIME=2021-01-01&CRS=EPSG%3A4326&BBOX=34.99331%2C9.43008%2C35.08315%2C9.5398&WIDTH=768&HEIGHT=768&FORMAT=image%2Fpng&TRANSPARENT=true",
+    "source_sha256": "26ceaf0caa10b87484ea2607368204d4c5cbcd502f9bed823bc4839e3e8908da",
+    "sha256": "0741fbfc1313ca7028c6a3acd6b195adf371fee8fface3aeee6c2ac61d949118",
+    "retrieved_at": "2026-11-22"
   }
 }

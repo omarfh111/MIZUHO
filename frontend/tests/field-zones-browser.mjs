@@ -37,7 +37,7 @@ try {
   await page.goto(url.href);
   const picker = page.getByRole('combobox', { name: 'Agricultural site' });
   await picker.waitFor();
-  const ids = ['korba-cap-bon', 'kairouan-chebika', 'gafsa-oasis'];
+  const ids = ['korba-cap-bon', 'kairouan-chebika', 'gafsa-oasis', 'bizerte-mateur', 'sidi-bouzid-plain', 'sfax-el-hajeb'];
   const heatmaps = new Set();
   const number = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
   for (const id of ids) {
@@ -257,7 +257,7 @@ try {
   await mobile.getByText('A verified daily reference ET₀ and rainfall pair is unavailable.', { exact: false }).waitFor();
   assert.equal(await mobile.getByText('Estimate sector demand from weather', { exact: true }).count(), 0);
   assert.ok(await mobile.evaluate(() => document.body.scrollWidth <= document.documentElement.clientWidth));
-  console.log('Desktop and mobile passed all three regional layers, source inspection, hourly planning, map deliveries and invalidation.');
+  console.log('Desktop and mobile passed regional layers, source inspection, hourly planning, map deliveries and invalidation.');
 } finally {
   await browser.close();
 }

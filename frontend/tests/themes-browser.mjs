@@ -75,8 +75,8 @@ try {
       await compare.getByLabel('Order study areas by').selectOption(key);
       const col = key === 'rain' ? 0 : 1;
       const values = await compare.locator('tbody tr').evaluateAll((rows, col) =>
-        rows.map(row => parseFloat(row.querySelectorAll('td')[col].textContent)), col);
-      assert.equal(values.length, 3);
+        rows.map(row => parseFloat(row.querySelectorAll('td')[col].textContent.replaceAll(',', ''))), col);
+      assert.equal(values.length, 6);
       assert.deepEqual(values, [...values].sort((a, b) => col === 0 ? a - b : b - a));
     }
     await themes.getByRole('link', { name: 'Land & agriculture' }).click();
