@@ -2,10 +2,10 @@ import { useRef, useState, type RefObject } from 'react';
 import { GuardianHandsFree, type GuardianVoicePhase } from './guardianHandsFree.ts';
 import type { Language } from '../i18n/language.ts';
 
-type Activity = 'ask' | 'present' | 'translate';
+export type GuardianActivity = 'ask' | 'present' | 'translate' | 'evidence';
 
 /** Keep the microphone, its pending utterance and playback inside this dialog's WebSocket session. */
-export function useGuardianLiveVoice(socket: RefObject<WebSocket | null>, activity: Activity, target: Language,
+export function useGuardianLiveVoice(socket: RefObject<WebSocket | null>, activity: GuardianActivity, target: Language,
   notice: (message: string) => void) {
   const controller = useRef<GuardianHandsFree | null>(null);
   const level = useRef(0);
@@ -62,7 +62,7 @@ export function useGuardianLiveVoice(socket: RefObject<WebSocket | null>, activi
         const id = ++sequence.current;
         current.current = id;
         const frame = JSON.stringify({ type: 'audio', mime, data, turn_id: id, mode, stream_audio: true,
-          ...(mode === 'ask' && { progress_audio: true }),
+          ...((mode === 'ask' || mode === 'evidence') && { progress_audio: true }),
           ...(mode === 'translate' && { target_language: language }) });
         if (stt.current === true && socket.current?.readyState === WebSocket.OPEN) socket.current.send(frame);
         else queued.current = frame;

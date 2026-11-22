@@ -1,4 +1,4 @@
-import { AudioLines, BellRing, Check, Languages, MessageSquareText, Mic, MicOff, Presentation, Send, ShieldCheck, Volume2, VolumeX } from 'lucide-react';
+import { AudioLines, BellRing, BookOpen, Check, Languages, MessageSquareText, Mic, MicOff, Presentation, Send, ShieldCheck, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { createPortal, flushSync } from 'react-dom';
 import { useLanguage, type Language } from '../i18n/language.ts';
@@ -7,7 +7,7 @@ import type { ReplayContext } from '../twin.ts';
 import { Modal } from './EvidencePanel.tsx';
 import GuardianMicrophone from './GuardianMicrophone.tsx';
 import GuardianOrb, { type GuardianOrbState } from './GuardianOrb.tsx';
-import { useGuardianLiveVoice } from './useGuardianLiveVoice.ts';
+import { useGuardianLiveVoice, type GuardianActivity } from './useGuardianLiveVoice.ts';
 import { Metric, SourceCitation } from './AssistantEvidence.tsx';
 import './voice-guardian.css';
 
@@ -30,7 +30,13 @@ export type GuardianConfirmation =
   | { id: string; zone_inputs: RegionPlanRequest; zone_result: RegionalPlanningResult };
 interface Proposal { id: string; quota_m3: number; previous_quota_m3: number; delivered_on_time_m3: number | null }
 type SpeechLanguage = Language;
-type Activity = 'ask' | 'present' | 'translate';
+const activities = {
+  ask: { label: 'Chat', Icon: MessageSquareText, input: 'Message', submit: 'Send message', placeholder: 'What would you like to work on?' },
+  present: { label: 'Present', Icon: Presentation, input: 'Presentation focus (optional)', submit: 'Prepare my presentation', placeholder: 'What would you like the audience to remember?' },
+  translate: { label: 'Translate', Icon: Languages, input: 'Text to translate', submit: 'Translate text', placeholder: 'Speak or paste your passage here.' },
+  evidence: { label: 'Sources', Icon: BookOpen, input: 'Research question', submit: 'Find sources', placeholder: 'Which claim would you like to check?' },
+} satisfies Record<GuardianActivity, { label: string; Icon: typeof BookOpen; input: string; submit: string; placeholder: string }>;
+const activityOrder: GuardianActivity[] = ['ask', 'present', 'translate', 'evidence'];
 const languageNames = { en: 'English', ja: '日本語', aeb: 'تونسي' };
 const languageTags = { en: 'en', ja: 'ja', aeb: 'aeb-TN' };
 const speechLanguages: SpeechLanguage[] = ['en', 'ja', 'aeb'];
@@ -45,7 +51,7 @@ interface Entry {
 }
 interface Capabilities { stt: boolean; tts: boolean; llm: boolean }
 type ServerMessage =
-  | { type: 'ready'; text: string; voice: Capabilities; requires_manager_code?: boolean; rag_available?: boolean }
+  | { type: 'ready'; text: string; voice: Capabilities; requires_manager_code?: boolean }
   | { type: 'language'; language: SpeechLanguage; voice: Capabilities }
   | { type: 'reply'; text: string; language?: SpeechLanguage; speech_available?: boolean; citations?: Source[];
       facts?: Entry['facts']; missing_information?: string[]; proposal?: Proposal }
@@ -69,11 +75,10 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
   const [connection, setConnection] = useState<'connecting' | 'active' | 'closed'>('connecting');
   const [attempt, setAttempt] = useState(0);
   const [capabilities, setCapabilities] = useState(idleCapabilities);
-  const [ragAvailable, setRagAvailable] = useState(false);
   const [entries, setEntries] = useState<Entry[]>([]);
   const [error, setError] = useState('');
   const [draft, setDraft] = useState('');
-  const [activity, setActivity] = useState<Activity>('ask');
+  const [activity, setActivity] = useState<GuardianActivity>('ask');
   const [language, setLanguage] = useState<SpeechLanguage>(call.language);
   const [target, setTarget] = useState<SpeechLanguage>(call.language === 'en' ? 'ja' : 'en');
   const [speechAvailable, setSpeechAvailable] = useState(false);
@@ -181,7 +186,6 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
         clearTimeout(connectDeadline);
         setConnection('active');
         setCapabilities(reply.voice);
-        setRagAvailable(reply.rag_available === true);
         setRequiresManagerCode(reply.requires_manager_code === true);
         tts = reply.voice.tts;
         live.ready(reply.voice.stt);
@@ -275,6 +279,7 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
   }
   function reconnect() {
     setProposal(undefined); setEntries([]); setConfirmed(false); setError('');
+    setActivity('ask');
     setObservation(''); setRecordingObservation(false); setDraft(''); setQuota('');
     setConnection('connecting'); setCapabilities(idleCapabilities); setRequiresManagerCode(false); setAttempt(value => value + 1);
   }
@@ -284,8 +289,7 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
     stopPlayback(); setAudioSrc('');
   }
   const turn = { mode: activity, ...(activity === 'translate' && { target_language: target }) };
-  const inputLabel = activity === 'translate' ? 'Text to translate' : activity === 'present' ? 'Presentation focus (optional)' : 'Message';
-  const submitLabel = activity === 'translate' ? 'Translate text' : activity === 'present' ? 'Prepare my presentation' : 'Send message';
+  const { input: inputLabel, submit: submitLabel, placeholder } = activities[activity];
   return <Modal title="Voice Guardian" icon={<AudioLines size={24} />} close={close} kind="guardian-modal">
     {(call.reason !== 'accessibility' || call.context.telemetry) && <div className="guardian-call-meta">
       {call.reason !== 'accessibility' && <span className="guardian-chip">{reasonLabels[call.reason]}</span>}
@@ -301,13 +305,13 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
           : 'Live voice sends each phrase for transcription after you pause.'}</p>
       </div>}
       {connection === 'connecting' && <p role="status" className="guardian-status">Opening the assistant…</p>}
-      {active && !capabilities.llm && !ragAvailable && <p className="guardian-note">Guided mode uses verified simulator data. Open conversation needs the AI service.</p>}
       {active && <>
         <div className="guardian-modes" role="group" aria-label="Assistant tools">
-          {([{ id: 'ask', label: 'Ask', Icon: MessageSquareText }, { id: 'present', label: 'Present', Icon: Presentation },
-            { id: 'translate', label: 'Translate', Icon: Languages }] as const).map(({ id, label, Icon }) =>
-            <button type="button" key={id} aria-pressed={activity === id} disabled={busy} onClick={() => setActivity(id)}>
-              <Icon size={16} aria-hidden="true"/>{label}</button>)}
+          {activityOrder.map(id => {
+            const { label, Icon } = activities[id];
+            return <button type="button" key={id} aria-pressed={activity === id} disabled={busy} onClick={() => setActivity(id)}>
+              <Icon size={16} aria-hidden="true"/>{label}</button>;
+          })}
         </div>
         <div className="guardian-languages">
           <label className="field"><span>Speaking language</span>
@@ -364,7 +368,7 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
             setDraft('');
           }
         }}><label className="field"><span>{inputLabel}</span><textarea maxLength={1200} rows={2} value={draft} dir="auto"
-          placeholder={activity === 'present' ? 'What would you like the audience to remember?' : activity === 'translate' ? 'Speak or paste your passage here.' : 'What would you like me to explain?'}
+          placeholder={placeholder}
           onChange={e => setDraft(e.target.value)} /></label>
           {activity === 'translate' && !capabilities.llm && <small className="guardian-note">Translation needs a connected language model.</small>}
           <button type="submit" className="button button-primary" disabled={busy || (!draft.trim() && activity !== 'present') || (activity === 'translate' && !capabilities.llm)}><Send size={15} />{submitLabel}</button>

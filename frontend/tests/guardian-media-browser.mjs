@@ -83,6 +83,7 @@ try {
   await dialog.getByRole('button', { name: 'Discard recording' }).click();
   assert.equal(await page.evaluate(() => window.guardianTracks.every(track => track.readyState === 'ended')), true);
   assert.equal(clips.length, 0);
+  await dialog.getByRole('button', { name: 'Sources', exact: true }).click();
   await record.click();
   await stop.waitFor();
   // MediaRecorder emits non-empty encoded audio after its 500 ms timeslice.
@@ -93,7 +94,9 @@ try {
   await dialog.getByRole('button', { name: 'Send recording' }).click();
   await dialog.getByText('Check the flow.', { exact: true }).waitFor();
   assert.equal(clips.length, 1);
+  assert.equal(clips[0].mode, 'evidence');
   assert.ok(clips[0].mime.startsWith('audio/') && Buffer.from(clips[0].data, 'base64').length > 0);
+  await dialog.getByRole('button', { name: 'Chat', exact: true }).click();
   await dialog.getByRole('button', { name: 'Record observation' }).click();
   await dialog.getByRole('button', { name: 'Use my last message' }).click();
   assert.equal(await dialog.getByLabel('Field observation').inputValue(), 'Check the flow.');
@@ -121,7 +124,7 @@ try {
   assert.deepEqual(translations, [{ type: 'message', text: 'ようこそ。', mode: 'translate', target_language: 'aeb' }]);
   assert.equal(connections, sameSession);
   await dialog.getByText('The reading is missing.').waitFor();
-  await dialog.getByRole('button', { name: 'Ask', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Chat', exact: true }).click();
   await record.click();
   await stop.waitFor();
   await dialog.getByRole('button', { name: 'Done' }).click();

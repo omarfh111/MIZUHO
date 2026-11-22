@@ -76,6 +76,38 @@ try {
   assert.equal(Number(await quota.inputValue()), amount);
   await page.getByText(/Simulated plan approved/i).first().waitFor();
   await page.getByRole('button', { name: 'Voice assistant' }).click();
+  const chatButton = call.getByRole('button', { name: 'Chat', exact: true });
+  await chatButton.waitFor();
+  const greeting = await log.locator('.guardian-turn.guardian p').first().innerText();
+  assert.match(greeting, /translat|present|rehears|introduct/i);
+  assert.doesNotMatch(greeting, /m³|verified evidence|unavailable/i);
+  assert.equal(await chatButton.getAttribute('aria-pressed'), 'true');
+  assert.equal(await call.getByRole('button', { name: 'Sources', exact: true }).getAttribute('aria-pressed'), 'false');
+  const identityReply = opened.at(-1).waitForEvent('framereceived', {
+    predicate: ({ payload }) => JSON.parse(payload).type === 'reply',
+  }).then(({ payload }) => JSON.parse(payload));
+  await call.getByLabel('Message', { exact: true }).fill('Who are you?');
+  await call.getByRole('button', { name: 'Send message' }).click();
+  const identity = await identityReply;
+  assert.notEqual(identity.mode, 'langgraph');
+  assert.match(identity.text, /Voice Guardian|Miz(?:huo|uho)/i);
+  assert.doesNotMatch(identity.text, /unavailable|verified evidence|simulation results to answer/i);
+  const identityTurn = log.locator('.guardian-turn.guardian').filter({ hasText: identity.text });
+  await identityTurn.waitFor();
+  assert.equal(await identityTurn.locator('a, details').count(), 0);
+  await call.getByRole('button', { name: 'Sources', exact: true }).click();
+  const evidenceReply = opened.at(-1).waitForEvent('framereceived', {
+    predicate: ({ payload }) => JSON.parse(payload).type === 'reply',
+  }).then(({ payload }) => JSON.parse(payload));
+  await call.getByLabel('Research question').fill('ANME photovoltaic potential in northwest Tunisia');
+  await call.getByRole('button', { name: 'Find sources' }).click();
+  const evidence = await evidenceReply;
+  assert.equal(evidence.activity, 'evidence');
+  const source = evidence.citations.find(item => item.organization === 'ANME' && item.excerpt);
+  assert.ok(source && source.url.startsWith('https://'));
+  await log.getByRole('link').first().waitFor();
+  assert.ok((await log.getByRole('link').evaluateAll(links => links.map(link => link.href))).includes(source.url));
+  await chatButton.click();
   await call.getByLabel('Message', { exact: true }).fill('Explain the plan.');
   await call.getByRole('button', { name: 'Send message' }).click();
   await log.getByText(/on.time deliver/i).waitFor();
@@ -129,8 +161,8 @@ try {
 
   // Each dashboard locale opens its matching assistant without ringing or requesting a microphone.
   for (const scenario of [
-    { language: 'ja', locale: 'ja', open: '音声アシスタント', speak: '話す言語', present: '発表を準備', generate: '発表原稿を作る', done: '終了', script: /[ぁ-んァ-ン]/ },
-    { language: 'aeb', locale: 'aeb-TN', open: 'المعاون الصوتي', speak: 'اللغة اللي باش تحكي بيها', present: 'حضّر العرض', generate: 'حضّرلي كلام للعرض', done: 'كمّلت', script: /[ء-ي]/ },
+    { language: 'ja', locale: 'ja', open: '音声アシスタント', speak: '話す言語', chat: '会話', sources: '資料', present: '発表を準備', generate: '発表原稿を作る', done: '終了', script: /[ぁ-んァ-ン]/ },
+    { language: 'aeb', locale: 'aeb-TN', open: 'المعاون الصوتي', speak: 'اللغة اللي باش تحكي بيها', chat: 'نحكيو', sources: 'المصادر', present: 'حضّر العرض', generate: 'حضّرلي كلام للعرض', done: 'كمّلت', script: /[ء-ي]/ },
   ]) {
     const localized = new URL(url);
     localized.searchParams.set('lang', scenario.language);
@@ -139,6 +171,8 @@ try {
     await page.getByRole('button', { name: scenario.open, exact: true }).click();
     const assistant = page.getByRole('dialog');
     assert.equal(await assistant.getByLabel(scenario.speak).inputValue(), scenario.language);
+    assert.equal(await assistant.getByRole('button', { name: scenario.chat, exact: true }).getAttribute('aria-pressed'), 'true');
+    assert.equal(await assistant.getByRole('button', { name: scenario.sources, exact: true }).getAttribute('aria-pressed'), 'false');
     await assistant.getByRole('button', { name: scenario.present, exact: true }).click();
     const prior = await assistant.getByRole('log').locator('p').count();
     await assistant.getByRole('button', { name: scenario.generate }).click();

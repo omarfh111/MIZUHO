@@ -33,7 +33,7 @@
 .guardian-chip { color: var(--teal); padding: 3px 8px; border: 1px solid #40604c; border-radius: 999px; }
 .guardian-call-body { overflow-y: auto; overscroll-behavior: contain; min-height: 0; display: grid; gap: 10px; padding: 13px 18px 16px; }
 .guardian-call-body > .text-button { justify-self: start; }
-.guardian-modes { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 12px; padding: 3px; background: #101a15; }
+.guardian-modes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 12px; padding: 3px; background: #101a15; }
 .guardian-modes button { display: flex; justify-content: center; align-items: center; gap: 7px; min-height: 38px; font: inherit; font-size: .83rem; font-weight: 650; color: var(--muted); background: transparent; border: 0; border-radius: 8px; cursor: pointer; }
 .guardian-modes button[aria-pressed="true"] { background: #2d4130; color: var(--lime); }
 .guardian-modes button:focus-visible { outline: 2px solid var(--lime); outline-offset: -2px; }
@@ -71,4 +71,8 @@ form.guardian-review, .guardian-proposal { display: grid; gap: 8px; }
   .assistant-launch:has(> button) .guardian-live-launch span { display: none; }
   .guardian-incoming { flex-direction: column; align-items: flex-start; }
   .guardian-call-body { padding-inline: 12px; }
+}
+@media (max-width: 440px) {
+  .guardian-modes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .guardian-modes button { min-height: 44px; }
 }
