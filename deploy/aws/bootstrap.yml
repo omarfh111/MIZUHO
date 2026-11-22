@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: GitHub OIDC release role for the MIZUHO judge environment.
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+
+Parameters:
+  CloudFormationRoleArn:
+    Type: String
+    AllowedPattern: 'arn:aws:iam::[0-9]{12}:role/mizuho-demo-cloudformation'
+    Description: CloudFormationRoleArn output from the owner-managed stack-role.yml stack.
+
+Resources:
+  GitHubReleaseRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Publish the reviewed revision and submit two application change sets without long-lived keys.
+        must:
+          - Keep the OIDC audience and immutable repository/environment subject exact.
+          - Restrict the aws-demo GitHub environment to main.
+          - Bootstrap roles and runtime credentials remain owner-administered.
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'token.actions.githubusercontent.com:aud': sts.amazonaws.com
+                'token.actions.githubusercontent.com:sub': 'repo:omarfh111@163393752/MIZUHO@1466609894:environment:aws-demo'
+      Policies:
+        - PolicyName: PublishVerifiedMain
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: PrepareReleaseChangeSet
+                Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/mizuho-demo-registry/*'
+                  - !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/mizuho-demo-service/*'
+                Condition:
+                  StringEquals:
+                    'cloudformation:RoleArn': !Ref CloudFormationRoleArn
+              - Sid: MonitorAndExecuteReleaseChangeSets
+                Effect: Allow
+                Action:
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:DescribeStacks
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:GetTemplateSummary
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/mizuho-demo-registry/*'
+                  - !Sub 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/mizuho-demo-service/*'
+              - Sid: PassOnlyStackExecutionRole
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !Ref CloudFormationRoleArn
+                Condition:
+                  StringEquals: {'iam:PassedToService': cloudformation.amazonaws.com}
+              - Sid: AuthenticateToEcr
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Sid: PublishCommitImage
+                Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:CompleteLayerUpload
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource: !Sub 'arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/mizuho-demo-registry'
+
+Outputs:
+  DeployRoleArn:
+    Description: Set this value as AWS_DEPLOY_ROLE_ARN in the protected aws-demo GitHub environment.
+    Value: !GetAtt GitHubReleaseRole.Arn
