@@ -52,7 +52,7 @@ export default function EvidencePanel({ source, mode, close }: { source: string;
         {passages.map((passage) => <div key={passage.id} className="evidence-passage">
           <p><strong>{passage.section}</strong> · {dateLabel(passage.date)}
             {passage.page != null && ` · p. ${passage.page}`}</p>
-          <blockquote>{passage.excerpt}</blockquote>
+          <blockquote translate="no">{passage.excerpt}</blockquote>
         </div>)}
         {evidence.url && <a className="button button-secondary" href={evidence.url} target="_blank" rel="noreferrer">
           Open source <ExternalLink size={15} /></a>}

@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { CHAPTERS } from '../core/content.ts';
+import { translate, useLanguage } from '../../i18n/language.ts';
 
 interface Props {
   chapter: number;
@@ -10,6 +11,7 @@ const state = (index: number, current: number) => (index === current ? 'active' 
 
 /** Chapter copy. Lines reveal through masks; the frame keeps the copy's side quiet. */
 export function Captions({ chapter, onEnter }: Props) {
+  const language = useLanguage();
   return (
     <div className="mx-captions" aria-live="polite">
       {CHAPTERS.map((item, index) => {
@@ -29,7 +31,7 @@ export function Captions({ chapter, onEnter }: Props) {
             <h2 className="mx-caption__title">
               {item.title.map((line, l) => (
                 <span key={l} className="mx-caption__line">
-                  {(finale ? line.split('') : line.split(' ')).map((w, i) => (
+                  {(finale ? line.split('') : translate(line, language).split(' ')).map((w, i) => (
                     <span key={i} className="mx-word">
                       <span style={{ '--i': word++ } as CSSProperties}>{w}</span>
                     </span>

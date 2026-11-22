@@ -1,0 +1,48 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright-core';
+
+const base = new URL(process.env.MIZHUO_TEST_URL ?? 'http://127.0.0.1:5173/');
+base.searchParams.set('intro', '0');
+const browser = await chromium.launch(process.env.MIZHUO_CHROME_PATH
+  ? { executablePath: process.env.MIZHUO_CHROME_PATH } : { channel: 'chrome' });
+try {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  const link = new URL(base);
+  link.hash = 'simulation';
+  link.searchParams.set('site', 'sfax-el-hajeb');
+  await page.goto(link.href);
+  await page.getByRole('button', { name: 'Load example assumptions' }).click();
+  const stock = page.getByRole('spinbutton', { name: /Initial tank stock/ });
+  await stock.fill('7');
+  const planPending = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/sfax-el-hajeb/planning'));
+  await page.getByRole('button', { name: 'Compare regional plans' }).click();
+  const plan = await (await planPending).json();
+  assert.equal(plan.site_id, 'sfax-el-hajeb');
+  const summary = page.getByRole('region', { name: 'Regional plan comparison' });
+  const displayed = await summary.locator('tbody tr:first-child td').allTextContents();
+  assert.equal(Number(displayed[1]), plan.comparison.optimized.metrics.delivered_on_time_m3);
+  await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('ja');
+  await page.getByRole('link', { name: '灌漑計画', exact: true }).waitFor();
+  const jaSummary = page.getByRole('region', { name: '地域別の配水計画の比較' });
+  assert.deepEqual(await jaSummary.locator('tbody tr:first-child td').allTextContents(), displayed);
+  assert.equal(await page.getByRole('spinbutton', { name: /初期貯水量/ }).inputValue(), '7');
+  assert.equal(await page.getByRole('combobox', { name: '農業サイト' }).inputValue(), 'sfax-el-hajeb');
+  assert.equal(await page.locator('html').getAttribute('lang'), 'ja');
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.getByRole('combobox', { name: '言語', exact: true }).selectOption('en');
+  await summary.waitFor();
+  assert.equal(await stock.inputValue(), '7');
+  await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('ja');
+  // Start a fresh URL in the same browser session to exercise the saved choice independently of the query.
+  await page.goto(base.href);
+  await page.getByRole('searchbox', { name: '都市を検索' }).fill('スファックス');
+  assert.equal(await page.getByRole('complementary', { name: '都市一覧' }).getByRole('listitem').count(), 1);
+  await page.getByRole('complementary', { name: '都市一覧' }).getByRole('listitem').getByRole('button').click();
+  await page.getByRole('link', { name: '灌漑計画', exact: true }).click();
+  await page.getByRole('heading', { name: '計画の前提条件を設定' }).waitFor();
+  assert.equal(await page.getByRole('combobox', { name: '農業サイト' }).inputValue(), 'sfax-el-hajeb');
+  assert.deepEqual(errors, []);
+  console.log('English and Japanese preserve the active site, edited stock and calculated results. Japanese city search and saved preferences passed on mobile.');
+} finally { await browser.close(); }

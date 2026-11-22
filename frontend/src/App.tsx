@@ -8,6 +8,7 @@ import SolarComparison from './components/SolarComparison.tsx';
 import type { AssistantSimulationContext, RegionPlanContext, SolarOption, TunisiaCity, TunisiaPeriod } from './types.ts';
 import SitePicker from './components/SitePicker.tsx';
 import CivicContinuity from './components/CivicContinuity.tsx';
+import { LanguageSelector } from './i18n/LanguageProvider.tsx';
 
 const Simulation = lazy(() => import('./components/Simulation.tsx'));
 const AssistantPanel = lazy(() => import('./components/AssistantPanel.tsx'));
@@ -167,7 +168,7 @@ export default function App() {
             {displayMode ? <FlaskConical size={14} /> : <Radio size={14} />}
             {catalog.mode === 'demo' ? 'Simulated data' : displayMode ? 'API · simulated site' : 'API connected'}
           </span>}
-          <span className="locale" aria-label="Tunisia">TN</span>
+          <LanguageSelector />
         </div>
       </div>
     </header>

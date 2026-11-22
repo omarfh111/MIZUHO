@@ -1,6 +1,7 @@
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
+import { translate, type Language } from '../../i18n/language.ts';
 import type { Director } from '../core/director.ts';
 import { ENERGY_SITES, toWorld } from '../core/geo.ts';
 import type { World } from './world.ts';
@@ -20,7 +21,9 @@ interface Spec {
  * layer outside the canvas. No React roots are created per label, which
  * keeps mounting/unmounting the scene cheap and race-free.
  */
-export function Labels({ world, director, layer }: { world: World; director: Director; layer: HTMLElement | null }) {
+export function Labels({ world, director, layer, language }: {
+  world: World; director: Director; layer: HTMLElement | null; language: Language;
+}) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
 
@@ -60,23 +63,26 @@ export function Labels({ world, director, layer }: { world: World; director: Dir
       pin.className = spec.channel === 'labels' ? 'mx-poi__dot' : 'mx-place__pin';
       const text = document.createElement('span');
       text.className = 'mx-place__label';
-      text.textContent = spec.text;
       el.append(pin, text);
       el.style.visibility = 'hidden';
-      return el;
+      return { el, text };
     });
   }, [layer, specs]);
 
   useEffect(() => {
+    elements.forEach(({ text }, i) => { text.textContent = translate(specs[i].text, language); });
+  }, [elements, specs, language]);
+
+  useEffect(() => {
     if (!layer) return;
-    layer.append(...elements);
-    return () => elements.forEach((el) => el.remove());
+    layer.append(...elements.map(({ el }) => el));
+    return () => elements.forEach(({ el }) => el.remove());
   }, [layer, elements]);
 
   const v = useMemo(() => new THREE.Vector3(), []);
   useFrame(() => {
     specs.forEach((spec, i) => {
-      const el = elements[i];
+      const el = elements[i]?.el;
       if (!el) return;
       const raw = director[spec.channel];
       const amount = THREE.MathUtils.clamp((raw - spec.stagger) / (1 - spec.stagger), 0, 1);

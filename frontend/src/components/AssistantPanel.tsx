@@ -4,6 +4,7 @@ import { ApiError, askAssistant, getAssistantHealth, type DataMode } from '../ap
 import { dateLabel, provenanceLabel } from '../format.ts';
 import type { AssistantAnswer, AssistantHealth, AssistantSimulationContext, RegionPlanContext, Site, SolarOption, TunisiaCity, TunisiaPeriod } from '../types.ts';
 import { Modal } from './EvidencePanel.tsx';
+import { translate, useLanguage } from '../i18n/language.ts';
 
 const suggestions = [
   'Why did grower A receive only 5 m³ in the A/B demo?',
@@ -50,7 +51,7 @@ function SourceCitation({ citation }: { citation: AssistantAnswer['citations'][n
       <p className="muted">{citation.section} · {dateLabel(citation.date)}
         {citation.page != null && ` · p. ${citation.page}`}</p>
       <p className="muted">Publisher excerpt</p>
-      <blockquote>{citation.excerpt}</blockquote>
+      <blockquote translate="no">{citation.excerpt}</blockquote>
       <p><strong>MIZUHO assessment:</strong> {citation.limitation}</p>
       <a href={citation.url} target="_blank" rel="noreferrer" className="text-button">Read the source <ExternalLink size={14} /></a>
     </div>
@@ -94,6 +95,7 @@ export default function AssistantPanel({ site, city, period, mode, solar, simula
   zonePlan?: RegionPlanContext;
   open: boolean; close: () => void;
 }) {
+  const language = useLanguage();
   const [sessionId] = useState(createSessionId);
   const [health, setHealth] = useState<AssistantHealth['status'] | 'checking'>('checking');
   const [healthAttempt, setHealthAttempt] = useState(0);
@@ -142,7 +144,7 @@ export default function AssistantPanel({ site, city, period, mode, solar, simula
     };
     const archive = solar?.source_id === 'pvgis-sarah3-jendouba-2023';
     askAssistant({
-      provider, question: prompt, site_id: site?.properties.site_id, city_id: city?.id, city_period: period, session_id: sessionId,
+      provider, language, question: prompt, site_id: site?.properties.site_id, city_id: city?.id, city_period: period, session_id: sessionId,
       solar_option_id: archive ? undefined : solar?.id,
       pvgis_option_id: archive && (solar.id === 'ombriere' || solar.id === 'toiture') ? solar.id : undefined,
       comparison: simulation?.comparison, selected_scenario_id: simulation?.scenarioId,
@@ -183,10 +185,10 @@ export default function AssistantPanel({ site, city, period, mode, solar, simula
             'Explore the assumptions, official sources, or trade-offs behind an irrigation decision.'}</p>
           <div className="assistant-suggestions">{(city ? citySuggestions : zonePlan ? ['Why did the two sectors receive these volumes?', ...fieldZoneSuggestions] : site?.properties.field_zone ? fieldZoneSuggestions :
             site?.properties.survey_available ? surveySuggestions : suggestions).map((suggestion) =>
-            <button key={suggestion} type="button" onClick={() => send(suggestion)}>{suggestion}</button>)}</div>
+            <button key={suggestion} type="button" onClick={() => send(translate(suggestion, language))}>{suggestion}</button>)}</div>
         </div>}
       {turns.map((turn, index) => <article key={index} className="assistant-turn">
-          <p className="assistant-question">{turn.question}</p>
+          <p className="assistant-question" translate="no">{turn.question}</p>
           {turn.scope !== scope && Boolean(turn.answer?.facts.length) &&
             <span className="assistant-context">Historical result · earlier inputs</span>}
           {turn.answer ? <Answer answer={turn.answer} /> : turn.error

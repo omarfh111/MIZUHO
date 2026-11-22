@@ -1,6 +1,7 @@
 import '@fontsource-variable/space-grotesk';
 import '@fontsource-variable/manrope';
 import './experience.css';
+import { LanguageSelector } from '../i18n/LanguageProvider.tsx';
 import { gsap } from 'gsap';
 import {
   Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
@@ -422,9 +423,9 @@ export function ExperienceGate({
             onReleased={onLoaderReleased}
           />}
 
-          {phase !== 'exiting' && <button ref={skip} type="button" className="mx-skip" onClick={() => exit(true)}>
+          {phase !== 'exiting' && <div className="mx-controls"><LanguageSelector /><button ref={skip} type="button" className="mx-skip" onClick={() => exit(true)}>
             Skip intro <span aria-hidden>→</span>
-          </button>}
+          </button></div>}
         </div>
       ) : null}
 

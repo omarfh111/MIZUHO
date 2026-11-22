@@ -407,6 +407,7 @@ export interface AssistantHealth {
 }
 
 export interface AssistantRequest {
+  language?: 'en' | 'ja';
   zone_plan?: RegionPlanContext;
   provider?: 'openai' | 'nvidia';
   telemetry?: import('./twin.ts').ReplayContext;

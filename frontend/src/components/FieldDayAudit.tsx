@@ -19,7 +19,7 @@ function RecordedResults({ day }: { day: FieldDay }) {
       <table><caption>Metered delivery volumes supplied by the operator</caption>
         <thead><tr>{['Parcel', 'Last slot (Tunis)', 'Promised minimum', 'By deadline', 'By day end', 'Shortfall at deadline'].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
         <tbody>{day.parcels.map(parcel => <tr key={parcel.id}>
-          <th scope="row">{parcel.id}</th><td>{String(parcel.lastSlot).padStart(2, '0')}:00</td>
+          <th scope="row" translate="no">{parcel.id}</th><td>{String(parcel.lastSlot).padStart(2, '0')}:00</td>
           <td>{cubicMetres(parcel.minimumLitres)}</td><td>{cubicMetres(parcel.onTimeLitres)}</td>
           <td>{cubicMetres(parcel.dayEndLitres)}</td><td>{cubicMetres(parcel.shortfallLitres)}</td>
         </tr>)}</tbody>
