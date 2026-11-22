@@ -25,19 +25,19 @@ class CallStart(PlanningModel):
     city_id: Annotated[str, Field(pattern=r"^\d{1,12}$")] | None = None
     city_period: AssistantCityPeriod | None = None
     reason: Literal["accessibility", "emergency", "clarification"]
-    language: Literal["fr", "en", "ja"] = "fr"
+    language: Literal["fr", "en", "ja", "aeb"] = "fr"
     comparison: CompareRequest | None = None
     telemetry: AssistantTelemetry | None = None
     zone_plan: RegionalPlanContext | None = None
 
 
 EVENTS = {
-    "unexplained_water": ("Le bilan d’eau présente un écart inexpliqué. Pouvez-vous vérifier le compteur et le niveau de la cuve avant de conclure à une fuite ?", "The water balance shows an unexplained discrepancy. Can you check the meter and tank level before attributing it to a leak?", "水収支に原因不明の差があります。漏水と判断する前に、計器と貯水量を確認できますか。"),
-    "high_pump_energy_intensity": ("L’énergie consommée par volume pompé dépasse la référence. Pouvez-vous vérifier le débit et le compteur électrique ?", "Energy per volume pumped exceeds the reference. Can you check flow and the electricity meter?", "揚水量あたりの電力量が基準を超えました。流量と電力量計を確認できますか。"),
-    "grid_outage": ("Le réseau électrique est coupé. Pouvez-vous vérifier l’alimentation de la pompe ?", "Grid power is interrupted. Can you check the pump supply?", "停電が発生しました。ポンプの電源を確認できますか。"),
-    "tank_empty": ("La cuve est vide. Pouvez-vous vérifier le niveau avant la prochaine distribution ?", "The reservoir is empty. Can you check the level before the next delivery?", "貯水槽が空です。次の配水前に水位を確認できますか。"),
-    "pump_shutdown": ("La pompe est indisponible. Pouvez-vous vérifier son état ?", "The pump is unavailable. Can you check its status?", "ポンプが使用できません。状態を確認できますか。"),
-    "missing_flow": ("La mesure du débit manque. Que montre le compteur local ? Une absence de lecture ne signifie pas un débit nul.", "The flow reading is missing. What does the local meter show? A missing reading does not establish zero flow.", "流量計の値が欠測しています。現地の計器には何が表示されていますか。欠測は流量ゼロを意味しません。"),
+    "unexplained_water": ("Le bilan d’eau présente un écart inexpliqué. Pouvez-vous vérifier le compteur et le niveau de la cuve avant de conclure à une fuite ?", "The water balance shows an unexplained discrepancy. Can you check the meter and tank level before attributing it to a leak?", "水収支に原因不明の差があります。漏水と判断する前に、計器と貯水量を確認できますか。", "فمّا فرق في حساب الماء وما زلنا ما نعرفوش علاش. تنجّم تثبّت في العدّاد وفي مستوى الخزّان قبل ما نقولو فمّا تسرّب؟"),
+    "high_pump_energy_intensity": ("L’énergie consommée par volume pompé dépasse la référence. Pouvez-vous vérifier le débit et le compteur électrique ?", "Energy per volume pumped exceeds the reference. Can you check flow and the electricity meter?", "揚水量あたりの電力量が基準を超えました。流量と電力量計を確認できますか。", "البومبة تستهلك في الضوّ أكثر من المعتاد على نفس كمّية الماء. تنجّم تثبّت في الدفْق وعدّاد الضوّ؟"),
+    "grid_outage": ("Le réseau électrique est coupé. Pouvez-vous vérifier l’alimentation de la pompe ?", "Grid power is interrupted. Can you check the pump supply?", "停電が発生しました。ポンプの電源を確認できますか。", "الضوّ مقصوص. تنجّم تشوف كان البومبة واصلها الضوّ؟"),
+    "tank_empty": ("La cuve est vide. Pouvez-vous vérifier le niveau avant la prochaine distribution ?", "The reservoir is empty. Can you check the level before the next delivery?", "貯水槽が空です。次の配水前に水位を確認できますか。", "الخزّان فارغ. تنجّم تثبّت في المستوى قبل دورة السقي الجاية؟"),
+    "pump_shutdown": ("La pompe est indisponible. Pouvez-vous vérifier son état ?", "The pump is unavailable. Can you check its status?", "ポンプが使用できません。状態を確認できますか。", "البومبة واقفة. تنجّم تثبّت في حالتها؟"),
+    "missing_flow": ("La mesure du débit manque. Que montre le compteur local ? Une absence de lecture ne signifie pas un débit nul.", "The flow reading is missing. What does the local meter show? A missing reading does not establish zero flow.", "流量計の値が欠測しています。現地の計器には何が表示されていますか。欠測は流量ゼロを意味しません。", "قراءة الدفْق ناقصة. شنوة يعطي العدّاد عندك؟ كي تغيب القراءة، ما ننجّموش نقولو اللي الماء واقف."),
 }
 PRIORITY = ("unexplained_water", "high_pump_energy_intensity", "pump_shutdown", "tank_empty", "grid_outage", "missing_flow")
 
@@ -57,9 +57,11 @@ class Dialogue:
     proposal: dict | None = None
     approval_failures: int = 0
     last_text: str = ""
+    last_language: str = ""
+    presentation_brief: str = ""
 
-    def say(self, fr: str, en: str, ja: str) -> str:
-        return {"fr": fr, "en": en, "ja": ja}[self.start.language]
+    def say(self, fr: str, en: str, ja: str, aeb: str) -> str:
+        return {"fr": fr, "en": en, "ja": ja, "aeb": aeb}[self.start.language]
 
     def open(self):
         ctx, catalog = self.start, self.service.catalog
@@ -74,7 +76,7 @@ class Dialogue:
                                          end=period.end if period else None)
                 self.site_label, self.climate = city.city.name, city.climate
             else:
-                self.site_label = self.say("Tunisie", "Tunisia", "チュニジア")
+                self.site_label = self.say("Tunisie", "Tunisia", "チュニジア", "تونس")
             return self.site_summary()
         if ctx.city_id:
             raise ValueError("Conflicting locations")
@@ -119,17 +121,19 @@ class Dialogue:
         if ctx.reason == "clarification":
             return self.say(f"{site.label}. Quel volume votre autorisation permet-elle encore de prélever ?",
                             f"{site.label}. What withdrawal volume is still authorized?",
-                            f"{site.label}。現在の取水許可量の残りを確認できますか。")
+                            f"{site.label}。現在の取水許可量の残りを確認できますか。", f"في {site.label}، قدّاش مازال مسموحلك تسحب من الماء؟")
         return self.site_summary()
 
     def site_summary(self):
         if not self.start.site_id:
             return self.say(f"Atlas : {self.site_label}. Vous pouvez consulter les sources. Sélectionnez une station pour examiner une alerte ou un planning.",
-                            f"Atlas: {self.site_label}. You can ask about evidence. Select a field station to review alerts or a schedule.",
-                            f"地図：{self.site_label}。資料について質問できます。警報や計画を確認するには対象地点を選択してください。")
+                            f"Welcome! We're looking at {self.site_label}. I can walk you through the map, help you introduce it, or translate a phrase for your audience.",
+                            f"{self.site_label}の地図へようこそ。地図の説明や発表の練習をしましょう。伝えたい言葉の翻訳もお手伝いします。",
+                            f"عسلامة! توّا نشوفو في خريطة {self.site_label}. ننجّم نفسّرلك الخريطة، نعاونك تحضّر العرض، وإلا نترجملك جملة للحاضرين.")
         return self.say(f"Vous consultez {self.site_label}. Demandez-moi d’expliquer un graphique, un plan ou une source.",
-                        f"You are viewing {self.site_label}. Ask me about a chart, a plan or its sources.",
-                        f"{self.site_label} を表示しています。グラフや計画、資料について質問できます。")
+                        f"Hi! We're at {self.site_label}. What would help you most: walking through this screen, practicing your introduction or translating a phrase?",
+                        f"{self.site_label}を一緒に見てみましょう。画面の説明、発表の練習、伝えたい言葉の翻訳をお手伝いします。",
+                        f"عسلامة! توّا إحنا في {self.site_label}. شنوة تحبّ نعملو مع بعضنا؟ نفسّرلك الشاشة، نحضّروا العرض، وإلا نترجمولك جملة؟")
 
     def inspect_site(self):
         scope = self.start
@@ -139,41 +143,45 @@ class Dialogue:
             temp, rain = climate.temperature_mean_c, climate.precipitation_mm
             text = self.say(f"{self.site_label}, {period}. L’archive estime une température moyenne de {temp} °C et un cumul de précipitations de {rain} mm.",
                             f"{self.site_label}, {period}. The archive estimates a mean temperature of {temp} °C and total rainfall of {rain} mm.",
-                            f"{self.site_label}、{period}。アーカイブによる推定平均気温は{temp} °C、積算降水量は{rain} mmです。")
+                            f"{self.site_label}、{period}。アーカイブによる推定平均気温は{temp} °C、積算降水量は{rain} mmです。",
+                            f"في {self.site_label}، في الفترة {period}، الأرشيف يقدّر معدّل الحرارة بـ {temp} °C ومجموع الصبّة بـ {rain} mm.")
             return text, [{"title": climate.source.name, "url": str(climate.source.url)}]
         survey = self.service.catalog.agriculture.get(scope.site_id)
         if survey:
             n = len(survey.parcels)
             text = self.say(f"{self.site_label} compte {n} parcelles cartographiées. WaPOR estime l’évapotranspiration. Le besoin d’irrigation et le quota attendent une validation locale.",
                             f"{self.site_label} has {n} mapped parcels. WaPOR estimates evapotranspiration. Irrigation requirements and the withdrawal quota need local validation.",
-                            f"{self.site_label} では{n}区画を地図化しています。WaPORは蒸発散量を推定します。灌漑必要量と取水枠は現地確認が必要です。")
+                            f"{self.site_label} では{n}区画を地図化しています。WaPORは蒸発散量を推定します。灌漑必要量と取水枠は現地確認が必要です。",
+                            f"في {self.site_label}، رسمنا {n} قطع أرض على الخريطة. WaPOR يقدّر الماء اللي يخرج بالتبخّر والنتح. قدّاش يلزم للسقي وقدّاش مسموح بالسحب، هذا يلزمو تثبّت في الميدان.")
             return text, []
         if scope.comparison:
             state = scope.comparison.state
             return self.say(f"{self.site_label}, début de la simulation : stock {state.tank_stock_m3} m³, quota de prélèvement restant {state.quota_remaining_m3} m³.",
                             f"{self.site_label} at the start of the simulation: stock {state.tank_stock_m3} m³, remaining withdrawal quota {state.quota_remaining_m3} m³.",
-                            f"{self.site_label} のシミュレーション開始時の貯水量は{state.tank_stock_m3} m³、残りの取水枠は{state.quota_remaining_m3} m³です。"), []
+                            f"{self.site_label} のシミュレーション開始時の貯水量は{state.tank_stock_m3} m³、残りの取水枠は{state.quota_remaining_m3} m³です。",
+                            f"في بداية المحاكاة متاع {self.site_label}، في الخزّان {state.tank_stock_m3} m³ ومازال مسموح نسحبو {state.quota_remaining_m3} m³."), []
         return self.site_summary(), []
 
     def replay_summary(self):
         if not self.frame:
-            return self.say("Aucune heure de rejeu sélectionnée.", "No replay hour is selected.", "再生時刻が選択されていません。")
+            return self.say("Aucune heure de rejeu sélectionnée.", "Choose an hour on the replay timeline and we'll look at it together.", "再生する時刻を選ぶと、その時間帯の状況を一緒に確認できます。", "اختار الساعة في المحاكاة ونشوفو مع بعضنا شنوة صار فيها.")
         stock = self.frame["tank_stock_m3"]
         local = datetime.fromisoformat(self.frame["timestamp"]).astimezone(ZoneInfo("Africa/Tunis")).strftime("%Y-%m-%d %H:%M")
         message = self.say(f"Simulation à {self.site_label}, {local} heure de Tunis. Stock en fin d’heure : {stock} m³.",
                            f"Simulation at {self.site_label}, {local} Tunis time. End-of-hour stock: {stock} m³.",
-                           f"{self.site_label} のシミュレーション、チュニス時間{local}。時間枠終了時の貯水量は{stock} m³です。")
+                           f"{self.site_label} のシミュレーション、チュニス時間{local}。時間枠終了時の貯水量は{stock} m³です。",
+                           f"في محاكاة {self.site_label}، نهار {local} بتوقيت تونس، بقى في الخزّان {stock} m³ في آخر الساعة.")
         if self.event:
             value = self.event["value"]
             details = "" if self.event["type"] != "unexplained_water" else self.say(
-                f" Écart : {value:g} m³.", f" Discrepancy: {value:g} m³.", f" 差は{value:g} m³です。")
+                f" Écart : {value:g} m³.", f" Discrepancy: {value:g} m³.", f" 差は{value:g} m³です。", f" الفرق {value:g} m³.")
             message += details + " " + self.say(*EVENTS[self.event["type"]])
         return message
 
     def plan_summary(self):
         if self.plan is None and self.start.comparison:
             self.plan = compare(self.service.catalog, self.start.comparison, self.service.solver_budget)
-        unavailable = self.say("Aucune comparaison vérifiée pour ce contexte.", "No verified comparison in this context.", "この条件で比較可能な検証済み計画はありません。")
+        unavailable = self.say("Aucune comparaison vérifiée pour ce contexte.", "Calculate the schedules first so I can show you what changes for each grower.", "先に計画を計算すると、農家ごとの違いを一緒に確認できます。", "أحسب البرامج أوّل، وبعد نشوفو مع بعضنا شنوة يتبدّل لكلّ فلّاح.")
         if not self.plan:
             return unavailable
         weather = self.plan.weather_comparison
@@ -189,24 +197,70 @@ class Dialogue:
         if weather:
             text = self.say(f"Météo défavorable simulée : {fixed} m³ livrés à temps pour la référence et {fair} m³ avec la réserve anticipée.",
                             f"Simulated adverse weather: {fixed} m³ delivered on time with the reference plan and {fair} m³ with the reserve plan.",
-                            f"悪天候シミュレーションの期限内配水量は基準計画が{fixed} m³、予備貯水計画が{fair} m³です。")
+                            f"悪天候シミュレーションの期限内配水量は基準計画が{fixed} m³、予備貯水計画が{fair} m³です。",
+                            f"في محاكاة الطقس الصعيب، وصل الماء في وقتو: {fixed} m³ بالبرنامج المرجعي و{fair} m³ كي حضّرنا احتياطي من قبل.")
         else:
             text = self.say(f"Volume simulé livré à temps : {fixed} m³ avec le tour fixe et {fair} m³ avec le plan proposé.",
                             f"Simulated on-time deliveries: {fixed} m³ under the fixed rotation and {fair} m³ under the proposed plan.",
-                            f"シミュレーションの期限内配水量は固定計画が{fixed} m³、提案計画が{fair} m³です。")
+                            f"シミュレーションの期限内配水量は固定計画が{fixed} m³、提案計画が{fair} m³です。",
+                            f"في المحاكاة، كمّية الماء اللي وصلت في وقتها هي {fixed} m³ بالدورة القارّة و{fair} m³ بالبرنامج المقترح.")
         before, after = first.metrics.worst_coverage_bp, second.metrics.worst_coverage_bp
         if before is not None and after is not None:
             text += " " + self.say(f"Couverture minimale : {before / 100:g} % puis {after / 100:g} %.",
                                     f"Least-served coverage: {before / 100:g}% then {after / 100:g}%.",
-                                    f"最低充足率は{before / 100:g}%から{after / 100:g}%です。")
+                                    f"最低充足率は{before / 100:g}%から{after / 100:g}%です。",
+                                    f"تغطية أقلّ قطعة خذات ماء تبدّلت من {before / 100:g}% لـ {after / 100:g}%.")
         plots = {p.plot_id: p for p in first.plot_results or ()}
         changed = [p for p in second.plot_results or () if p.plot_id in plots and
                    p.delivered_on_time_m3 != plots[p.plot_id].delivered_on_time_m3]
         for plot in changed[:3]:
             a, b = plots[plot.plot_id].delivered_on_time_m3, plot.delivered_on_time_m3
             text += " " + self.say(f"Parcelle {plot.plot_id} : {a} puis {b} m³.", f"Plot {plot.plot_id}: {a} then {b} m³.",
-                                    f"区画{plot.plot_id}は{a}から{b} m³です。")
+                                    f"区画{plot.plot_id}は{a}から{b} m³です。", f"القطعة {plot.plot_id} خذات {a} وبعد {b} m³.")
         return text
+
+    def presentation_topic(self, focus=None):
+        if focus == "site" or (focus == "replay" and self.frame) or (focus == "plan" and (self.start.comparison or self.start.zone_plan)):
+            return focus
+        return "replay" if self.event else "plan" if self.start.comparison or self.start.zone_plan else "site"
+
+    def presentation(self, focus, audience_opener=None):
+        """Build a short, speakable walkthrough from the current view's verified results."""
+        ctx = self.start
+        citations = []
+        if focus == "replay" and self.frame:
+            opening = self.say("Voici comment présenter cette alerte.", "Here’s how I’d walk the audience through this alert.",
+                               "このアラートを紹介するときは、こう伝えてみてください。", "باش تفسّر التنبيه للحاضرين، تنجّم تقول هكّا.")
+            facts = self.replay_summary()
+            closing = self.say("Montrez ensuite le même instant sur le jumeau et demandez quelle lecture vérifier sur place.",
+                                "Show the same moment on the twin and ask which reading the team would check in the field.",
+                                "次に、同じ時刻の画面を示し、現地でどの計器を確かめるか、聞き手に尋ねてみましょう。",
+                                "بعد ورّي نفس اللحظة في المحاكاة واسألهم أنهي قراءة يلزمنا نثبّتو فيها في الميدان.")
+        elif focus == "plan" and (ctx.comparison or ctx.zone_plan):
+            opening = self.say(f"À {self.site_label}, posons une question : qui reçoit son eau à temps ?",
+                               f"At {self.site_label}, let's start with a grower’s question: will the water reach my plot on time?",
+                               f"{self.site_label}の農家の立場で考えてみましょう。「自分の畑に、必要なときに水は届くでしょうか？」",
+                               f"في {self.site_label}، نبدأو بسؤال الفلّاح: الماء باش يوصل لقطعتي في وقتو؟")
+            facts = self.plan_summary()
+            closing = self.say("Montrez la répartition entre les parcelles. Le responsable peut examiner le résultat simulé avant de décider.",
+                                "Point to the parcel deliveries. The manager can review the simulated trade-offs before deciding.",
+                                "次に区画別の配水量を指し示してください。管理者は、この試算で各農家への影響を確かめてから判断できます。",
+                                "بعد ورّي قداش خذات كلّ قطعة. المسؤول يشوف نتيجة المحاكاة وتأثيرها على الفلّاحة، وبعد يقرّر.")
+        else:
+            opening = self.say("Partons de la question que se pose le gestionnaire : comment continuer à irriguer quand l’eau ou l’électricité manque ?",
+                               "Imagine it’s your turn to irrigate, and the power goes out. How would you decide where the remaining water should go?",
+                               "水をまく順番が来たのに停電したら、残っている水をどの畑に届けますか。まず、この問いから始めましょう。",
+                               "تصوّر يجي نهار نوبتك في السقي ويتقصّ الضوّ. كيفاش تقرّر وين تمشّي الماء اللي مازال في الخزّان؟")
+            if self.climate or ctx.site_id in self.service.catalog.agriculture:
+                facts, citations = self.inspect_site()
+            else:
+                facts = self.say(f"Nous partons de la carte : {self.site_label}.", f"We’re looking at {self.site_label} on the map.",
+                                 f"いま地図で見ているのは{self.site_label}です。", f"توّا نشوفو في {self.site_label} على الخريطة.")
+            closing = self.say("Passez ensuite au simulateur pour comparer les tours d’eau et vérifier les hypothèses avec le public.",
+                                "From the map, open a planning site. The audience can change an assumption and compare who receives water under each schedule.",
+                                "次に計画を試せる地点を開きましょう。条件を一つ変えると、各計画でどの畑に水が届くかを比べられます。",
+                                "بعد اختار من الخريطة موقع فيه محاكاة. الحاضرين ينجّموا يبدّلوا فرضيّة ويقارنوا شكون يوصلو الماء في كلّ برنامج.")
+        return {"type": "reply", "activity": "present", "text": " ".join([audience_opener or opening, facts, closing]), "citations": citations}
 
     def evidence(self, query: str):
         service = self.service
@@ -222,9 +276,9 @@ class Dialogue:
             # Only use real passages present in the locally verified M8 corpus.
             hits = [service.corpus.chunks[key].citation for key in service.corpus.lexical.rank(query, 2)]
         if not hits:
-            return self.say("Aucun extrait vérifié ne répond à cette recherche.", "No verified passage matched the search.", "該当する検証済み資料はありません。"), []
+            return self.say("Aucun extrait vérifié ne répond à cette recherche.", "I couldn't find a verified passage for that question.", "この質問に対応する確認済みの資料は見つかりませんでした。", "ما لقيتش في الوثائق مقطع موثوق يجاوب على سؤالك."), []
         source = hits[0]
-        text = self.say("Extrait documentaire de", "Documentary excerpt from", "資料の抜粋") + f" {source.organization} : « {source.excerpt} »"
+        text = self.say("Extrait documentaire de", "Documentary excerpt from", "資料の抜粋", "هذا مقتطف من وثيقة متاع") + f" {source.organization} : « {source.excerpt} »"
         return text, [{"title": h.title, "url": str(h.url), "excerpt": h.excerpt, "organization": h.organization} for h in hits]
 
     def propose(self, quota: int):
@@ -272,4 +326,5 @@ class Dialogue:
         self.start = self.start.model_copy(update={**updates, "telemetry": None, "reason": "accessibility"})
         self.frame = self.event = self.proposal = None
         self.history.clear()
+        self.presentation_brief = ""
         return receipt

@@ -197,6 +197,9 @@ def test_archive_and_verified_evidence_without_station(client):
 def test_audio_turn_tool_errors_and_tts_do_not_disclose_inputs(client, monkeypatch):
     class Voice:
         capabilities = {"llm": True, "stt": True, "tts": True}
+        text_backend = "vultr"
+        def capabilities_for(self, language):
+            return self.capabilities
         async def transcribe(self, data, mime, language):
             assert data == b"media" and mime == "audio/webm" and language == "fr"
             return "Explique le plan"
@@ -229,3 +232,128 @@ def test_cross_origin_and_unregistered_context_denied(client):
     assert denied.value.code == 1008
     with connect(client) as ws:
         assert exchange(ws, **context(site_id="absent"))["code"] == "invalid_context"
+
+
+@pytest.mark.parametrize(("language", "native_word"), [("en", "grower"), ("ja", "農家"), ("aeb", "الفلّاح")])
+def test_presentation_uses_the_current_simulation_in_all_languages(client, language, native_word):
+    with connect(client) as ws:
+        exchange(ws, **context(language=language))
+        speech = exchange(ws, type="message", mode="present", text="")
+        assert speech["activity"] == "present" and speech["language"] == language and native_word in speech["text"]
+        assert "50" in speech["text"] and "A" in speech["text"] and "B" in speech["text"]
+        assert speech["speech_available"] is False and "proposal" not in speech
+        note = "عدّاد القطعة واقف"
+        exchange(ws, type="observation", text=note)
+        receipt = exchange(ws, type="propose", quota_m3=3)["proposal"]["id"]
+        changed = exchange(ws, type="language", language="aeb")
+        assert changed["type"] == "language" and changed["language"] == "aeb"
+        assert note in exchange(ws, type="message", text="شنوة ملاحظتي؟")["text"]
+        assert exchange(ws, type="confirm", id=receipt)["type"] == "confirmed"
+
+
+def test_translation_uses_target_voice_and_rejects_changed_quantities(client, monkeypatch):
+    class Voice:
+        capabilities = {"llm": True, "stt": True, "tts": True}
+        text_backend = "vultr"
+        output = "المخزون ٨ m³ والحصّة ٥ m³."
+
+        def capabilities_for(self, language):
+            return self.capabilities
+
+        async def translate(self, text, source, target):
+            assert (source, target) == ("ja", "aeb") and "8" in text
+            return self.output
+
+        async def speak(self, text, language):
+            assert text == self.output and language == "aeb"
+            return b"translated speech", "audio/mpeg"
+
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", Voice)
+    turn = {"type": "message", "mode": "translate", "target_language": "aeb", "text": "貯水量は8 m³、取水枠は5 m³です。"}
+    with connect(client) as ws:
+        exchange(ws, **context(language="ja"))
+        translated = exchange(ws, **turn)
+        assert translated["activity"] == "translate" and translated["language"] == "aeb"
+        assert translated["text"] == Voice.output and translated["citations"] == []
+        assert exchange(ws, type="speak")["data"] == base64.b64encode(b"translated speech").decode()
+        for changed in ["المخزون ٥ m³ والحصّة ٨ m³.", "المخزون ٨ kWh والحصّة ٥ m³.", "المخزون ٥٠٠ m³.", ""]:
+            Voice.output = changed
+            assert exchange(ws, **turn)["code"] in {"translation_unverified", "translation_unavailable"}
+        assert exchange(ws, **{**turn, "target_language": "unk"})["code"] == "invalid_input"
+        assert exchange(ws, type="language", language="unregistered")["code"] == "invalid_input"
+        assert exchange(ws, type="language", language="en")["type"] == "language"
+        assert exchange(ws, type="speak")["code"] == "tts_unavailable"
+
+
+def test_translation_preserves_dashboard_dimensions_and_order():
+    from backend.guardian import quantities
+    assert quantities("Flow: ٨ m³/h; stored water: ١٣ m³") == quantities("流量8立方メートル毎時、貯水量13立方メートル")
+    assert quantities("Rainfall: 12 mm") != quantities("12 °C")
+    assert quantities("Grid supply: 5 kW") != quantities("5 kWh")
+
+
+def test_guided_presentation_and_failed_translation_do_not_mutate_a_plan(client):
+    with connect(client) as ws:
+        exchange(ws, **context(language="aeb"))
+        response = exchange(ws, type="message", mode="translate", target_language="ja", text="هبّط الحصّة لـ 3 m³")
+        assert response["code"] == "translation_unavailable" and "الترجمة" in response["text"]
+        assert exchange(ws, type="message", mode="ask", text="نحب نحضّر العرض")["activity"] == "present"
+        assert exchange(ws, type="confirm", id="3")["code"] == "stale_proposal"
+
+
+def test_presentation_honors_topic_and_translation_text_cannot_start_a_replan(client, monkeypatch):
+    class BusyModel(GuardianProvider):
+        async def presentation_opener(self, brief, language, topic):
+            raise GuardianProviderError("llm")
+
+        async def choose_tool(self, messages, tools):
+            if any(t["function"]["name"] == "propose_quota" for t in tools):
+                return "propose_quota", {"quota_m3": 4}
+            raise GuardianProviderError("llm")
+
+        async def transcribe(self, data, mime_type, language):
+            raise AssertionError("An invalid translation request must be rejected before transcription")
+
+        async def translate(self, text, source_language, target_language):
+            raise TimeoutError
+
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: BusyModel(key="fixture"))
+    start = context(language="en", reason="emergency")
+    start["telemetry"] = selection(client, start, balance_anomaly_slots=[1], plan="baseline")
+    with connect(client) as ws:
+        exchange(ws, **start)
+        focus = exchange(ws, type="message", mode="present", text="For this slide present the allocation between growers.")
+        assert focus["activity"] == "present" and focus["mode"] == "guided"
+        assert "50%" in focus["text"] and "13 m³" not in focus["text"]
+        result = exchange(ws, type="message", text="Translate 'set the quota to 4 m³' into Japanese.")
+        assert "Choose Translate" in result["text"] and "proposal" not in result
+        assert exchange(ws, type="audio", mode="translate", target_language="bad", mime="audio/webm", data="YQ==")["code"] == "invalid_input"
+        timed_out = exchange(ws, type="message", mode="translate", target_language="ja", text="Hello")
+        assert timed_out["code"] == "turn_timeout"
+        assert exchange(ws, type="observation", text="Meter check pending")["type"] == "recorded"
+
+
+@pytest.mark.parametrize(("lang", "good", "unsafe"), [
+    ("en", "What would you check before sharing water?", "What if the pump saved 38 kWh?"),
+    ("ja", "皆さんなら、どの畑を先に見ますか？", "どの畑の灌漑費用が半減したのでしょうか？"),
+    ("aeb", "شنوّة أوّل حاجة تحبّ تثبّت فيها؟", "شنوّة سبب التسرّب المؤكّد في الخزّان؟"),
+])
+def test_llm_opener_can_adapt_the_delivery_but_cannot_rewrite_the_facts(client, monkeypatch, lang, good, unsafe):
+    briefs = []
+
+    class Coach(GuardianProvider):
+        async def presentation_opener(self, brief, language, topic):
+            assert language == lang and topic == "plan"
+            briefs.append(brief)
+            return good if len(briefs) == 1 else unsafe
+
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: Coach(key="fixture"))
+    with connect(client) as ws:
+        exchange(ws, **context(language=lang))
+        original = exchange(ws, type="message", mode="present")["text"]
+        result = exchange(ws, type="message", mode="present", text="Make the introduction accessible to children.")
+        assert result["mode"] == "vultr_presentation" and result["text"].startswith(good)
+        assert "50" in result["text"] and original.endswith(result["text"][len(good):])
+        fallback = exchange(ws, type="message", mode="present", text="Use a shorter opener.")
+        assert "accessible to children" in briefs[-1] and "shorter opener" in briefs[-1]
+        assert fallback["text"] == original and fallback["mode"] == "guided"
