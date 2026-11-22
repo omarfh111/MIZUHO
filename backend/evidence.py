@@ -206,7 +206,7 @@ def search(corpus: Corpus, providers: Providers, query: str, *, timeout: float =
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Index the verified Mizhuo evidence corpus.")
+    parser = argparse.ArgumentParser(description="Index the verified Mizuho evidence corpus.")
     parser.add_argument("--check", action="store_true", help="Read index status without creating embeddings or writing points.")
     args = parser.parse_args()
     load_dotenv(DATA_DIR.parent / ".env")

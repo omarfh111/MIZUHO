@@ -10,7 +10,7 @@ export const cityNamesJa: Record<string, string> = {
 
 export const placeJa: Record<string, string> = {
   ...cityNamesJa,
-  'Mizhuo · Tunisia': 'Mizhuo・チュニジア',
+  'Mizuho · Tunisia': 'Mizuho・チュニジア',
   'Study-window reference point': '調査範囲の基準点', 'NASA POWER daily': 'NASA POWER日別データ',
   'Published study coordinates': '研究で公表された座標', 'NASA open data': 'NASAの公開データ',
   'Tunisia governorates': 'チュニジアの県境', 'GeoNames Tunisia': 'GeoNames・チュニジア',

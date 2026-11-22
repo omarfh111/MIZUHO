@@ -133,7 +133,7 @@ export default function AssistantPanel({ site, city, period, mode, solar, simula
   };
 
   if (!open) return null;
-  return <Modal title="Mizhuo assistant" icon={<Sparkles size={23} />} close={close} kind="assistant-modal">
+  return <Modal title="Mizuho assistant" icon={<Sparkles size={23} />} close={close} kind="assistant-modal">
     <div className="assistant-header">
       <span className="assistant-site">{city?.name ?? site?.properties.label}</span>
       <span className="assistant-context">{city ? 'City archive and evidence' : zonePlan ? 'Regional comparison available' :

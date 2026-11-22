@@ -69,7 +69,7 @@ export const demoLayers: Record<Exclude<LayerId, 'wapor'>, Layer> = {
 
 export const demoEvidence: Record<string, Evidence> = {
   'demo-site': {
-    title: 'Jendouba pilot site', organization: 'Mizhuo', date: demoDate, page: null, url: null,
+    title: 'Jendouba pilot site', organization: 'Mizuho', date: demoDate, page: null, url: null,
     limitation: 'The irrigation group, plots and equipment are fictional. The coordinates locate the demo.',
   },
   wapor: {
@@ -88,7 +88,7 @@ export const demoEvidence: Record<string, Evidence> = {
     limitation: 'Local wind data and a turbine model are needed to estimate production.',
   },
   telemetry: {
-    title: 'Demo water and energy readings', organization: 'Mizhuo', date: demoDate,
+    title: 'Demo water and energy readings', organization: 'Mizuho', date: demoDate,
     page: null, url: null, limitation: 'Higher consumption or unaccounted-for water warrants a check. Further measurements are needed to establish the cause.',
   },
   weather: {

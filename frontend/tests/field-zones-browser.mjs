@@ -145,8 +145,8 @@ try {
       // Isolate the caller contract from live model availability and billing in CI.
       await page.route('**/api/assistant/health', r => r.fulfill({ json: { status: 'available' } }));
       await page.route('**/api/assistant/chat', r => r.fulfill({ status: 503 }));
-      await page.getByRole('button', { name: 'Ask Mizhuo', exact: true }).click();
-      const assistant = page.getByRole('dialog', { name: 'Mizhuo assistant' });
+      await page.getByRole('button', { name: 'Ask Mizuho', exact: true }).click();
+      const assistant = page.getByRole('dialog', { name: 'Mizuho assistant' });
       const request = page.waitForRequest(r => r.url().endsWith('/api/assistant/chat'));
       await assistant.getByRole('button', { name: 'Why did the two sectors receive these volumes?' }).click();
       const context = (await request).postDataJSON().zone_plan;

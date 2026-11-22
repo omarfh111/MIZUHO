@@ -75,8 +75,8 @@ async function checkLateComparison(page, site, regional) {
     window.testComparison.release();
     return window.testComparison.signal.aborted;
   }), true);
-  await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
-  const panel = page.getByRole('dialog', { name: 'Mizhuo assistant' });
+  await page.getByRole('button', { name: 'Ask Mizuho' }).click();
+  const panel = page.getByRole('dialog', { name: 'Mizuho assistant' });
   await panel.getByText('Site and evidence', { exact: true }).waitFor();
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Back to planning inputs' }).click();
@@ -226,8 +226,8 @@ try {
       await page.getByRole('region', { name: 'Regional plan comparison' }).waitFor();
       await page.getByRole('button', { name: 'Test outage resilience' }).click();
       await page.getByRole('button', { name: 'Back to planning inputs' }).click();
-      await page.getByRole('button', { name: 'Ask Mizhuo' }).click();
-      await page.getByRole('dialog', { name: 'Mizhuo assistant' }).getByText('Regional comparison available').waitFor();
+      await page.getByRole('button', { name: 'Ask Mizuho' }).click();
+      await page.getByRole('dialog', { name: 'Mizuho assistant' }).getByText('Regional comparison available').waitFor();
       await page.keyboard.press('Escape');
     }
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));

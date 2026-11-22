@@ -157,9 +157,9 @@ export default function App() {
     }}>Skip to content</a>
     <header className="topbar">
       <div className="topbar-inner">
-        <a className="brand" href="#tunisia" aria-label="Mizhuo · Tunisia">
+        <a className="brand" href="#tunisia" aria-label="Mizuho · Tunisia">
           <span className="brand-mark"><Waves size={24} strokeWidth={2.4} /></span>
-          <span>Miz<strong>huo</strong><small>WATER &amp; ENERGY OBSERVATORY</small></span>
+          <span>Mizu<strong>ho</strong><small>WATER &amp; ENERGY OBSERVATORY</small></span>
         </a>
         <nav className="main-nav" aria-label="Main navigation">
           <a href={page === 'map' ? '#map' : '#tunisia'} aria-current={page === 'map' || page === 'tunisia' ? 'page' : undefined}><Globe2 size={16} /> Land &amp; agriculture</a>
@@ -251,7 +251,7 @@ export default function App() {
           <a className="text-button" href="#map">Inspect the parcel survey <ArrowUpRight size={15} /></a>
         </section>}
       </div>}
-      <footer className="footer"><span><Waves size={15} /> Mizhuo</span>
+      <footer className="footer"><span><Waves size={15} /> Mizuho</span>
         <span>{catalog?.mode === 'demo' ? 'Demo mode · local layers and scenarios' : 'Water and electricity continuity · Tunisia'}</span></footer>
     </main>
     {catalog && solarIds && <SolarComparison site={siteId} options={solarIds} mode={catalog.mode} startWithArchive={page === 'energy' && catalog.mode === 'live'}
@@ -262,7 +262,7 @@ export default function App() {
     <div className="assistant-launch">
       <span id="live-voice-launcher" />
       {(activeCity || activeSite) && <button type="button" className="button button-primary" aria-haspopup="dialog"
-        onClick={() => setAssistantOpen(true)}><Sparkles size={19} /> Ask Mizhuo</button>}
+        onClick={() => setAssistantOpen(true)}><Sparkles size={19} /> Ask Mizuho</button>}
     </div>
     {(activeCity || activeSite) && assistantOpen !== undefined && <Suspense fallback={null}>
       <AssistantPanel site={activeSite} city={activeCity ?? undefined} period={activeCity ? period : undefined}

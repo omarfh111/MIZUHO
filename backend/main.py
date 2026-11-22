@@ -58,7 +58,7 @@ def create_app(data_dir: Path = DATA_DIR, *, solver_timeout: float | None = None
         finally:
             service.close()
 
-    app = FastAPI(title="Mizhuo API", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="Mizuho API", version="1.0.0", lifespan=lifespan)
     app.state.tunisia_data_dir = data_dir / "tunisia"
     app.state.resilience_budget = budget
     initialize_guardian(app, origins)

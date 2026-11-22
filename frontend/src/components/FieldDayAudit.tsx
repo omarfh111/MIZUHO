@@ -73,7 +73,7 @@ export default function FieldDayAudit({ siteId }: { siteId?: string }) {
     <div className="field-day-body">
       <p>Check whether each parcel received its agreed volume on time. Use one completed day of anonymous operator records. Your browser reads the file locally and keeps it in memory until you clear it or leave the page.</p>
       <div className="field-day-inputs">
-        <a className="button button-secondary" href={template} download="mizhuo-delivery-day.csv"><Download size={16} aria-hidden="true"/> Download blank CSV</a>
+        <a className="button button-secondary" href={template} download="mizuho-delivery-day.csv"><Download size={16} aria-hidden="true"/> Download blank CSV</a>
         {modeled && <a className="button button-secondary" href={modeled} download={modeledFile}><Download size={16} aria-hidden="true"/> Download simulated site CSV</a>}
         {survey && <a className="button button-secondary" href={survey} download={surveyFile}><Download size={16} aria-hidden="true"/> Download mapped parcel template</a>}
         <label className="field">Recorded delivery CSV<input type="file" accept=".csv,text/csv" onChange={read}/></label>
