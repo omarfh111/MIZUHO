@@ -18,13 +18,13 @@ const synthesizeQuestion = [
   'from dotenv import load_dotenv',
   'from backend.guardian_provider import GuardianProvider',
   'load_dotenv(".env")',
-  'audio, _ = asyncio.run(GuardianProvider.from_env().speak("Quelle anomalie est détectée sur le compteur du réservoir ?"))',
+  'audio, _ = asyncio.run(GuardianProvider.from_env().speak("Please explain the water balance alert on the tank meter.", "en"))',
   'sys.stdout.buffer.write(audio)',
 ].join('\n');
 const fixture = spawnSync(process.env.MIZHUO_TEST_PYTHON || 'python', ['-X', 'utf8', '-c', synthesizeQuestion], {
   cwd: new URL('../../', import.meta.url), timeout: 45_000, maxBuffer: 2 * 1024 * 1024,
 });
-assert.ok(fixture.status === 0 && fixture.stdout?.length, 'Unable to synthesize the French test question.');
+assert.ok(fixture.status === 0 && fixture.stdout?.length, 'Unable to synthesize the English test question.');
 
 const browser = await chromium.launch({
   ...(process.env.MIZHUO_CHROME_PATH ? { executablePath: process.env.MIZHUO_CHROME_PATH } : { channel: 'chrome' }),
@@ -59,18 +59,15 @@ try {
   const twin = page.getByRole('region', { name: 'Operational digital twin' });
   await twin.getByText('Virtual sensors and event injection', { exact: true }).click();
   await twin.getByLabel('Water-balance discrepancy').check();
+  await page.getByRole('region', { name: 'Guardian alert' }).waitFor();
   const connection = page.waitForEvent('websocket', { predicate: ws => new URL(ws.url()).pathname === '/api/guardian/call' });
-  await page.getByRole('button', { name: 'Accept call' }).click();
+  await page.getByRole('button', { name: 'Voice assistant' }).click();
   const ws = await connection;
   const dialog = page.getByRole('dialog', { name: 'Voice Guardian' });
-  const log = dialog.getByRole('log', { name: 'Call transcript' });
-  await log.getByText(/13 m³.*compteur/i).waitFor();
+  const log = dialog.getByRole('log', { name: 'Conversation' });
+  await log.getByText(/13 m³.*meter/i).waitFor();
   const player = dialog.locator('audio');
-  await player.waitFor({ state: 'attached', timeout: 45_000 });
-  await page.waitForFunction(() => document.querySelector('dialog[open] audio')?.duration > 0);
-  const initialSrc = await player.getAttribute('src');
-  assert.ok(initialSrc?.startsWith('data:audio/mpeg;base64,'));
-  console.log('Inbound M3 alert and synthesized French greeting verified.');
+  assert.equal(await player.count(), 0);
   assert.equal(await page.evaluate(() => !!window.testGuardianTrack), false);
 
   await dialog.getByRole('button', { name: 'Record message' }).click();
@@ -86,11 +83,11 @@ try {
     if (msg.type === 'transcript' || msg.type === 'reply') replyFrames.push(msg);
   });
   await dialog.getByRole('button', { name: 'Send recording' }).click();
-  await log.getByText(/anomalie.*compteur.*réservoir/i).waitFor({ timeout: 45_000 });
+  await log.getByText(/water.balance.*tank meter/i).waitFor({ timeout: 45_000 });
   // Both the initial alert and the answer must report the M3 discrepancy.
-  await log.getByText(/13 m³.*compteur/i).nth(1).waitFor({ timeout: 45_000 });
-  assert.equal(replyFrames.find(message => message.type === 'reply')?.mode, 'vultr_tools');
-  assert.match(replyFrames.find(message => message.type === 'transcript')?.text ?? '', /anomalie.*compteur.*réservoir/i);
+  await log.getByText(/13 m³.*meter/i).nth(1).waitFor({ timeout: 45_000 });
+  assert.ok(['vultr_tools', 'nvidia_tools'].includes(replyFrames.find(message => message.type === 'reply')?.mode));
+  assert.match(replyFrames.find(message => message.type === 'transcript')?.text ?? '', /water.balance.*tank meter/i);
   const { mime, data } = JSON.parse((await replyAudio).payload);
   assert.ok(mime === 'audio/mpeg' && data.length > 1000);
   await page.waitForFunction(expected => {
@@ -99,10 +96,24 @@ try {
   }, `data:${mime};base64,${data}`, { timeout: 45_000 });
   assert.equal(await page.evaluate(() => window.testGuardianTrack.readyState), 'ended');
   await page.evaluate(() => window.closeTestAudio());
-  await dialog.getByRole('button', { name: 'End call' }).click();
+  const speaking = dialog.getByLabel('Speaking language');
+  await speaking.selectOption('ja');
+  await dialog.getByRole('button', { name: 'Present', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Prepare my presentation' }).click();
+  await log.locator('p[lang="ja"]').filter({ hasText: /[ぁ-んァ-ン]/ }).waitFor();
+  await dialog.getByRole('button', { name: 'Translate', exact: true }).click();
+  await dialog.getByLabel('Translate into').selectOption('aeb');
+  await dialog.getByLabel('Text to translate').fill('一緒に水を大切にしましょう。');
+  await dialog.getByRole('button', { name: 'Translate text' }).click();
+  await log.locator('p[lang="aeb-TN"]').filter({ hasText: /[ء-ي]/ }).waitFor();
+  await speaking.selectOption('aeb');
+  await dialog.getByRole('button', { name: 'Present', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Prepare my presentation' }).click();
+  await log.locator('p[lang="aeb-TN"]').filter({ hasText: /[ء-ي]/ }).nth(1).waitFor();
+  await dialog.getByRole('button', { name: 'Done' }).click();
   await dialog.waitFor({ state: 'detached' });
   assert.deepEqual(errors, []);
-  console.log('Chrome verified French synthetic microphone → MediaRecorder → Vultr Whisper → Vultr tool call → M3 replay → playable Vultr speech.');
+  console.log('Chrome verified direct English microphone assistance, a spoken M3 answer, Japanese and Tunisian presentations and a real Japanese-to-Derja translation.');
 } finally {
   await browser.close();
 }

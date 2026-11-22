@@ -6,7 +6,8 @@ import { chromium } from 'playwright-core';
 const base = new URL(process.env.MIZHUO_TEST_URL ?? 'http://127.0.0.1:5173/');
 base.searchParams.set('lang', 'en');
 base.searchParams.set('intro', '0');
-base.hash = 'tunisia';
+base.searchParams.set('site', 'jendouba-pilote');
+base.hash = 'map';
 const browser = await chromium.launch({
   ...(process.env.MIZHUO_CHROME_PATH ? { executablePath: process.env.MIZHUO_CHROME_PATH } : { channel: 'chrome' }),
   args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
@@ -28,6 +29,8 @@ try {
   let connections = 0;
   const clips = [];
   const approvals = [];
+  const translations = [];
+  let reads = 0;
   let protectedPlan = false;
   let connection;
   let pendingTextReceived;
@@ -39,27 +42,34 @@ try {
       const data = JSON.parse(raw);
       const send = response => route.send(JSON.stringify(response));
       if (data.type === 'start') {
-        assert.equal(data.language, 'fr');
-        send({ type: 'ready', text: 'Bonjour.', requires_manager_code: protectedPlan, voice: { stt: true, tts: true, llm: true } });
+        assert.equal(data.language, 'en');
+        send({ type: 'ready', text: 'Welcome.', requires_manager_code: protectedPlan, voice: { stt: true, tts: true, llm: true } });
+      } else if (data.type === 'language') {
+        send({ type: 'language', language: data.language, voice: { stt: true, tts: true, llm: true } });
+      } else if (data.type === 'speak') {
+        reads++;
+      } else if (data.type === 'message' && data.mode === 'translate') {
+        translations.push(data);
+        send({ type: 'reply', text: 'مرحبا بيكم', language: 'aeb', speech_available: false });
       } else if (data.type === 'audio') {
         clips.push(data);
-        send({ type: 'transcript', text: 'Vérifier le débit.' });
-        send({ type: 'reply', text: 'Consultez le débitmètre.', citations: [] });
+        send({ type: 'transcript', text: 'Check the flow.' });
+        send({ type: 'reply', text: 'Check the flow meter.', citations: [] });
       } else if (data.type === 'observation') {
-        send({ type: 'recorded', text: 'Observation enregistrée.' });
+        send({ type: 'recorded', text: 'Observation saved.' });
       } else if (data.type === 'message') {
-        send({ type: 'error', code: 'voice_unavailable', request_type: 'speak', text: 'Lecture audio indisponible.' });
+        send({ type: 'error', code: 'voice_unavailable', request_type: 'speak', text: 'Spoken reply unavailable.' });
         pendingTextReceived();
       } else if (data.type === 'propose') {
-        send({ type: 'reply', text: 'Proposition préparée.', proposal: { id: 'preview', previous_quota_m3: 10, quota_m3: data.quota_m3, delivered_on_time_m3: 5 } });
+        send({ type: 'reply', text: 'Proposal calculated.', proposal: { id: 'preview', previous_quota_m3: 10, quota_m3: data.quota_m3, delivered_on_time_m3: 5 } });
       } else if (data.type === 'confirm') {
         approvals.push(data);
-        send({ type: 'error', code: 'manager_code', request_type: 'confirm', text: 'Code invalide.' });
+        send({ type: 'error', code: 'manager_code', request_type: 'confirm', text: 'Invalid code.' });
       }
     });
   });
   await page.goto(base.href);
-  const launcher = page.getByRole('button', { name: 'Call Voice Guardian' });
+  const launcher = page.getByRole('button', { name: 'Voice assistant' });
   await launcher.waitFor();
   assert.equal(connections, 0);
   await launcher.click();
@@ -81,25 +91,40 @@ try {
   await dialog.getByText('Send this recording to Vultr for transcription.').waitFor();
   assert.equal(clips.length, 0);
   await dialog.getByRole('button', { name: 'Send recording' }).click();
-  await dialog.getByText('Vérifier le débit.', { exact: true }).waitFor();
+  await dialog.getByText('Check the flow.', { exact: true }).waitFor();
   assert.equal(clips.length, 1);
   assert.ok(clips[0].mime.startsWith('audio/') && Buffer.from(clips[0].data, 'base64').length > 0);
   await dialog.getByRole('button', { name: 'Record observation' }).click();
   await dialog.getByRole('button', { name: 'Use my last message' }).click();
-  assert.equal(await dialog.getByLabel('Field observation').inputValue(), 'Vérifier le débit.');
+  assert.equal(await dialog.getByLabel('Field observation').inputValue(), 'Check the flow.');
   await dialog.getByRole('button', { name: 'Save observation' }).click();
-  await dialog.getByText('Observation enregistrée.').waitFor();
-  await dialog.getByRole('textbox', { name: 'Message', exact: true }).fill('Quel débit ?');
+  await dialog.getByText('Observation saved.').waitFor();
+  await dialog.getByRole('textbox', { name: 'Message', exact: true }).fill('What flow?');
   await dialog.getByRole('button', { name: 'Send message' }).click();
   await pendingText;
-  await dialog.getByText('Lecture audio indisponible.').waitFor();
-  await dialog.getByRole('textbox', { name: 'Message', exact: true }).fill('Autre question');
+  await dialog.getByText('Spoken reply unavailable.').waitFor();
+  await dialog.getByRole('textbox', { name: 'Message', exact: true }).fill('Another question');
   assert.ok(await dialog.getByRole('button', { name: 'Send message' }).isDisabled());
-  connection.send(JSON.stringify({ type: 'reply', text: 'Le relevé est manquant.', citations: [] }));
-  await dialog.getByText('Le relevé est manquant.').waitFor();
+  connection.send(JSON.stringify({ type: 'reply', text: 'The reading is missing.', citations: [] }));
+  await dialog.getByText('The reading is missing.').waitFor();
+  const sameSession = connections;
+  await dialog.getByLabel('Speaking language').selectOption('ja');
+  await dialog.getByRole('button', { name: 'Translate', exact: true }).click();
+  await dialog.getByLabel('Translate into').selectOption('aeb');
+  const readsBeforeTranslation = reads;
+  await dialog.getByLabel('Text to translate').fill('ようこそ。');
+  await dialog.getByRole('button', { name: 'Translate text' }).click();
+  const translation = dialog.getByText('مرحبا بيكم', { exact: true });
+  await translation.waitFor();
+  assert.equal(await translation.getAttribute('lang'), 'aeb-TN');
+  assert.equal(reads, readsBeforeTranslation);
+  assert.deepEqual(translations, [{ type: 'message', text: 'ようこそ。', mode: 'translate', target_language: 'aeb' }]);
+  assert.equal(connections, sameSession);
+  await dialog.getByText('The reading is missing.').waitFor();
+  await dialog.getByRole('button', { name: 'Ask', exact: true }).click();
   await record.click();
   await stop.waitFor();
-  await dialog.getByRole('button', { name: 'End call' }).click();
+  await dialog.getByRole('button', { name: 'Done' }).click();
   await launcher.waitFor();
   assert.equal(await page.evaluate(() => window.guardianTracks.every(track => track.readyState === 'ended')), true);
   await page.evaluate(() => { window.guardianPermission = new Promise(resolve => { window.finishPermission = resolve; }); });
@@ -107,17 +132,17 @@ try {
   await record.click();
   await dialog.getByText('Waiting for microphone permission…').waitFor();
   await page.waitForFunction(() => window.guardianTracks.some(track => track.readyState === 'live'));
-  await dialog.getByRole('button', { name: 'End call' }).click();
+  await dialog.getByRole('button', { name: 'Done' }).click();
   await page.evaluate(() => window.finishPermission());
   await page.waitForFunction(() => window.guardianTracks.every(track => track.readyState === 'ended'));
   await page.evaluate(() => { navigator.mediaDevices.getUserMedia = async () => { throw new DOMException('Denied', 'NotAllowedError'); }; });
   await launcher.click();
   await record.click();
   await dialog.getByText('Microphone unavailable. Check browser permissions or type your message.').waitFor();
-  await dialog.getByRole('textbox', { name: 'Message', exact: true }).fill('Question écrite');
+  await dialog.getByRole('textbox', { name: 'Message', exact: true }).fill('Typed question');
   assert.equal(await dialog.getByRole('button', { name: 'Send message' }).isEnabled(), true);
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-  await dialog.getByRole('button', { name: 'End call' }).click();
+  await dialog.getByRole('button', { name: 'Done' }).click();
 
   protectedPlan = true;
   base.searchParams.set('site', 'jendouba-pilote');
@@ -125,8 +150,8 @@ try {
   await page.goto(base.href);
   await page.getByRole('button', { name: 'Calculate schedules' }).click();
   await page.getByRole('region', { name: 'Operational digital twin' }).waitFor();
-  if (await page.getByRole('button', { name: 'Decline', exact: true }).isVisible()) {
-    await page.getByRole('button', { name: 'Decline', exact: true }).click();
+  if (await page.getByRole('button', { name: 'Dismiss', exact: true }).isVisible()) {
+    await page.getByRole('button', { name: 'Dismiss', exact: true }).click();
   }
   await launcher.click();
   await dialog.getByText('Review a new quota', { exact: true }).click();
@@ -139,16 +164,16 @@ try {
   assert.equal(approvals.length, 0);
   await code.fill('ui-test');
   await confirm.click();
-  await dialog.getByText('Code invalide.').waitFor();
+  await dialog.getByText('Invalid code.').waitFor();
   assert.deepEqual(approvals, [{ type: 'confirm', id: 'preview', manager_code: 'ui-test' }]);
   assert.equal(await code.inputValue(), '');
   assert.equal(await dialog.getByRole('log').getByText('ui-test').count(), 0);
   await dialog.getByRole('button', { name: 'Record observation' }).click();
-  await dialog.getByLabel('Field observation').fill('Contrôle du compteur.');
+  await dialog.getByLabel('Field observation').fill('Checking the meter.');
   await dialog.getByRole('button', { name: 'Save observation' }).click();
-  await dialog.getByText('Observation enregistrée.').waitFor();
+  await dialog.getByText('Observation saved.').waitFor();
   assert.equal(await confirm.count(), 0);
-  await dialog.getByRole('button', { name: 'End call' }).click();
+  await dialog.getByRole('button', { name: 'Done' }).click();
   assert.deepEqual(errors, []);
   console.log('Chrome passed opt-in recording and upload, transcription, TTS failure, microphone denial and cleanup, mobile layout, protected approval and proposal invalidation.');
 } finally { await browser.close(); }

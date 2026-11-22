@@ -33,23 +33,23 @@ try {
   const twin = page.getByRole('region', { name: 'Operational digital twin' });
   await twin.getByText('Virtual sensors and event injection', { exact: true }).click();
   await twin.getByLabel('Missing flow reading').check();
-  const incoming = page.getByRole('region', { name: 'Incoming Guardian call' });
+  const incoming = page.getByRole('region', { name: 'Guardian alert' });
   await incoming.getByText('Field clarification').waitFor();
-  await incoming.getByRole('button', { name: 'Decline' }).click();
+  await incoming.getByRole('button', { name: 'Dismiss' }).click();
   assert.equal(opened.length, 0);
   assert.equal(await page.evaluate(() => window.micRequests), 0);
 
   await twin.getByLabel('Water-balance discrepancy').check();
   await incoming.getByText('Urgent replay alert').waitFor();
-  await incoming.getByRole('button', { name: 'Accept call' }).click();
+  await incoming.getByRole('button', { name: 'Explain alert' }).click();
   const call = page.getByRole('dialog', { name: 'Voice Guardian' });
-  const log = call.getByRole('log', { name: 'Call transcript' });
-  await log.getByText(/13 m³.*compteur/i).waitFor();
+  const log = call.getByRole('log', { name: 'Conversation' });
+  await log.getByText(/13 m³.*meter/i).waitFor();
   assert.equal(await page.evaluate(() => window.micRequests), 0);
   await call.getByRole('button', { name: 'Record observation' }).click();
-  await call.getByLabel('Field observation').fill('Contrôle visuel du compteur en cours.');
+  await call.getByLabel('Field observation').fill('The meter inspection is underway.');
   await call.getByRole('button', { name: 'Save observation' }).click();
-  await log.getByText(/Observation déclarée.*Contrôle visuel/).waitFor();
+  await log.getByText(/Reported observation.*meter inspection/).waitFor();
   await call.getByText('Review a new quota', { exact: true }).click();
   const amount = previous - 1;
   await call.getByLabel(/Proposed withdrawal limit/).fill(String(amount));
@@ -61,29 +61,29 @@ try {
   await call.waitFor({ state: 'detached' });
   assert.equal(Number(await quota.inputValue()), amount);
   await page.getByText(/Simulated plan approved/i).first().waitFor();
-  await page.getByRole('button', { name: 'Call Voice Guardian' }).click();
-  await call.getByLabel('Message', { exact: true }).fill('Expliquez le plan.');
+  await page.getByRole('button', { name: 'Voice assistant' }).click();
+  await call.getByLabel('Message', { exact: true }).fill('Explain the plan.');
   await call.getByRole('button', { name: 'Send message' }).click();
-  await log.getByText(/livré à temps/i).waitFor();
-  assert.equal(await log.getByText(/Contrôle visuel/).count(), 0);
-  await call.getByRole('button', { name: 'End call' }).click();
+  await log.getByText(/on.time deliver/i).waitFor();
+  assert.equal(await log.getByText(/meter inspection/).count(), 0);
+  await call.getByRole('button', { name: 'Done' }).click();
   const sites = page.getByRole('combobox', { name: 'Agricultural site' });
   await sites.selectOption('TN-32-BALTABOUAWENE-ASSILA');
-  await incoming.getByRole('button', { name: 'Accept call' }).click();
-  await log.getByText(/Assila.*autorisation/i).waitFor();
+  await incoming.getByRole('button', { name: 'Explain alert' }).click();
+  await log.getByText(/Assila.*authori/i).waitFor();
   assert.equal(await call.getByText('Review a new quota').count(), 0);
-  await call.getByRole('button', { name: 'End call' }).click();
+  await call.getByRole('button', { name: 'Done' }).click();
 
   await sites.selectOption('korba-cap-bon');
   await page.getByRole('button', { name: 'Compare regional plans' }).click();
   await incoming.getByText('Field clarification').waitFor();
-  await incoming.getByRole('button', { name: 'Decline' }).click();
+  await incoming.getByRole('button', { name: 'Dismiss' }).click();
   await page.getByRole('button', { name: 'Load example assumptions' }).click();
   const regionalQuota = page.getByRole('spinbutton', { name: 'Withdrawal limit (m³)', exact: true });
   const beforeRegional = Number(await regionalQuota.inputValue());
   await page.getByRole('button', { name: 'Compare regional plans' }).click();
   await page.getByRole('region', { name: 'Regional hourly replay' }).waitFor();
-  await page.getByRole('button', { name: 'Call Voice Guardian' }).click();
+  await page.getByRole('button', { name: 'Voice assistant' }).click();
   await call.getByText('Review a new quota', { exact: true }).click();
   await call.getByLabel(/Proposed withdrawal limit/).fill(String(beforeRegional - 1));
   await call.getByRole('button', { name: 'Calculate proposal' }).click();
@@ -104,13 +104,37 @@ try {
   const series = page.waitForResponse(r => r.url().includes('/api/tunisia/cities/' + city.id + '?start=2025-07-01'));
   await analysis.getByRole('button', { name: 'Apply dates' }).click();
   const climate = (await (await series).json()).climate;
-  await page.getByRole('button', { name: 'Call Voice Guardian' }).click();
-  await call.getByLabel('Message', { exact: true }).fill('Expliquez le graphique des précipitations.');
+  await page.getByRole('button', { name: 'Voice assistant' }).click();
+  await call.getByLabel('Message', { exact: true }).fill('Explain the rain chart.');
   await call.getByRole('button', { name: 'Send message' }).click();
   const answer = log.getByText(/2025-07-01.*2025-07-07/);
   await answer.waitFor();
   assert.ok((await answer.textContent()).includes(String(climate.precipitation_mm) + ' mm'));
   assert.equal(await log.getByRole('link').first().getAttribute('href'), climate.source.url);
+  await call.getByRole('button', { name: 'Done' }).click();
+
+  // Each dashboard locale opens its matching assistant without ringing or requesting a microphone.
+  for (const scenario of [
+    { language: 'ja', locale: 'ja', open: '音声アシスタント', speak: '話す言語', present: '発表を準備', generate: '発表原稿を作る', done: '終了', script: /[ぁ-んァ-ン]/ },
+    { language: 'aeb', locale: 'aeb-TN', open: 'المعاون الصوتي', speak: 'اللغة اللي باش تحكي بيها', present: 'حضّر العرض', generate: 'حضّرلي كلام للعرض', done: 'كمّلت', script: /[ء-ي]/ },
+  ]) {
+    const localized = new URL(url);
+    localized.searchParams.set('lang', scenario.language);
+    localized.hash = 'map';
+    await page.goto(localized.href);
+    await page.getByRole('button', { name: scenario.open, exact: true }).click();
+    const assistant = page.getByRole('dialog');
+    assert.equal(await assistant.getByLabel(scenario.speak).inputValue(), scenario.language);
+    await assistant.getByRole('button', { name: scenario.present, exact: true }).click();
+    const prior = await assistant.getByRole('log').locator('p').count();
+    await assistant.getByRole('button', { name: scenario.generate }).click();
+    const pitch = assistant.getByRole('log').locator('p').nth(prior);
+    await pitch.waitFor();
+    assert.equal(await pitch.getAttribute('lang'), scenario.locale);
+    assert.match(await pitch.textContent(), scenario.script);
+    assert.equal(await page.evaluate(() => window.micRequests), 0);
+    await assistant.getByRole('button', { name: scenario.done, exact: true }).click();
+  }
   assert.deepEqual(errors, []);
   console.log('Guardian verified on the Jendouba replay, Assila survey, Korba planning and dated Tozeur climate with real WebSockets and explicit M5 approvals.');
 } finally {
