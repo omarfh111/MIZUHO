@@ -55,18 +55,47 @@ try {
       window.captureConstraints.push(constraints);
       if (window.denyCapture) throw new DOMException('Denied by user', 'NotAllowedError');
       const input = new NativeAudio();
-      const oscillator = input.createOscillator();
-      const gain = input.createGain();
-      gain.gain.value = 0;
       const destination = input.createMediaStreamDestination();
-      oscillator.connect(gain).connect(destination);
-      oscillator.start();
+      // Keep sending silent mic frames between stimuli, as physical capture does.
+      const silence = input.createConstantSource();
+      silence.offset.value = 0;
+      silence.connect(destination);
+      silence.start();
       await input.resume();
-      window.emitVoice = hz => {
-        if (hz) oscillator.frequency.setValueAtTime(hz, input.currentTime);
-        gain.gain.setValueAtTime(hz ? 0.22 : 0, input.currentTime);
+      let active;
+      window.emitVoice = signal => {
+        if (active) { active.stop(); active.disconnect(); active = null; }
+        if (!signal) return;
+        const rate = 16_000;
+        const buffer = input.createBuffer(1, rate * 2, rate);
+        const samples = buffer.getChannelData(0);
+        const voiced = signal === 'voice' || signal === 'quiet voice';
+        const pitch = signal === 'quiet voice' ? 155 : 193;
+        const gain = signal === 'quiet voice' ? 0.45 : 1;
+        let seed = 37, air = 0;
+        for (let i = 0; i < samples.length; i++) {
+          const t = i / rate;
+          if (voiced) {
+            // A changing pitch and harmonics form a voiced, syllabic test phrase.
+            const phase = 2 * Math.PI * pitch * t + 1.9 * Math.sin(2 * Math.PI * 2 * t);
+            const envelope = 0.68 + 0.32 * Math.cos(2 * Math.PI * 3 * t);
+            samples[i] = gain * envelope * (0.07 * Math.sin(phase) +
+              0.06 * Math.sin(3 * phase) + 0.04 * Math.sin(5 * phase) + 0.035 * Math.sin(9 * phase));
+          } else {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            const white = seed / 0x80000000 - 1;
+            air = air * .9 + white * .1;
+            const knock = signal === 'taps' ? 0.4 * Math.exp(-(t % .25) / .008) * Math.sin(2 * Math.PI * 1600 * t) : 0;
+            samples[i] = .032 * Math.sin(2 * Math.PI * 97 * t) + .06 * air + .006 * white + knock;
+          }
+        }
+        active = input.createBufferSource();
+        active.buffer = buffer;
+        active.loop = true;
+        active.connect(destination);
+        active.start();
       };
-      window.closeFixtureMic = () => { oscillator.stop(); return input.close(); };
+      window.closeFixtureMic = () => { window.emitVoice(null); silence.stop(); return input.close(); };
       window.voiceTracks.push(...destination.stream.getTracks());
       return destination.stream;
     };
@@ -112,7 +141,7 @@ try {
   const start = page.getByRole('button', { name: 'Start live voice', exact: true });
   const dialog = page.getByRole('dialog', { name: 'Voice Guardian' });
   const state = value => dialog.locator('.guardian-orb[data-state="' + value + '"]').waitFor();
-  const sound = hz => page.evaluate(frequency => window.emitVoice(frequency), hz);
+  const sound = signal => page.evaluate(input => window.emitVoice(input), signal);
   await start.waitFor();
   assert.equal(starts, 0);
   assert.equal(await page.evaluate(() => window.captureConstraints.length), 0);
@@ -121,23 +150,35 @@ try {
   assert.equal(starts, 1);
   assert.equal(await page.evaluate(() => window.captureConstraints[0].audio.echoCancellation), true);
   assert.equal(await dialog.getByRole('button', { name: 'Send recording' }).count(), 0);
-  // More than the detector's end-of-utterance interval.
+  await sound('fan');
   await page.waitForTimeout(1100);
-  assert.equal(turns.length, 0, 'continuous silence must send no audio');
+  assert.equal(await dialog.locator('.guardian-orb').getAttribute('data-state'), 'listening', 'running fan triggered speech');
+  await sound('taps');
+  await page.waitForTimeout(650);
+  assert.equal(await dialog.locator('.guardian-orb').getAttribute('data-state'), 'listening', 'keyboard taps triggered speech');
+  await sound(null);
+  await page.waitForTimeout(1100);
+  assert.equal(turns.length, 0, 'background noise and short impacts must send no audio');
+  await state('listening');
 
-  await sound(261);
+  await sound('quiet voice');
   await state('hearing');
-  await sound(0);
+  await sound(null);
   await state('thinking');
   await dialog.getByText('Test utterance 1', { exact: true }).waitFor();
   const first = turns[0].turn_id;
   send({ type: 'progress', turn_id: first, text: 'The simulated meter records a discrepancy.' });
-  streamPcm(first, 'preview', 2);
+  streamPcm(first, 'preview', 3.5);
   await state('speaking');
   await dialog.getByText('The simulated meter records a discrepancy.', { exact: true }).waitFor();
-  await sound(347);
+  await sound('taps');
+  await page.waitForTimeout(650);
+  assert.equal(cancelled.length, 0, 'room noise must not cancel an audible reply');
+  assert.equal(turns.length, 1);
+  await state('speaking');
+  await sound('voice');
   await state('hearing');
-  await sound(0);
+  await sound(null);
   await state('thinking');
   await dialog.getByText('Test utterance 2', { exact: true }).waitFor();
   const second = turns[1].turn_id;
@@ -196,9 +237,9 @@ try {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
 
   const played = await page.evaluate(() => window.playedBuffers.length);
-  await sound(283);
+  await sound('voice');
   await state('hearing');
-  await sound(0);
+  await sound(null);
   await state('thinking');
   await dialog.getByText('Test utterance 3', { exact: true }).waitFor();
   send({ type: 'reply', turn_id: turns[2].turn_id, text: 'The transcript remains available.', speech_available: true });
@@ -218,7 +259,7 @@ try {
   await page.waitForFunction(() => window.voiceContexts.every(audio => audio.state === 'closed'));
   assert.equal(turns.length, 3);
   assert.deepEqual(errors, []);
-  console.log('One-click live voice passed streamed interruption, ordered fallback playback, provider failure recovery, grounded transcripts, silence privacy and microphone cleanup in Chrome.');
+  console.log('Chrome verified background-noise rejection, quiet voice capture, spoken interruption, ordered fallback playback, provider recovery, grounded transcripts and microphone cleanup.');
 } finally {
   await browser.close();
 }

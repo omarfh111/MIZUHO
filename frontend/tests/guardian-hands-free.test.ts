@@ -7,35 +7,102 @@ import { GuardianHandsFree, PlaybackEchoGuard, VoiceTurnDetector, encodeVoiceWav
 
 const rate = 16_000;
 const quiet = new Float32Array(320);
-const speech = Float32Array.from(quiet, (_, i) => 0.1 * Math.sin(i * 0.06));
+// A voiced vowel has several pitch harmonics, resonances and a changing syllabic envelope.
+const speech = Float32Array.from({ length: rate }, (_, i) => {
+  const t = i / rate;
+  const phase = 2 * Math.PI * 158 * t + 1.8 * Math.sin(2 * Math.PI * 2 * t);
+  const syllable = 0.65 + 0.35 * Math.cos(2 * Math.PI * 3 * t);
+  return syllable * (0.07 * Math.sin(phase) + 0.06 * Math.sin(phase * 3) +
+    0.045 * Math.sin(phase * 4) + 0.038 * Math.sin(phase * 9) + 0.02 * Math.sin(phase * 15));
+});
+function block(signal: Float32Array, number: number, size = quiet.length) {
+  const offset = number * size % signal.length;
+  return signal.subarray(offset, offset + size);
+}
+function rms(frame: Float32Array) {
+  return Math.sqrt(frame.reduce((sum, x) => sum + x * x, 0) / frame.length);
+}
+function feed(detector: VoiceTurnDetector, count: number, signal: Float32Array, speaking = false) {
+  return Array.from({ length: count }, (_, i) => {
+    const frame = block(signal, i);
+    return detector.consume(frame, rate, rms(frame), false, speaking);
+  }).filter(e => e !== undefined);
+}
 
 test('turn detection retains the first syllable and accommodates short pauses without uploading silence', () => {
   const detector = new VoiceTurnDetector();
-  const feed = (count: number, frame: Float32Array, level: number) =>
-    Array.from({ length: count }, () => detector.consume(frame, rate, level, false, false)).filter(e => e !== undefined);
-  assert.deepEqual(feed(90, quiet, 0), []);
-  assert.deepEqual(feed(2, speech, 0.08), []);
-  assert.deepEqual(feed(30, quiet, 0), []);
-  const firstSyllable = new Float32Array(speech);
-  detector.consume(firstSyllable, rate, 0.08, false, false);
-  assert.deepEqual(feed(25, speech, 0.08), [{ type: 'start' }]);
-  assert.deepEqual(feed(20, quiet, 0), []);
-  assert.deepEqual(feed(15, speech, 0.08), []);
-  const turn = feed(50, quiet, 0);
+  assert.deepEqual(feed(detector, 90, quiet), []);
+  assert.deepEqual(feed(detector, 2, speech), []);
+  assert.deepEqual(feed(detector, 30, quiet), []);
+  const firstSyllable = block(speech, 0);
+  detector.consume(firstSyllable, rate, rms(firstSyllable), false, false);
+  assert.deepEqual(feed(detector, 25, speech), [{ type: 'start' }]);
+  assert.deepEqual(feed(detector, 20, quiet), []);
+  assert.deepEqual(feed(detector, 15, speech), []);
+  const turn = feed(detector, 50, quiet);
   assert.equal(turn.length, 1);
   assert.equal(turn[0].type, 'turn');
   if (turn[0].type === 'turn') assert.ok(turn[0].frames.includes(firstSyllable));
-  assert.deepEqual(feed(40, quiet, 0), []);
+  assert.deepEqual(feed(detector, 40, quiet), []);
 });
 
 test('overlong audio needs a pause before it can start another turn', () => {
   const detector = new VoiceTurnDetector();
-  const feed = (count: number, level: number) => Array.from({ length: count }, () =>
-    detector.consume(level ? speech : quiet, rate, level, false, false)?.type).filter(Boolean);
-  assert.deepEqual(feed(2400, 0.08), ['start', 'limit']);
-  assert.deepEqual(feed(120, 0.08), []);
-  assert.deepEqual(feed(50, 0), []);
-  assert.deepEqual(feed(30, 0.08), ['start']);
+  assert.deepEqual(feed(detector, 2400, speech).map(e => e.type), ['start', 'limit']);
+  assert.deepEqual(feed(detector, 120, speech), []);
+  assert.deepEqual(feed(detector, 50, quiet), []);
+  assert.deepEqual(feed(detector, 30, speech), [{ type: 'start' }]);
+});
+
+test('room noise, a running fan and isolated knocks neither start a turn nor interrupt playback', () => {
+  let random = 123456, previous = 0;
+  const hiss = new Float32Array(rate * 2);
+  const fan = Float32Array.from({ length: rate * 2 }, (_, i) => {
+    random = (Math.imul(1664525, random) + 1013904223) >>> 0;
+    const noise = random / 0x80000000 - 1;
+    hiss[i] = 0.052 * noise;
+    previous = previous * 0.9 + noise * 0.1;
+    return 0.034 * Math.sin(2 * Math.PI * 97 * i / rate) + 0.055 * previous + 0.007 * noise;
+  });
+  const taps = Float32Array.from(fan, (x, i) =>
+    x + 0.45 * Math.exp(-((i % (rate / 4)) / (rate * .008))) * Math.sin(i * .84));
+  for (const playing of [false, true]) {
+    const detector = new VoiceTurnDetector();
+    assert.deepEqual(feed(detector, 100, fan, playing), []);
+    assert.deepEqual(feed(detector, 100, taps, playing), []);
+    assert.deepEqual(feed(detector, 100, hiss, playing), []);
+    assert.deepEqual(feed(detector, 50, quiet, playing), []);
+  }
+});
+
+test('a quiet first phrase starts promptly, releases a single turn and can follow steady background noise', () => {
+  const soft = Float32Array.from(speech, x => x * 0.38);
+  const room = Float32Array.from({ length: rate }, (_, i) => 0.009 * Math.sin(2 * Math.PI * 104 * i / rate));
+  for (const withRoom of [false, true]) {
+    const detector = new VoiceTurnDetector();
+    if (withRoom) assert.deepEqual(feed(detector, 75, room), []);
+    const mic = withRoom ? Float32Array.from(soft, (sample, i) => sample + room[i]) : soft;
+    assert.deepEqual(feed(detector, 25, mic), [{ type: 'start' }]);
+    assert.deepEqual(feed(detector, 60, withRoom ? room : quiet).map(e => e.type), ['turn']);
+  }
+});
+
+test('a motor with several harmonics and a ringing chime do not start a conversation', () => {
+  const motor = Float32Array.from({ length: rate * 2 }, (_, i) => {
+    const phase = 2 * Math.PI * 175 * i / rate;
+    return 0.05 * Math.sin(phase) + 0.038 * Math.sin(3 * phase) + 0.026 * Math.sin(5 * phase) +
+      0.018 * Math.sin(8 * phase);
+  });
+  const chime = Float32Array.from({ length: rate * 2 }, (_, i) => {
+    const t = i / rate;
+    return Math.exp(-2.2 * t) * (0.11 * Math.sin(2 * Math.PI * 660 * t) +
+      0.08 * Math.sin(2 * Math.PI * 1031 * t) + 0.05 * Math.sin(2 * Math.PI * 1797 * t));
+  });
+  for (const signal of [motor, chime]) {
+    const detector = new VoiceTurnDetector();
+    assert.deepEqual(feed(detector, 100, signal), []);
+    assert.deepEqual(feed(detector, 50, quiet), []);
+  }
 });
 
 test('speaker reference distinguishes delayed microphone echo from a different speaker', () => {
@@ -133,7 +200,7 @@ function browser(t: TestContext, permissionMode: 'grant' | 'defer' | 'deny' = 'g
     });
   }
   replace('navigator', { mediaDevices: { getUserMedia: async (constraints: MediaStreamConstraints) => {
-    assert.deepEqual(constraints.audio, { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 });
+    assert.deepEqual(constraints.audio, { echoCancellation: true, noiseSuppression: true, autoGainControl: false, channelCount: 1 });
     requests++;
     if (permissionMode === 'deny') throw new DOMException('Permission denied', 'NotAllowedError');
     if (permissionMode === 'defer') await new Promise<void>(resolve => { permission = resolve; });
@@ -153,7 +220,7 @@ function browser(t: TestContext, permissionMode: 'grant' | 'defer' | 'deny' = 'g
     onError: error => { errors.push(error); phasesAtError.push(phases.at(-1)); },
   });
   const frames = (n: number, microphone: Float32Array, playback = quiet) => {
-    for (let i = 0; i < n; i++) Worklet.latest.port.onmessage?.({ data: { microphone, playback } });
+    for (let i = 0; i < n; i++) Worklet.latest.port.onmessage?.({ data: { microphone: block(microphone, i), playback: block(playback, i) } });
   };
   return { live, phases, errors, phasesAtError, turns, track, frames, events, localDocument, grant: () => permission(),
     requests: () => requests, interrupts: () => interrupts, level: () => level };
@@ -162,8 +229,15 @@ function browser(t: TestContext, permissionMode: 'grant' | 'defer' | 'deny' = 'g
 test('one gesture supports automatic turns, barge-in during reasoning and playback, then listening again', async t => {
   const b = browser(t);
   await b.live.start();
+  const hum = Float32Array.from({ length: rate }, (_, i) => 0.04 * Math.sin(2 * Math.PI * 120 * i / rate));
+  b.frames(50, hum);
+  assert.equal(b.phases.at(-1), 'listening');
+  assert.equal(b.level(), 0, 'a room hum must not light up the speech meter');
   b.frames(15, speech); b.frames(45, quiet);
   assert.deepEqual(b.phases, ['permission', 'listening', 'hearing', 'thinking']);
+  b.frames(50, hum);
+  assert.equal(b.interrupts(), 0, 'background noise must not cancel a pending answer');
+  assert.equal(b.level(), 0);
   b.frames(16, speech);
   assert.equal(b.interrupts(), 1);
   b.live.listen(); // Late recovery from the cancelled response.

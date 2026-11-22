@@ -1,3 +1,5 @@
+import { GuardianSpeechDetector } from './guardianSpeechDetector.ts';
+
 export type GuardianVoicePhase = 'off' | 'permission' | 'listening' | 'hearing' | 'thinking' | 'speaking';
 export type GuardianVoiceError = 'microphone' | 'unsupported' | 'playback' | 'interrupted' | 'utterance_limit';
 
@@ -20,18 +22,19 @@ const maxTurnMs = 45_000;
 
 /** Retains the first syllable and only releases a phrase once the speaker pauses. */
 export class VoiceTurnDetector {
-  private noise = 0.003;
+  private speech = new GuardianSpeechDetector();
   private preRoll: Float32Array[] = [];
   private phrase: Float32Array[] = [];
-  private onset = 0;
+  private onset: boolean[] = [];
   private quiet = 0;
   private duration = 0;
   private waitForPause = false;
 
-  consume(frame: Float32Array, rate: number, level: number, echo: boolean, speaking: boolean) {
+  consume(frame: Float32Array, rate: number, level: number, echo: boolean, interrupting: boolean) {
     const ms = frame.length * 1000 / rate;
-    const threshold = Math.max(speaking ? 0.018 : 0.009, this.noise * 3);
-    const voiced = !echo && level >= threshold * (this.phrase.length ? 0.7 : 1);
+    const capturing = this.phrase.length > 0;
+    const minimumLevel = capturing ? 0.003 : interrupting ? 0.009 : 0.005;
+    const voiced = !echo && this.speech.voiced(frame, minimumLevel, capturing || this.waitForPause) && level >= minimumLevel;
     if (this.waitForPause) {
       this.quiet = voiced ? 0 : this.quiet + ms;
       if (this.quiet >= pauseMs) { this.waitForPause = false; this.quiet = 0; }
@@ -39,14 +42,21 @@ export class VoiceTurnDetector {
     }
     if (!this.phrase.length) {
       this.preRoll.push(echo ? new Float32Array(frame.length) : frame);
-      if (this.preRoll.length > Math.ceil(320 / ms)) this.preRoll.shift();
-      if (!voiced) {
-        this.onset = 0;
-        if (!echo && !speaking) this.noise += 0.04 * (level - this.noise);
-        return;
+      // Barge-in must establish speech over the speaker. Keep enough original
+      // audio to recover quiet opening words while that decision is pending.
+      if (this.preRoll.length > Math.ceil(880 / ms)) this.preRoll.shift();
+      // Require several voiced frames in a short window. Consonants between
+      // vowels can be quiet or aperiodic, particularly on a soft microphone.
+      this.onset.push(voiced);
+      while (this.onset.length > Math.ceil((interrupting ? 280 : 220) / ms)) this.onset.shift();
+      if (!voiced) return;
+      let count = 0, consecutive = 0, longest = 0;
+      for (const vote of this.onset) {
+        consecutive = vote ? consecutive + 1 : 0;
+        if (vote) count++;
+        longest = Math.max(longest, consecutive);
       }
-      this.onset += ms;
-      if (this.onset < (speaking ? 180 : 140)) return;
+      if (longest * ms < 80 || count * ms < (interrupting ? 140 : 100)) return;
       this.phrase = this.preRoll;
       this.preRoll = [];
       this.duration = this.phrase.length * ms;
@@ -71,7 +81,8 @@ export class VoiceTurnDetector {
   reset() {
     this.preRoll = [];
     this.phrase = [];
-    this.duration = this.onset = this.quiet = 0;
+    this.duration = this.quiet = 0;
+    this.onset = [];
     this.waitForPause = false;
   }
 }
@@ -220,7 +231,7 @@ export class GuardianHandsFree {
       this.audio = audio;
       const resumed = audio.resume();
       const input = navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false, channelCount: 1 },
       }).then(stream => {
         if (this.closed) { stream.getTracks().forEach(track => track.stop()); return; }
         this.stream = stream;
@@ -254,10 +265,11 @@ export class GuardianHandsFree {
     const inputLevel = rms(microphone);
     const rate = this.audio.sampleRate;
     const echo = this.echo.matches(microphone, playback, rate, speaking);
-    this.events.onLevel(Math.min(1, 5 * (speaking ? rms(playback) : inputLevel)));
-    const event = this.detector.consume(microphone, rate, inputLevel, echo, speaking);
+    const interrupt = speaking || this.phase === 'thinking';
+    const event = this.detector.consume(microphone, rate, inputLevel, echo, interrupt);
+    const audibleLevel = event?.type === 'start' || this.phase === 'hearing' ? inputLevel : speaking ? rms(playback) : 0;
+    this.events.onLevel(Math.min(1, 5 * audibleLevel));
     if (event?.type === 'start') {
-      const interrupt = speaking || this.phase === 'thinking';
       this.cancelPlayback();
       this.setPhase('hearing');
       if (interrupt) this.events.onInterrupt();
