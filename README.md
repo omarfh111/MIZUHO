@@ -47,6 +47,7 @@ The manager schedules deliveries and growers receive them. A regional authority 
 | **M6 · API and irrigation planning** | Load the site and scenarios, compare solar options, and run the M4 simulator and M5 CP-SAT optimizer through FastAPI. |
 | **M7 · National map and 3D dashboard** | Zoom from Tunisia to one of its 24 governorate capitals. In **Site map**, compare six agricultural study zones, the Assila survey, and the Jendouba planning pilot. |
 | **M8 · Evidence assistant** | Search official passages with Qdrant dense retrieval and BM25. Ask about a city's archive or the current site simulation with the same LangGraph agent. |
+| **M9 · AI Voice Guardian** | Receive a call about a replay alert, report a field observation in French and review a revised withdrawal limit with the manager. |
 
 ## How it works
 
@@ -153,6 +154,18 @@ flowchart TD
   a -.-> mem[("Verified facts and citations<br/>up to 6 answers · 1 h idle expiry")]
   mem -.-> think
 ```
+
+### Answering a Voice Guardian call (M9)
+
+In **Irrigation planning**, open the Jendouba pilot, calculate the normal day and expand **Virtual sensors and event injection**. Select **Water-balance discrepancy** at the current hour and accept the incoming call. The Guardian reads the M3 alert and M4 tank level for that hour. It asks the farmer to check the meter and reservoir before attributing the discrepancy to a leak. **Missing flow reading** triggers a clarification instead. **Call Voice Guardian** also opens a conversation on demand.
+
+The call starts with the microphone off. Type a reply or select **Record message**, then **Send recording** to send that clip to Vultr for French transcription. Use **Record observation** to confirm what the farmer reported. MIZUHO keeps observations and the conversation in memory for that call. Documentary answers cite retrieved M8 passages. The guided text controls also work without Vultr credentials.
+
+In a calculated planning scenario, open **Review a new quota** to preview a lower withdrawal allowance. M5 recalculates the planning horizon and displays the projected on-time delivery. The current schedule changes only after the manager selects **Confirm simulated plan**. Set `MIZHUO_MANAGER_APPROVAL_CODE` on shared instances to require a separate manager code. With this setting empty, the local demo trusts the person operating the planning screen. All changes apply to the simulator.
+
+For spoken calls, set `VULTR_INFERENCE_API_KEY` in the backend's root `.env` using the model settings from [.env.example](.env.example) and restart FastAPI. The browser requires HTTPS or localhost for microphone access. The reverse proxy must forward WebSocket upgrades on `/api/guardian/call`. With the project environment active, `python -m tools.guardian_smoke --live` verifies French synthesis, transcription and tool selection using synthetic speech and the configured billable endpoint.
+
+With both local servers running and the backend Python environment active, run `node frontend/tests/guardian-live-browser.mjs --live` for the complete Chrome walkthrough. It feeds a synthetic French question through the browser recorder, checks the answer against the M3 discrepancy and decodes the spoken reply. Tunisian Arabic and performance with field noise still need evaluation with speakers.
 
 ### From sources to citations
 
