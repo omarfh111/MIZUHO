@@ -1,6 +1,7 @@
 """Read-only LangGraph tools backed by M6 and the verified corpus."""
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from time import monotonic
 
@@ -56,6 +57,7 @@ class Turn:
     evidence_matches: dict[str, Citation] = field(default_factory=dict)
     remembered_scenario_id: str | None = None
     discussed_scenario_id: str | None = None
+    tool_result: Callable[[str, dict], None] | None = None
 
     def remaining(self, maximum: float = 12) -> float:
         remaining = self.deadline - monotonic()

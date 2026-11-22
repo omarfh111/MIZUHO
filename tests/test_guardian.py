@@ -569,3 +569,155 @@ def test_spoken_allocation_names_the_requested_grower_when_multiple_facts_are_ve
     answer = AssistantAnswer(paragraphs=[], facts=facts, citations=[], tools_used=["explain_decision"], missing_information=[])
     spoken = spoken_answer(call, answer, "区画Bの配水量は？")
     assert "区画Bには期限までに4 m³" in spoken and "区画A" not in spoken
+
+
+@pytest.mark.parametrize(("reason", "selection_args", "question", "expected"), [
+    ("emergency", {"balance_anomaly_slots": [1]}, "What is happening in this virtual replay?", "13 m³"),
+    ("clarification", {"missing_flow_slots": [2], "selected_slot": 2}, "Why is this flow measurement blank?", "The flow reading is missing."),
+])
+def test_live_voice_starts_verified_audio_before_graph_finishes_and_skips_repeated_values(
+        client, monkeypatch, reason, selection_args, question, expected):
+    waiting, finish = Event(), Event()
+    spoken = []
+    class Voice(GuardianProvider):
+        async def transcribe(self, *args):
+            return question
+
+        async def stream_speech(self, text, language):
+            spoken.append(text)
+            yield b"\x00\x01"
+
+        async def speak(self, *args):
+            pytest.fail("Successful PCM must not generate another MP3")
+
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            return graph_tools(("get_sensor_anomalies", {}))
+        waiting.set()
+        assert finish.wait(6)
+        return graph_done()
+
+    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace(respond=respond))
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: Voice(key="local-fixture", llm=""))
+    start = context(language="en", reason=reason)
+    start["telemetry"] = selection(client, start, plan="baseline", **selection_args)
+    with connect(client) as ws:
+        exchange(ws, **start)
+        transcript = exchange(ws, type="audio", mode="ask", turn_id=1, mime="audio/webm", data="YQ==",
+                              progress_audio=True, stream_audio=True)
+        try:
+            assert transcript["type"] == "transcript"
+            lead, chunk, end = ws.receive_json(), ws.receive_json(), ws.receive_json()
+            assert lead["type"] == "progress" and expected in lead["text"]
+            assert chunk["type"] == "audio_chunk" and chunk["phase"] == "preview" and chunk["sample_rate"] == 24000
+            assert end == {"type": "audio_end", "phase": "preview", "turn_id": 1} and waiting.wait(5)
+        finally:
+            finish.set()
+        final = ws.receive_json()
+        assert final["mode"] == "langgraph" and final["tools_used"] == ["get_sensor_anomalies"]
+        assert expected in final["text"] and final["speech_available"]
+        final_chunk = exchange(ws, type="speak", turn_id=1, stream_audio=True)
+        assert final_chunk["type"] == "audio_chunk" and final_chunk["phase"] == "final"
+        assert ws.receive_json()["type"] == "audio_end"
+        assert expected in spoken[0] and expected not in spoken[1] and "meter" in spoken[1]
+
+
+def test_documentary_preview_uses_completed_retrieval_and_skips_unrelated_active_alert(client, monkeypatch):
+    source = next(c for c in client.app.state.assistant.corpus.chunks.values() if c.citation.source_id == "solar")
+    retrieved, release = Event(), Event()
+    class Voice(GuardianProvider):
+        async def stream_speech(self, text, language):
+            assert retrieved.is_set() and "ANME" in text and "13 m³" not in text
+            yield b"\x00\x01"
+
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            return graph_tools(("search_evidence", {"query": "ANME solar photovoltaic Tunisia"}))
+        assert release.wait(5)
+        return graph_done()
+
+    def qdrant(method, path, body, **kwargs):
+        retrieved.set()
+        return {"points": [{"id": source.citation.id, "payload": source.payload}]} if path == "/points/query" else []
+
+    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace(
+        respond=respond, embeddings=lambda *a, **kw: [[0.] * DIMENSIONS], qdrant=qdrant))
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: Voice(key="local-fixture", llm=""))
+    start = context(language="en", reason="emergency")
+    start["telemetry"] = selection(client, start, balance_anomaly_slots=[1], plan="baseline")
+    with connect(client) as ws:
+        exchange(ws, **start)
+        try:
+            lead = exchange(ws, type="message", turn_id=2, progress_audio=True, stream_audio=True,
+                            text="Which official source describes solar potential?")
+            assert lead["type"] == "progress" and source.citation.section in lead["text"]
+            assert ws.receive_json()["type"] == "audio_chunk"
+            assert ws.receive_json()["type"] == "audio_end"
+        finally:
+            release.set()
+        result = ws.receive_json()
+        assert result["mode"] == "langgraph" and result["citations"] == [source.citation.model_dump(mode="json")]
+
+
+@pytest.mark.parametrize("after_bytes", [True, False])
+def test_broken_pcm_only_falls_back_to_mp3_before_first_audio(after_bytes):
+    from backend.guardian_progress import send_speech
+    output = []
+    class Voice:
+        async def stream_speech(self, text, language):
+            if after_bytes:
+                yield b"\x12\x34"
+            raise GuardianProviderError("tts")
+
+        async def speak(self, text, language):
+            assert not after_bytes
+            return b"fixture mp3", "audio/mpeg"
+
+    async def send(frame):
+        output.append(frame)
+
+    asyncio.run(send_speech(send, Voice(), "Verified", "en", turn_id=1, stream=True, phase="final"))
+    if after_bytes:
+        assert [frame["type"] for frame in output] == ["audio_chunk", "audio_end"]
+        assert output[-1]["partial"] is True
+    else:
+        assert output == [{"type": "audio", "turn_id": 1, "phase": "final", "mime": "audio/mpeg",
+                           "data": base64.b64encode(b"fixture mp3").decode("ascii")}]
+
+
+def test_barge_in_during_streamed_preview_releases_audio_without_publishing_the_cancelled_reply(client, monkeypatch):
+    speaking, closed, graph_finished = Event(), Event(), Event()
+    class Voice(GuardianProvider):
+        async def stream_speech(self, text, language):
+            try:
+                speaking.set()
+                yield b"\x00\x01"
+                await asyncio.sleep(20)
+            finally:
+                closed.set()
+
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            scope = json.loads(body["input"][0]["content"])
+            if "first" in scope["question"]:
+                return graph_tools(("get_sensor_anomalies", {}))
+            assert not scope["recent_questions"] and not scope["prior_answers"]
+        else:
+            assert graph_finished.wait(6)
+        return graph_done()
+
+    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace(respond=respond))
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: Voice(key="local-fixture", llm=""))
+    start = context(language="en", reason="emergency")
+    start["telemetry"] = selection(client, start, balance_anomaly_slots=[1], plan="baseline")
+    with connect(client) as ws:
+        exchange(ws, **start)
+        try:
+            progress = exchange(ws, type="message", turn_id=1, progress_audio=True, stream_audio=True, text="My first question about the alert.")
+            assert progress["type"] == "progress" and ws.receive_json()["type"] == "audio_chunk"
+            assert speaking.is_set()
+            ws.send_json({"type": "cancel", "turn_id": 1})
+            next_reply = exchange(ws, type="message", turn_id=2, text="Let us discuss another topic.")
+            assert next_reply["turn_id"] == 2 and next_reply["type"] == "reply" and closed.is_set()
+        finally:
+            graph_finished.set()

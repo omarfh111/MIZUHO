@@ -63,6 +63,7 @@ class Dialogue:
     proposal: dict | None = None
     approval_failures: int = 0
     last_text: str = ""
+    live_remainder: str | None = None
     last_language: str = ""
     presentation_brief: str = ""
     rag_session: UUID = field(default_factory=uuid4)

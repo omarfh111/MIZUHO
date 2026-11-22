@@ -2,6 +2,7 @@
 
 import json
 import re
+from collections.abc import Callable
 from pathlib import Path
 from time import monotonic
 from typing import TypedDict
@@ -207,6 +208,8 @@ def tools(state: GraphState) -> dict:
         name = call["name"]
         data = (run_tool(turn, name, call["arguments"]) if name in available_tools(turn) else
                 {"error": "This tool is unavailable for the active location."})
+        if turn.tool_result and "error" not in data:
+            turn.tool_result(name, data)
         results.append({"type": "function_call_output", "call_id": call["call_id"], "output": json.dumps(data, ensure_ascii=False)})
     return {"messages": [*state["messages"], *results], "pending": []}
 
@@ -318,7 +321,7 @@ def finalize(turn: Turn, answer: dict) -> AssistantAnswer:
 
 def run_assistant(request: AssistantRequest, catalog: Catalog, corpus: Corpus, providers: Providers,
                   solver_budget: float, memory: AssistantMemory | None = None, *,
-                  tunisia_data_dir: Path = ARCHIVE_DIR) -> AssistantAnswer:
+                  tunisia_data_dir: Path = ARCHIVE_DIR, tool_result: Callable[[str, dict], None] | None = None) -> AssistantAnswer:
     sites = {feature.properties.site_id for feature in catalog.sites.features}
     city = None
     if request.city_id:
@@ -375,7 +378,7 @@ def run_assistant(request: AssistantRequest, catalog: Catalog, corpus: Corpus, p
         if scenario is None or scenario.site_id != request.site_id:
             raise InputError(("comparison", "scenario_id"), "The comparison must belong to the current site.")
         effective_scenario(catalog, comparison)
-    turn = Turn(request, catalog, corpus, providers, monotonic() + TURN_TIMEOUT, solver_budget, city=city)
+    turn = Turn(request, catalog, corpus, providers, monotonic() + TURN_TIMEOUT, solver_budget, city=city, tool_result=tool_result)
     if memory is None or request.session_id is None:
         return answer_turn(turn, [])
     with memory.session(request.session_id) as key:

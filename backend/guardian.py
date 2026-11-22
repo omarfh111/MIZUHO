@@ -20,6 +20,7 @@ from .compare import InputError
 from .guardian_dialogue import CallStart, Dialogue
 from .guardian_presentation import audience_question
 from .guardian_provider import GuardianProvider, GuardianProviderError
+from .guardian_progress import VoiceProgress, send_speech
 from .guardian_rag import ask_graph
 from .providers import ServiceError
 from .simulator import StateError
@@ -184,7 +185,7 @@ async def presentation(call, provider, prompt):
     return result
 
 
-async def answer(call, provider, prompt):
+async def answer(call, provider, prompt, progress=None):
     fallback = "inspect_replay" if call.frame else "inspect_site"
     name, args = local_route(prompt, fallback)
     special = (name == "prepare_presentation" or PERSONAL_OBSERVATION.search(prompt) or TRANSLATION_REQUEST.search(prompt)
@@ -192,7 +193,7 @@ async def answer(call, provider, prompt):
     rag = call.start.language != "fr" and not special and valid_question_length(prompt, call.start.language)
     if rag and call.service.providers:
         try:
-            result = await ask_graph(call, prompt)
+            result = await ask_graph(call, prompt, progress)
         except ServiceError:
             pass
         else:
@@ -260,7 +261,7 @@ def remember(call, prompt, text):
                     {"role": "assistant", "content": text}][-8:]
 
 
-async def respond(call, provider, prompt, message):
+async def respond(call, provider, prompt, message, send):
     activity = message.get("mode", "ask")
     if activity == "translate":
         return await translation(call, provider, short_text(prompt), message.get("target_language"))
@@ -268,6 +269,14 @@ async def respond(call, provider, prompt, message):
         return await presentation(call, provider, prompt)
     if activity != "ask":
         raise ValueError("Unsupported activity")
+    if ("turn_id" in message and message.get("progress_audio") is True and provider.capabilities_for(call.start.language)["tts"]):
+        progress = VoiceProgress(call, provider, send, message["turn_id"], message.get("stream_audio") is True)
+        try:
+            result = await answer(call, provider, short_text(prompt), progress)
+            call.live_remainder = await progress.finish(result["text"])
+            return result
+        finally:
+            await progress.cancel()
     return await answer(call, provider, short_text(prompt))
 
 
@@ -299,17 +308,21 @@ async def handle(socket, call, provider, message):
         prompt = short_text(await provider.transcribe(data, mime, call.start.language))
         tag = {"turn_id": message["turn_id"]} if "turn_id" in message else {}
         await socket.send_json({"type": "transcript", "text": prompt, **tag})
-        return await respond(call, provider, prompt, message)
+        return await respond(call, provider, prompt, message, socket.send_json)
     if kind == "message":
         prompt = message.get("text", "")
         if not isinstance(prompt, str) or len(prompt) > 1200:
             raise ValueError("Expected text")
-        return await respond(call, provider, prompt, message)
+        return await respond(call, provider, prompt, message, socket.send_json)
     if kind == "speak":
-        if not 0 < len(call.last_text) <= 1600 or not provider.capabilities_for(call.last_language)["tts"]:
+        text = call.live_remainder if "turn_id" in message and call.live_remainder is not None else call.last_text
+        if not 0 < len(text) <= 1600 or not provider.capabilities_for(call.last_language)["tts"]:
             raise CallError("tts_unavailable", call.say("Lecture vocale indisponible. Le texte reste affiché.",
                             "Speech output is unavailable. Read the transcript.", "読み上げを利用できません。テキストを確認してください。", "القراءة بالصوت موش متوفّرة للجواب هذا. تنجّم تقراه قدّامك."))
-        audio, mime = await provider.speak(call.last_text, call.last_language)
+        if "turn_id" in message and message.get("stream_audio") is True:
+            await send_speech(socket.send_json, provider, text, call.last_language, turn_id=message["turn_id"], phase="final", stream=True)
+            return None
+        audio, mime = await provider.speak(text, call.last_language)
         return {"type": "audio", "mime": mime, "data": base64.b64encode(audio).decode("ascii")}
     if kind == "observation":
         note = short_text(message.get("text"))
@@ -348,12 +361,17 @@ def initialize(app, origins):
 async def deliver(socket, call, provider, message, timeout):
     tag = {"turn_id": message["turn_id"]} if "turn_id" in message else {}
     try:
+        if message["type"] != "speak":
+            call.live_remainder = None
         async with asyncio.timeout(timeout):
             response = await handle(socket, call, provider, message)
+        if response is None:
+            return True  # The tagged audio frames have already been sent.
         if "text" in response:
             call.last_text = response["text"]
             call.last_language = response.setdefault("language", call.start.language)
-            response["speech_available"] = len(call.last_text) <= 1600 and provider.capabilities_for(call.last_language)["tts"]
+            spoken = call.last_text if call.live_remainder is None else call.live_remainder
+            response["speech_available"] = 0 < len(spoken) <= 1600 and provider.capabilities_for(call.last_language)["tts"]
         if response["type"] == "reply":
             response.setdefault("activity", "ask")
         await socket.send_json({**response, **tag})

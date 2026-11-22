@@ -6,6 +6,7 @@ import re
 from .assistant import run_assistant
 from .assistant_tools import named_plots
 from .guardian_dialogue import Dialogue
+from .guardian_progress import PLAN_FACT, PLOT_FACT, plot_sentence, schedule_sentence
 from .models import AssistantAnswer, AssistantRequest
 from .providers import ServiceError
 
@@ -19,22 +20,15 @@ def spoken_answer(call: Dialogue, answer: AssistantAnswer, prompt: str) -> str:
     elif "get_city_data" in answer.tools_used and call.climate:
         sections.append(call.inspect_site()[0])
     requested = named_plots(prompt)
-    plots = [m.groups() for fact in answer.facts if
-             (m := re.fullmatch(r"Plot (\S+) \(([^)]+)\): ([\d.]+) m³ by its deadline, .*", fact.text))]
+    plots = [m.groups() for fact in answer.facts if (m := PLOT_FACT.fullmatch(fact.text))]
     for plot, farmer, amount in plots:
         if requested.intersection({plot.upper(), farmer.upper()}) or (not requested and len(plots) == 1):
-            sections.append(call.say("", f"In the simulation, plot {plot} receives {amount} m³ by its deadline.",
-                f"シミュレーションでは、区画{plot}には期限までに{amount} m³が届きます。",
-                f"في المحاكاة، القطعة {plot} يوصلها {amount} m³ قبل آخر أجل."))
+            sections.append(plot_sentence(call, plot, amount))
     if not sections:
         for fact in answer.facts:
-            m = re.fullmatch(r"(Fixed|Proposed)(?: regional)? schedule: ([\d.]+) m³ delivered on time; "
-                             r"[\d.]+ m³ withdrawn; minimum coverage ([\d.]+%); .*", fact.text)
+            m = PLAN_FACT.fullmatch(fact.text)
             if m:
-                plan, amount, coverage = m.groups()
-                sections.append(call.say("", f"The {plan.lower()} schedule delivers {amount} m³ on time, with minimum coverage of {coverage}.",
-                    f"{'固定順' if plan == 'Fixed' else '提案'}計画では期限内に{amount} m³を配水し、最低充足率は{coverage}です。",
-                    f"{'في النوبة الثابتة' if plan == 'Fixed' else 'في البرنامج المقترح'} يوصل {amount} m³ في الوقت وتغطية أقلّ قطعة هي {coverage}."))
+                sections.append(schedule_sentence(call, *m.groups()))
     # Keep answers conversational. The unabridged verified records and original
     # source excerpts are also delivered to the client, with their provenance.
     if not sections and call.start.language == "en":
@@ -62,7 +56,7 @@ def spoken_answer(call: Dialogue, answer: AssistantAnswer, prompt: str) -> str:
         "確認できた資料は下の会話記録にあります。", "تلقّى الوثائق المتثبّت منها في نصّ المحادثة.")
 
 
-async def ask_graph(call: Dialogue, prompt: str) -> dict:
+async def ask_graph(call: Dialogue, prompt: str, progress=None) -> dict:
     service = call.service
     providers = service.providers
     if providers is None:
@@ -74,13 +68,15 @@ async def ask_graph(call: Dialogue, prompt: str) -> dict:
     # A cancelled turn must never become context for a later follow-up. A worker
     # already inside a synchronous provider releases its own capacity on return.
     memory = call.rag_memory.fork(call.rag_session)
+    if progress:
+        progress.start(prompt)
 
     def run():
         if not service.capacity.acquire(blocking=False):
             raise ServiceError("Evidence assistant capacity")
         try:
             return run_assistant(request, service.catalog, service.corpus, providers, service.solver_budget,
-                                 memory, tunisia_data_dir=call.archive)
+                                 memory, tunisia_data_dir=call.archive, tool_result=progress.tool_result if progress else None)
         finally:
             service.capacity.release()
 
