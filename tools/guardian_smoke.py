@@ -1,45 +1,79 @@
-"""Run three live Vultr calls using synthetic French speech, without recording any audio."""
+"""Exercise real speech, translation and tool routing with short synthetic prompts."""
 
 import argparse
 import asyncio
+import re
 import unicodedata
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-from backend.guardian_provider import GuardianProvider, GuardianProviderError
+from backend.guardian_provider import GuardianProvider, GuardianProviderError, LANGUAGES
 
 
-async def check():
+# Each regex checks a concept, allowing common transcription variants.
+SAMPLES = {
+    "en": ("Please check the water tank before starting the pump.", ("tank", "pump", "before")),
+    "ja": ("ポンプを動かす前に、水タンクを確認してください。", ("ポンプ", "前", "タンク|たんく")),
+    "aeb": ("بالله ثبّت في خزّان الما قبل ما نشغّلوا المضخّة.", ("خزان", "قبل", "مضخ")),
+    "fr": ("Bonjour. Vérifiez le réservoir avant de reprendre la distribution.", ("bonjour", "reservoir", "distribution")),
+}
+
+
+def normalize(text: str) -> str:
+    return "".join(char for char in unicodedata.normalize("NFD", text.lower()) if not unicodedata.combining(char))
+
+
+def check_words(output: str, concepts: tuple[str, ...], label: str):
+    if not all(re.search(normalize(term), normalize(output)) for term in concepts):
+        raise SystemExit(f"{label}: a required meaning or numerical value was missing.")
+
+
+async def check(languages):
     load_dotenv(Path(__file__).resolve().parents[1] / ".env")
     provider = GuardianProvider.from_env()
-    if not all(provider.capabilities.values()):
-        raise SystemExit("Configure the Vultr inference subscription and all three models.")
-    sample = "Bonjour. Vérifiez le réservoir avant de reprendre la distribution."
-    audio, mime = await provider.speak(sample)
-    print(f"French synthesis: {len(audio)} bytes of {mime}.", flush=True)
-    transcript = await provider.transcribe(audio, mime)
-    words = "".join(c for c in unicodedata.normalize("NFD", transcript.lower()) if not unicodedata.combining(c))
-    if not all(term in words for term in ("bonjour", "reservoir", "distribution")):
-        raise SystemExit("French synthesis/transcription did not preserve the expected terms.")
-    print("Whisper recovered all three expected terms.", flush=True)
+    for language in languages:
+        if not all(provider.capabilities_for(language).values()):
+            raise SystemExit(f"Configure speech and language inference for {language}.")
+        sample, terms = SAMPLES[language]
+        audio, mime = await provider.speak(sample, language, seed=42)
+        transcript = await provider.transcribe(audio, mime, language)
+        check_words(transcript, terms, f"{language} speech round-trip")
+        print(f"{LANGUAGES[language]}: {len(audio)} bytes of {mime}; Whisper recovered all three concepts.", flush=True)
+
+        source, text = ("aeb", "الخزّان فيه 13 متر مكعّب ما. بالله ثبّت في المضخّة.") if language == "en" else (
+            "en", "The tank holds 13 cubic metres of water. Please check the pump.")
+        translated = await provider.translate(text, source, language)
+        expected = {"en": ("13", "tank|reservoir", "pump"), "ja": ("13", "タンク|貯水|水槽", "ポンプ"),
+                    "aeb": ("13", "خزان|صهريج|سيترن|تانكي", "مضخ|موتور|[بپ]ومب", "بالله|يعيشك|ثبت|تفقّد|شوف"),
+                    "fr": ("13", "cuve|reservoir", "pompe")}
+        check_words(translated, expected[language], f"{language} translation")
+        if language == "aeb" and re.search(r"عافاك|دابا|دلوقتي", normalize(translated)):
+            raise SystemExit("The Tunisian translation used a different dialect's expression.")
+        print(f"Translation {source} → {language} preserved the tank, pump and amount.", flush=True)
+        question = await provider.presentation_opener("The display compares two simulated delivery plans.",
+                                                      language, "water allocation")
+        if question[-1] not in "?؟？":
+            raise SystemExit(f"{language}: the presentation opener is not a question.")
+        print(f"{language}: the configured model supplied a presentation question.", flush=True)
+
     tools = [{"type": "function", "function": {"name": name, "description": description, "parameters": {
         "type": "object", "properties": {}, "additionalProperties": False}}}
         for name, description in (("inspect_tank", "Read the remaining water in the tank."),
                                   ("inspect_solar", "Read the solar energy profile."))]
-    messages = [{"role": "system", "content": "Select the appropriate tool to answer the question. These tools take no arguments, as all inputs are already in the session context."},
-                {"role": "user", "content": "Quel volume d'eau reste-t-il dans le réservoir ?"}]
-    chosen = await provider.choose_tool(messages, tools)
-    if chosen != ("inspect_tank", {}):
-        raise SystemExit("French tool routing selected an unexpected operation.")
-    print("The tool-calling model selected the reservoir inspection.")
+    messages = [{"role": "system", "content": "Select the tool for this question. Both tools take no arguments."},
+                {"role": "user", "content": "قداش بقى ما في الخزّان؟"}]
+    if await provider.choose_tool(messages, tools) != ("inspect_tank", {}):
+        raise SystemExit("The language model selected an unexpected operation for the Tunisian question.")
+    print("Tunisian question routed to the reservoir tool.")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--live", action="store_true", required=True, help="Use the configured billable Vultr endpoint.")
-    parser.parse_args()
+    parser.add_argument("--live", action="store_true", required=True, help="Use the configured billable inference endpoint.")
+    parser.add_argument("--languages", nargs="+", choices=SAMPLES, default=["en", "ja", "aeb"])
+    args = parser.parse_args()
     try:
-        asyncio.run(check())
+        asyncio.run(check(args.languages))
     except GuardianProviderError as error:
         raise SystemExit(f"{error.service} failed (HTTP {error.status or 'unavailable'}).") from None

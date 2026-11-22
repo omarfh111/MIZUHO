@@ -13,10 +13,11 @@ TOOLS = [{"type": "function", "function": {"name": "inspect_tank", "parameters":
 def test_vultr_key_is_specific_to_its_origin(monkeypatch):
     monkeypatch.delenv("VULTR_INFERENCE_API_KEY", raising=False)
     monkeypatch.setenv("LLM_API_KEY", "other-provider")
-    assert not any(GuardianProvider.from_env().capabilities.values())
+    assert GuardianProvider.from_env().capabilities == {"stt": False, "tts": False, "llm": True}
     monkeypatch.setenv("VULTR_INFERENCE_API_KEY", "fixture")
     monkeypatch.setenv("VULTR_API_BASE", "https://another-host.invalid/v1")
-    assert not any(GuardianProvider.from_env().capabilities.values())
+    assert GuardianProvider.from_env().text_backend == "nvidia"
+    assert not GuardianProvider.from_env().capabilities["stt"]
     monkeypatch.setenv("VULTR_API_BASE", "https://api.vultrinference.com/v1/")
     assert all(GuardianProvider.from_env().capabilities.values())
     assert "fixture" not in repr(GuardianProvider.from_env())
@@ -83,3 +84,74 @@ def test_media_size_and_transport_errors_are_bounded_and_redacted():
         200, headers={"Content-Type": "audio/mpeg"}, content=b"<html>ignored</html>")))
     with pytest.raises(GuardianProviderError):
         asyncio.run(bad_audio.speak("Bonjour"))
+
+
+@pytest.mark.parametrize(("locale", "language", "model"), [
+    ("aeb", "ar", "chatterbox"), ("ja", "ja", DEFAULT_TTS), ("en", "en", DEFAULT_TTS),
+])
+def test_language_specific_media_contract(locale, language, model):
+    def respond(req):
+        if req.url.path.endswith("/speech"):
+            payload = json.loads(req.content)
+            assert payload["language"] == language and payload["model"] == model
+            return httpx.Response(200, content=b"ID3-synthetic", headers={"Content-Type": "audio/mpeg"})
+        assert f'name="language"\r\n\r\n{language}\r\n'.encode() in req.content
+        return httpx.Response(200, json={"text": "transcribed"})
+
+    provider = GuardianProvider("fixture", transport=httpx.MockTransport(respond))
+    assert all(provider.capabilities_for(locale).values())
+    audio, mime = asyncio.run(provider.speak("Synthetic sample", locale))
+    assert asyncio.run(provider.transcribe(audio, mime, locale)) == "transcribed"
+    assert not any(provider.capabilities_for("unknown").values())
+
+
+@pytest.mark.parametrize("fallback", [True, False])
+def test_translation_stays_on_its_own_origin_and_never_receives_tools(fallback):
+    phrase = "Translate me, including the number 13."
+
+    def respond(req):
+        assert req.url.host == ("integrate.api.nvidia.com" if fallback else "api.vultrinference.com")
+        assert req.headers["authorization"] == "Bearer " + ("nvidia-fixture" if fallback else "vultr-fixture")
+        payload = json.loads(req.content)
+        assert payload["messages"][1] == {"role": "user", "content": phrase}
+        assert "Tunisian" in payload["messages"][0]["content"]
+        assert "tools" not in payload
+        return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {
+            "role": "assistant", "content": "ترجملي النص هذا فيه 13."}}]})
+
+    provider = GuardianProvider("" if fallback else "vultr-fixture", nvidia_key="nvidia-fixture", transport=httpx.MockTransport(respond))
+    assert asyncio.run(provider.translate(phrase, "en", "aeb")) == "ترجملي النص هذا فيه 13."
+    with pytest.raises(GuardianProviderError):
+        asyncio.run(provider.translate(phrase, "en", "unknown"))
+
+
+def test_truncated_translation_is_not_returned_to_the_farmer():
+    provider = GuardianProvider("fixture", transport=httpx.MockTransport(lambda r: httpx.Response(200, json={
+        "choices": [{"finish_reason": "length", "message": {"role": "assistant", "content": "partial"}}]})))
+    with pytest.raises(GuardianProviderError):
+        asyncio.run(provider.translate("Please check the meter.", "en", "ja"))
+
+
+@pytest.mark.parametrize(("question", "valid"), [
+    ("How would you share the available water?", True),
+    ("شنوّة أوّل حاجة تتثبّتوا فيها؟", True),
+    ("何を確認してから決めますか？", True),
+    ("We detected 13 cubic metres of leakage. What now?", False),
+    ("فمّا ١٣ متر. شنوّة نعملوا؟", False),
+    ("The plan is approved.", False),
+    ("What happened? What next?", False),
+])
+def test_presentation_opener_is_an_isolated_question_without_figures(question, valid):
+    def respond(req):
+        payload = json.loads(req.content)
+        assert "tools" not in payload
+        assert json.loads(payload["messages"][1]["content"]) == {"topic": "allocation", "verified_brief": "simulated coverage"}
+        return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": question}}]})
+
+    provider = GuardianProvider("fixture", transport=httpx.MockTransport(respond))
+    task = provider.presentation_opener("simulated coverage", "en", "allocation")
+    if valid:
+        assert asyncio.run(task) == question
+    else:
+        with pytest.raises(GuardianProviderError):
+            asyncio.run(task)
