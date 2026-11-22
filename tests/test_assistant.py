@@ -67,6 +67,31 @@ def test_langgraph_uses_real_m6_for_farmer_a(context):
     assert {item.provenance for item in answer.facts} == {Provenance.SIMULATED}
 
 
+def test_japanese_reply_preserves_solver_values_and_original_evidence(context):
+    catalog, corpus = context
+    source = next(chunk for chunk in corpus.chunks.values() if chunk.citation.source_id == "solar")
+
+    def respond(body, *, timeout):
+        assert "in Japanese" in body["instructions"]
+        if len(body["input"]) == 1:
+            return response(call("explain_decision", {"scenario_id": "mini", "quota_m3": None}),
+                            call("search_evidence", {"query": "ANME photovoltaic Tunisia"}, "source"))
+        return complete()
+
+    def retrieve(method, path, body, **kwargs):
+        point = {"id": source.citation.id, "payload": source.payload}
+        return {"points": [point]} if path == "/points/query" else []
+
+    providers = SimpleNamespace(respond=respond, embeddings=lambda *args, **kwargs: [[0.] * DIMENSIONS],
+                                qdrant=retrieve)
+    result = run_assistant(AssistantRequest(site_id="jendouba-pilote", language="ja",
+                           question="なぜ区画Aへの配水量が制限されたのですか？"), catalog, corpus, providers, 5)
+    assert "最適化では" in result.paragraphs[0].text
+    assert any(fact.text.startswith("Plot A (EXP-01): 5 m³") for fact in result.facts)
+    assert result.citations == (source.citation,)
+    assert any("の原文" in paragraph.text for paragraph in result.paragraphs)
+
+
 def test_city_assistant_uses_the_same_public_profile_and_isolates_city_facts():
     prompts = []
 
@@ -170,6 +195,37 @@ def test_regional_assistant_checks_displayed_plan_and_expires_earlier_allocation
         stale = client.post("/api/assistant/chat", json={**message, "zone_plan": mismatched}).json()
         assert not stale["facts"] and any("reproduce the displayed schedule" in gap for gap in stale["missing_information"])
         assert client.post("/api/assistant/chat", json={**message, "site_id": "jendouba-pilote", "zone_plan": receipt}).status_code == 422
+
+
+def test_regional_assistant_refuses_a_receipt_from_another_site_day_or_station(context):
+    catalog, corpus = context
+
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            return response(call("explain_decision", {"scenario_id": None, "quota_m3": None}))
+        return complete()
+
+    def factory(*_):
+        return AssistantRuntime(catalog, corpus, SimpleNamespace(respond=respond, close=lambda: None), 2)
+
+    with TestClient(create_app(assistant_factory=factory)) as client:
+        inputs = dict(date="2025-07-15", tank_capacity_m3=20, initial_stock_m3=10, withdrawal_limit_m3=0,
+                      pump_flow_m3_h=4, pump_wh_per_m3=500, gravity_flow_m3_h=4, grid_cap_w=0,
+                      pv_capacity_kwp=0, pv_performance_ratio=.8, demand_west_m3=8, demand_east_m3=8,
+                      delivery_start_hour=8, delivery_end_hour=19, outage_hours=[])
+        original = client.post("/api/sites/korba-cap-bon/planning", json=inputs).json()
+        for site_id, changed_inputs in (("gafsa-oasis", inputs), ("kairouan-chebika", inputs),
+                                        ("korba-cap-bon", {**inputs, "date": "2025-01-15"}),
+                                        ("korba-cap-bon", {**inputs, "tank_capacity_m3": 25})):
+            updated = client.post(f"/api/sites/{site_id}/planning", json=changed_inputs).json()
+            assert updated["comparison"] == original["comparison"]
+            assert updated["comparison_id"] != original["comparison_id"]
+            receipt = {"inputs": changed_inputs, "comparison_id": original["comparison_id"]}
+            reply = client.post("/api/assistant/chat", json={"site_id": site_id, "zone_plan": receipt,
+                                "question": "Explain the displayed allocation."})
+            assert reply.status_code == 200
+            assert not reply.json()["facts"]
+            assert any("reproduce the displayed schedule" in gap for gap in reply.json()["missing_information"])
 
 
 def test_what_if_uses_original_and_reduced_quota_and_never_edits_state(context):

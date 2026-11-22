@@ -6,6 +6,7 @@ import { ApiError, compare, type DataMode, type FieldErrors } from '../api.ts';
 import { hour, percent, value } from '../format.ts';
 import { defaultOperating, parseOperating, type OperatingInputs } from '../operating.ts';
 import OperatingEditor from './OperatingEditor.tsx';
+import StoredWaterOnly from './StoredWaterOnly.tsx';
 import OutageLab, { OutageEntry } from './OutageLab.tsx';
 import { useExperience } from '../experience/index.ts';
 import type { AssistantSimulationContext, CompareRequest, Comparison, Plan, Scenario, SolarOption } from '../types.ts';
@@ -143,6 +144,7 @@ export default function Simulation({ site, visible, scenarios, mode, solar, onCl
   const [stress, setStress] = useState(false);
   const cinematic = useExperience().active;
   const [telemetry, setTelemetry] = useState<ReplayContext>();
+  const [selectedPlan, selectPlan] = useState<ReplayContext['plan']>('optimized');
   const [inputs, setInputs] = useState(() => initialInputs(scenarios[0]));
   const [beforeExample, setBeforeExample] = useState<Inputs>();
   const [calculated, setCalculated] = useState<Calculated | null>(null);
@@ -217,6 +219,7 @@ export default function Simulation({ site, visible, scenarios, mode, solar, onCl
     try {
       const result = await compare(request, scenario, mode, controller.signal);
       if (controller.signal.aborted) return;
+      selectPlan('optimized');
       setCalculated({ scenario, request, revision, comparison: result, solarSelection: solar });
       setValidation(readValidation(request, (result.weather_comparison?.buffer_on_adverse ?? result.optimized).actions));
     } catch (failure) {
@@ -250,21 +253,6 @@ export default function Simulation({ site, visible, scenarios, mode, solar, onCl
       back={() => setStress(false)}/>;
   }
   return <>
-    {mode === 'live' && <>
-      <OutageEntry open={() => { inFlight.current?.abort(); setLoading(false); setStress(true); }}/>
-      {scenario.id === 'normal' && <div className="outage-example">
-        <span>{beforeExample ? 'Your inputs from before the limited-pump example are saved for this session.' :
-          `Try the normal Jendouba day with a smaller 2 m³/h pump, ${scenario.state.tank_stock_m3} m³ of stock and a ${scenario.state.quota_remaining_m3} m³ withdrawal quota.`}
-          {solar && ' The selected solar installation still applies.'}</span>
-        {beforeExample ? <button className="text-button" type="button" onClick={() => {
-          invalidate(); setInputs(beforeExample); setBeforeExample(undefined);
-        }}>Restore previous inputs</button> : <button className="text-button" type="button" onClick={() => {
-          setBeforeExample(inputs);
-          const base = initialInputs(scenario);
-          invalidate(); setInputs({ ...base, operating: { ...base.operating, pump: '2' } }); setStress(true);
-        }}>Test the limited-pump example</button>}
-      </div>}
-    </>}
     <form className="surface simulation-controls" noValidate onSubmit={(event) => { event.preventDefault(); void run(); }}>
       <div className="panel-heading">
         <div className="title-with-icon"><div className="section-icon"><Settings2 size={18} /></div><div>
@@ -288,6 +276,9 @@ export default function Simulation({ site, visible, scenarios, mode, solar, onCl
         <Field id="restart-cap" label="Restart power cap" unit="kW" input={inputs.restartCap}
           error={fieldError('restart_grid_cap_w')} change={(restartCap) => update({ restartCap })} />
       </div>
+      {mode === 'live' && scenario.state.current_slot === 0 && !inputs.weather && <StoredWaterOnly onApply={() => update({
+        quota: '0', outages: [], operating: { ...inputs.operating, event: 'none' },
+      })} />}
       <div className="outage-block">
         <div className="outage-heading"><span><Radio size={16} /> Outage hours</span>
           <small>Calculation starts · {hour(scenario.state.current_slot)}</small>
@@ -326,9 +317,10 @@ export default function Simulation({ site, visible, scenarios, mode, solar, onCl
     </div>
     {calculated && <>
       {mode === 'live' && visible && current && <DigitalTwin key={calculated.revision} site={site}
-        request={calculated.request} comparison={calculated.comparison} onContext={setTelemetry} />}
+        request={calculated.request} comparison={calculated.comparison} plan={selectedPlan} onSelectPlan={selectPlan} onContext={setTelemetry} />}
       <Planning key={`${calculated.scenario.id}-${calculated.revision}`} comparison={calculated.comparison}
-        scenario={calculated.scenario} input={calculated.request} stale={stale} onEvidence={onEvidence} />
+        scenario={calculated.scenario} input={calculated.request} stale={stale} live={mode === 'live'}
+        selectedPlan={selectedPlan} onSelectPlan={selectPlan} onEvidence={onEvidence} />
       <section className="surface validation-panel">
         <div className="title-with-icon"><div className="section-icon"><BadgeCheck size={19} /></div><div>
           <h2>Irrigation decision</h2>
@@ -346,5 +338,20 @@ export default function Simulation({ site, visible, scenarios, mode, solar, onCl
       <h2>Fixed schedule and proposed plan</h2>
       <p>The schedules show hourly deliveries, grower coverage and energy use.</p>
     </section>}
+    {mode === 'live' && <>
+      <OutageEntry open={() => { inFlight.current?.abort(); setLoading(false); setStress(true); }}/>
+      {scenario.id === 'normal' && <div className="outage-example">
+        <span>{beforeExample ? 'Your inputs from before the limited-pump example are saved for this session.' :
+          `Try the normal Jendouba day with a smaller 2 m³/h pump, ${scenario.state.tank_stock_m3} m³ of stock and a ${scenario.state.quota_remaining_m3} m³ withdrawal quota.`}
+          {solar && ' The selected solar installation still applies.'}</span>
+        {beforeExample ? <button className="text-button" type="button" onClick={() => {
+          invalidate(); setInputs(beforeExample); setBeforeExample(undefined);
+        }}>Restore previous inputs</button> : <button className="text-button" type="button" onClick={() => {
+          setBeforeExample(inputs);
+          const base = initialInputs(scenario);
+          invalidate(); setInputs({ ...base, operating: { ...base.operating, pump: '2' } }); setStress(true);
+        }}>Test the limited-pump example</button>}
+      </div>}
+    </>}
   </>;
 }

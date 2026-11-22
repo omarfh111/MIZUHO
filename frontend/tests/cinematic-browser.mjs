@@ -50,6 +50,15 @@ try {
   await desktop.waitForFunction(() => [...window.testWebGLContexts]
     .filter(([canvas]) => canvas.classList.contains('mx-open__field')).every(([, gl]) => gl.isContextLost()));
   assert.equal(await rendererCount(desktop), 1);
+  const filmLanguage = desktop.locator('.mx-controls select');
+  const filmCanvas = await desktop.locator('.mx-canvas canvas').elementHandle();
+  await filmLanguage.selectOption('ja');
+  const projected = desktop.locator('.mx-labels .mx-place__label');
+  await projected.filter({ hasText: 'シディ・サレムダム' }).waitFor({ state: 'attached' });
+  assert.ok((await projected.allTextContents()).includes('ポンプ場'));
+  await filmLanguage.selectOption('en');
+  await projected.filter({ hasText: 'Sidi Salem Dam' }).waitFor({ state: 'attached' });
+  assert.ok(await filmCanvas.evaluate(canvas => canvas.isConnected));
   assert.equal(await desktop.locator('.terrain-surface canvas').count(), 0);
   await desktop.keyboard.press('End');
   await shown(desktop);

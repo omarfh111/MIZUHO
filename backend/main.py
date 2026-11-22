@@ -18,6 +18,7 @@ from .catalog import DATA_DIR, load_catalog
 from .civic import router as civic_router
 from .compare import InputError, compare
 from .field_zones import FieldZone
+from .operator_rotation import router as operator_rotation_router
 from .resilience import router as resilience_router
 from .models import (
     CompareRequest, Comparison, Evidence, Health, Layer, ScenarioRecord, Sites, SolarComparison, SolarRequest,
@@ -60,6 +61,7 @@ def create_app(data_dir: Path = DATA_DIR, *, solver_timeout: float | None = None
     app.state.tunisia_data_dir = data_dir / "tunisia"
     app.state.resilience_budget = budget
     app.include_router(resilience_router)
+    app.include_router(operator_rotation_router)
     app.include_router(assistant_router)
     app.include_router(telemetry_router)
     app.include_router(tunisia_router)

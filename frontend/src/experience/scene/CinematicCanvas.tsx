@@ -6,6 +6,7 @@ import {
 import { BlendFunction, ToneMappingMode } from 'postprocessing';
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
+import { useLanguage } from '../../i18n/language.ts';
 import type { Quality, Tier } from '../core/capabilities.ts';
 import type { Director } from '../core/director.ts';
 import { CloudVeil, Clouds, Particles, Sky } from './Atmosphere.tsx';
@@ -80,6 +81,7 @@ export interface CinematicCanvasProps {
 }
 
 export default function CinematicCanvas({ world, director, quality, hud, labelLayer, onReady, onContextLost }: CinematicCanvasProps) {
+  const language = useLanguage();
   const [dpr, setDpr] = useState(quality.dpr[1]);
   // `?mxpost=0` disables post-processing, for performance triage on weak devices.
   const [post, setPost] = useState(() => quality.postprocessing && new URLSearchParams(window.location.search).get('mxpost') !== '0');
@@ -114,7 +116,7 @@ export default function CinematicCanvas({ world, director, quality, hud, labelLa
       <SceneLights />
       <Valley valley={world.valley} director={director} />
       <Energy valley={world.valley} director={director} />
-      <Labels world={world} director={director} layer={labelLayer} />
+      <Labels world={world} director={director} layer={labelLayer} language={language} />
       <Clouds director={director} path={dropPath} />
       <HeroDrop world={world} director={director} />
       <CloudVeil director={director} />

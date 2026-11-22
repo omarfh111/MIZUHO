@@ -43,7 +43,7 @@ class ZoneSpec:
     description: str
     evidence_title: str
     evidence_organization: str
-    evidence_year: str
+    evidence_year: str | None
     evidence_url: str
     water_question: str
     limitation: str
@@ -89,6 +89,44 @@ ZONES = (
         limitation="FAO describes the historical oasis and its water-sharing practices. This map window is centred on El Ksar and does not trace the heritage boundary.",
         missing_inputs=("Current water turns and canal rights", "Canal flow and conveyance losses",
                         "Plot demand and verified storage"),
+    ),
+    ZoneSpec(
+        id="bizerte-mateur", name="Mateur · Ichkeul plain", locality="Bizerte · Northern lowland",
+        longitude=9.66667, latitude=37.03333, location_url="https://www.geonames.org/2469087/",
+        location_credit="GeoNames contributors",
+        description="A lowland window centred on the Mateur railway station. The surrounding plain also contains the protected lake and marshes of Ichkeul.",
+        evidence_title="Parc National de l'Ichkeul", evidence_organization="Tunisian National Agency for Environmental Protection",
+        evidence_year=None, evidence_url="https://www.anpe.nat.tn/fr/cms/fr/Fr/parc-ichkeul_11_186",
+        water_question="Which seasonal water commitments must be checked before scheduling an additional diversion on the Mateur plain?",
+        limitation="The agency describes the protected wetland. Its account does not establish the park boundary, environmental releases or farm allocations inside this window.",
+        missing_inputs=("Authorized seasonal diversions and environmental releases", "Canal delivery schedules and measured inflows",
+                        "Field boundaries, storage and operating equipment"),
+    ),
+    ZoneSpec(
+        id="sidi-bouzid-plain", name="Sidi Bouzid · Groundwater plain", locality="Sidi Bouzid · Central steppe",
+        longitude=9.48494, latitude=35.03823, location_url="https://www.geonames.org/2465840/",
+        location_credit="GeoNames contributors",
+        description="A window around Sidi Bouzid in a semi-arid plain where researchers traced aquifer recharge and groundwater mineralization.",
+        evidence_title="Recharge mode and mineralization of groundwater in a semi-arid region: Sidi Bouzid plain",
+        evidence_organization="Environmental Earth Sciences · Yangui et al.", evidence_year="2010",
+        evidence_url="https://doi.org/10.1007/s12665-010-0771-4",
+        water_question="What well-level history and abstraction records are needed to set a defensible withdrawal limit in this aquifer?",
+        limitation="The study characterizes recharge pathways at plain scale. It supplies no current groundwater level or permitted abstraction for the simulated sectors.",
+        missing_inputs=("Dated piezometer readings and well coordinates", "Metered withdrawals and authorized well limits",
+                        "Crop demand, pump characteristics and measured stock"),
+    ),
+    ZoneSpec(
+        id="sfax-el-hajeb", name="Sfax · El Hajeb", locality="Sfax · Olive-growing plain",
+        longitude=10 + 41 / 60, latitude=34 + 43 / 60,
+        location_url="https://pmc.ncbi.nlm.nih.gov/articles/PMC4074986/", location_credit="Bedbabis et al. (2014)",
+        description="A window around the El Hajeb research station near Sfax, where a field experiment examined treated-water irrigation in olive trees.",
+        evidence_title="Effects of Irrigation with Treated Wastewater on Root and Fruit Mineral Elements of Chemlali Olive Cultivar",
+        evidence_organization="The Scientific World Journal · Bedbabis et al.", evidence_year="2014",
+        evidence_url="https://pmc.ncbi.nlm.nih.gov/articles/PMC4074986/",
+        water_question="Before scheduling a turn from a reclaimed-water supply, what water-quality and authorized-use records are available?",
+        limitation="The experiment describes a particular orchard and past treatments. It does not establish current crops, water quality or reuse permissions in the wider window.",
+        missing_inputs=("Recent water-quality analyses and authorized uses", "Measured reclaimed-water deliveries",
+                        "Orchard areas, irrigation efficiency and storage"),
     ),
 )
 
@@ -189,12 +227,14 @@ def main() -> None:
     parser.add_argument("--year", type=int, default=date.today().year - 1)
     parser.add_argument("--cache-dir", type=Path, required=True, help="Local directory for the original WorldCover tiles.")
     parser.add_argument("--output-dir", type=Path, default=DATA_DIR / "field_zones")
+    parser.add_argument("--sites", nargs="+", choices=[zone.id for zone in ZONES], help="Refresh only these study windows.")
     args = parser.parse_args()
     args.cache_dir.mkdir(parents=True, exist_ok=True)
     with httpx.Client(verify=ssl.create_default_context(), timeout=60, follow_redirects=True,
                       headers={"User-Agent": "MIZUHO Agricultural Zones/1.0"}) as client:
         tiles = ElevationTiles(client)
-        zones = [build_zone(client, tiles, args.cache_dir, spec, args.year) for spec in ZONES]
+        zones = [build_zone(client, tiles, args.cache_dir, spec, args.year)
+                 for spec in ZONES if not args.sites or spec.id in args.sites]
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for zone in zones:
         with NamedTemporaryFile(dir=args.output_dir, suffix=".json.tmp", delete=False, mode="w", encoding="utf-8", newline="\n") as target:

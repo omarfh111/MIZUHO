@@ -33,11 +33,15 @@
 .mx-gate *, .mx-gate *::before, .mx-gate *::after { box-sizing: border-box; }
 .mx-gate[data-phase='exiting'] { pointer-events: none; }
 .mx-gate button { font: inherit; color: inherit; }
-.mx-gate .mx-skip {
+.mx-controls {
   position: absolute;
   z-index: 6;
   top: max(16px, env(safe-area-inset-top));
   right: max(var(--mx-gutter), env(safe-area-inset-right));
+  display: flex;
+  gap: 6px;
+}
+.mx-gate .mx-skip {
   min-height: 44px;
   padding: 0 15px;
   border: 1px solid var(--mx-line);

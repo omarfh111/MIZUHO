@@ -2,6 +2,9 @@ import { ArrowDown, ArrowLeft, ArrowUpRight, MapPin, Mountain, Search, Sun, Ther
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { FeatureCollection, MultiPolygon, Polygon, Position } from 'geojson';
 import { getTunisia, getTunisiaCity } from '../api.ts';
+import { nearestSiteCity } from '../siteLocation.ts';
+import { cityNamesJa } from '../i18n/places.ts';
+import { useLanguage } from '../i18n/language.ts';
 import { useExperience } from '../experience/index.ts';
 import CivicContinuity from './CivicContinuity.tsx';
 import type { TunisiaCatalog, TunisiaCity, TunisiaCityAnalysis, TunisiaClimate, TunisiaPeriod, TunisiaSource } from '../types.ts';
@@ -46,22 +49,9 @@ function showDate(value: string) {
 }
 
 function normalize(value: string) {
-  return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('en');
-}
-
-function distanceKm([longitude, latitude]: LinkedSite['coordinates'], city: TunisiaCity) {
-  const lat = latitude * toRadians;
-  const cityLat = city.latitude * toRadians;
-  const halfDeltaLong = (longitude - city.longitude) * toRadians / 2;
-  const sine = Math.sin((lat - cityLat) / 2) ** 2 + Math.cos(lat) * Math.cos(cityLat) * Math.sin(halfDeltaLong) ** 2;
-  return 12_742 * Math.asin(Math.sqrt(Math.min(1, sine)));
-}
-
-function nearestCity(site: LinkedSite, cities: TunisiaCity[]) {
-  return cities.reduce<{ id: string; distance: number } | null>((nearest, city) => {
-    const distance = distanceKm(site.coordinates, city);
-    return distance <= 35 && (nearest === null || distance < nearest.distance) ? { id: city.id, distance } : nearest;
-  }, null);
+  return value.normalize('NFKC').normalize('NFD').replace(/(\p{Script=Latin})\p{M}+/gu, '$1')
+    .normalize('NFC').toLowerCase()
+    .replace(/[ぁ-ゖ]/g, hiragana => String.fromCharCode(hiragana.charCodeAt(0) + 0x60));
 }
 
 function cartography(boundary: FeatureCollection<Polygon | MultiPolygon>) {
@@ -414,6 +404,7 @@ function CityAnalysis({ city, analysis, retry, sites, selectedPeriod, onPeriodCh
 }
 
 export default function TunisiaExplorer({ selectedCityId, onCityResolved, onCityChange, selectedPeriod, onPeriodChange, sites = [] }: Props) {
+  const language = useLanguage();
   const [catalog, setCatalog] = useState<Result<TunisiaCatalog>>();
   const [catalogAttempt, retryCatalog] = useState(0);
   const [cityAnalysis, setCityAnalysis] = useState<{ id: string; result: Result<TunisiaCityAnalysis> }>();
@@ -427,11 +418,12 @@ export default function TunisiaExplorer({ selectedCityId, onCityResolved, onCity
   const cityResult = cityAnalysis?.id === activeCityId ? cityAnalysis?.result : undefined;
   const matching = useMemo(() => {
     const needle = normalize(search.trim());
-    return (data?.cities ?? []).filter(city => normalize(city.name).includes(needle));
+    return (data?.cities ?? []).filter(city => [city.name, cityNamesJa[city.name] ?? '']
+      .some(name => normalize(name).includes(needle)));
   }, [data, search]);
-  const nearbySites = activeCityId && data ? sites.filter(site => nearestCity(site, data.cities)?.id === activeCityId) : [];
+  const nearbySites = activeCityId && data ? sites.filter(site => nearestSiteCity(site.coordinates, data.cities) === activeCityId) : [];
   const pickCity = (city: TunisiaCity | null) => onCityChange(city,
-    city && data ? sites.filter(site => nearestCity(site, data.cities)?.id === city.id).map(site => site.id) : []);
+    city && data ? sites.filter(site => nearestSiteCity(site.coordinates, data.cities) === city.id).map(site => site.id) : []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -457,8 +449,8 @@ export default function TunisiaExplorer({ selectedCityId, onCityResolved, onCity
   return <div className="tn-explorer">
     <header className="tn-heading">
       <div className="tn-kicker"><MapPin size={15} aria-hidden="true" /> National observatory</div>
-      <h1><em>Explore</em> Tunisia</h1>
-      <p>Select a city to explore its terrain, find nearby field sites or test household electricity during an outage.</p>
+      <h1>{language === 'ja' ? <>チュニジアを<em>探索</em></> : <><em>Explore</em> Tunisia</>}</h1>
+      <p>Select a city to explore local water and energy conditions. Open a nearby irrigation site to see which parcels can receive water on time.</p>
     </header>
     {!catalog && <div className="tn-unavailable" role="status">Loading Tunisia’s boundaries and cities…</div>}
     {catalog?.error && <div className="tn-unavailable" role="alert">

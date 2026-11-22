@@ -9,6 +9,8 @@
     "strict": true,
     "skipLibCheck": true,
     "jsx": "react-jsx",
+    "jsxImportSource": "@mizhuo/i18n",
+    "paths": { "@mizhuo/i18n/*": ["./src/i18n/*"] },
     "types": ["vite/client", "node"]
   },
   "include": ["src", "vite.config.ts", "tests"]

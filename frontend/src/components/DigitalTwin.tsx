@@ -18,6 +18,8 @@ interface Props {
   site: Site;
   request: CompareRequest;
   comparison: Comparison;
+  plan: ReplaySelection['plan'];
+  onSelectPlan: (plan: ReplaySelection['plan']) => void;
   onContext: (context: ReplayContext | undefined) => void;
 }
 
@@ -37,8 +39,7 @@ function Forecast({ siteId }: { siteId: string }) {
       <tr key={p.timestamp}><th>{clock.format(new Date(p.timestamp))}</th><td>{reading(p.load_kw,'kW')}</td></tr>)}</tbody></table></>;
 }
 
-export default function DigitalTwin({ site, request, comparison, onContext }: Props) {
-  const [plan, setPlan] = useState<ReplaySelection['plan']>('optimized');
+export default function DigitalTwin({ site, request, comparison, plan, onSelectPlan, onContext }: Props) {
   const [missing, setMissing] = useState<number[]>([]);
   const [imbalance, setImbalance] = useState<number[]>([]);
   const [index, setIndex] = useState(0);
@@ -118,12 +119,13 @@ export default function DigitalTwin({ site, request, comparison, onContext }: Pr
   const events = readings ? [...readings.events, ...readings.alerts].filter((event) => event.simulation_slot === frame?.slot) : [];
   const signals = readings?.measurements.filter((signal) => signal.simulation_slot === frame?.slot) ?? [];
   const retryReplay = <button type="button" onClick={() => retry((value) => value + 1)}>Retry replay</button>;
+  useEffect(() => { play(false); }, [plan]);
   const plotMarker = layers?.plots.features.find(({ properties }) => properties.plot_id === equipment)?.properties;
   return <section className="surface twin" aria-label="Operational digital twin">
     <header className="twin-head"><div className="title-with-icon"><div className="section-icon"><Activity size={20}/></div>
       <div><h2>Operational digital twin</h2><p className="muted small">M4 physical replay · virtual instrumentation · Tunis time</p></div></div>
       <div className="twin-switch" role="group" aria-label="Playback plan">{(['baseline','optimized'] as const).map((id) =>
-        <button key={id} type="button" aria-pressed={id === plan} onClick={() => { play(false); setPlan(id); }}>
+        <button key={id} type="button" aria-pressed={id === plan} onClick={() => onSelectPlan(id)}>
           {id === 'baseline' ? (request.incident ? 'Previous schedule' : weather ? 'Nominal on adverse' : 'Fixed schedule') :
             (request.incident ? 'Recovery plan' : weather ? 'Reserve on adverse' : 'Optimized plan')}</button>)}</div></header>
     {!frame && <p className="twin-message" role="status">{!body ? 'This plan has no actions to replay.' : error ??

@@ -1,12 +1,13 @@
 """Build conditional irrigation plans on archived regional irradiation days."""
 
+import json
 from datetime import date as Date
 from decimal import Decimal, ROUND_CEILING
 from hashlib import sha256
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import Field, FiniteFloat, computed_field, model_validator
+from pydantic import Field, FiniteFloat, model_validator
 
 from .baseline import build_baseline
 from .compare import InputError, to_api_plan
@@ -73,11 +74,7 @@ class ZonePlanResult(ArchiveModel):
     provenance: Literal["simulated"] = "simulated"
     solar_wh: tuple[int, ...] = Field(description="Estimated hourly flat-array production before grid-outage losses.")
     comparison: Comparison
-
-    @computed_field
-    @property
-    def comparison_id(self) -> str:
-        return sha256(self.comparison.model_dump_json().encode()).hexdigest()
+    comparison_id: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 
 
 class DemandEstimate(ArchiveModel):
@@ -194,6 +191,14 @@ def compare_zone(profile: ZonePlanningProfile, request: ZonePlanRequest, max_tim
     solar_wh = tuple(slot.solar_wh for slot in scenario.slots)
     baseline = build_baseline(scenario, state)
     optimized = optimize(scenario, state, max_time_seconds=max_time_seconds)
+    comparison = Comparison(baseline=to_api_plan(scenario, state, baseline),
+                            optimized=to_api_plan(scenario, state, optimized))
+    # Identical delivery schedules can occur for distinct sites, weather records or operating assumptions.
+    inputs = request.model_dump(mode="json")
+    inputs["outage_hours"] = sorted(request.outage_hours)
+    receipt = {"site_id": profile.site_id, "inputs": inputs, "archive": day.model_dump(mode="json"),
+               "anchors": [anchor.model_dump(mode="json") for anchor in profile.anchors],
+               "comparison": comparison.model_dump(mode="json")}
+    digest = sha256(json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     return ZonePlanResult(site_id=profile.site_id, date=day.date, source=day.source, solar_wh=solar_wh,
-                          comparison=Comparison(baseline=to_api_plan(scenario, state, baseline),
-                                                optimized=to_api_plan(scenario, state, optimized)))
+                          comparison=comparison, comparison_id=digest)

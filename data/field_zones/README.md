@@ -1,14 +1,17 @@
 # Researched agricultural zones
 
-These profiles cover three agricultural settings with distinct water-management questions. Each record describes an approximately 10 × 10 km window around a documented reference point. The window can include settlement, water and other land uses.
+These profiles cover six agricultural settings with distinct water-management questions. Each record describes an approximately 10 × 10 km window around a documented reference point. The window can include settlement, water and other land uses.
 
 | Zone | Why it was selected | Reference point |
 | --- | --- | --- |
 | **Korba, Cap Bon** | Coastal groundwater and documented vulnerability to seawater intrusion. The site raises questions about well conductivity, levels and permitted withdrawals before planning irrigation. [Aquifer study](https://doi.org/10.3390/w14071177) · [Field investigation](https://doi.org/10.1016/j.jafrearsci.2013.07.009) | Korba town, 36.57861° N, 10.85861° E. [GeoNames](https://www.geonames.org/2467920/korba.html) |
 | **Kairouan Plain, Chebika** | A semi-arid agricultural plain where researchers studied how to distinguish irrigation from other satellite signals. Rainfall, irrigation events and crop calendars are needed to interpret a specific plot. [Sentinel field study](https://doi.org/10.3390/rs10121953) | Published study reference, 35°34′51″ N, 9°53′57″ E. [Study map and methods](https://horizon.documentation.ird.fr/exl-doc/pleins_textes/divers19-02/010074950.pdf) |
 | **Gafsa, El Ksar** | Inland oasis landscape with layered cultivation and traditional rotating water access. Actual canal flows and water turns would be required to model its delivery network. [FAO heritage profile](https://www.fao.org/giahs/giahs-around-the-world/gafsa-oases--tunisia/en) · [Tunisian Ministry of Environment](https://www.environnement.gov.tn/tunisie-environnement/la-diversite-biologique/les-systemes-ingenieux-du-patrimoine-agricole-mondial-sipam-en-tunisie) | El Ksar, 34.39920° N, 8.80399° E. [GeoNames](https://www.geonames.org/2473466/) |
+| **Mateur, Bizerte** | Irrigation commitments in a plain that also supports Ichkeul's protected wetland. The agency documents the lake and marshes. Local environmental releases and farm allocations need independent records. [Tunisian environmental agency](https://www.anpe.nat.tn/fr/cms/fr/Fr/parc-ichkeul_11_186) | Mateur railway station, 37.03333° N, 9.66667° E. [GeoNames](https://www.geonames.org/2469087/) |
+| **Sidi Bouzid plain** | Aquifer recharge and mineralization in the central steppe. A withdrawal scenario requires dated well levels and metered abstraction. [Hydrogeological study](https://doi.org/10.1007/s12665-010-0771-4) | Sidi Bouzid town, 35.03823° N, 9.48494° E. [GeoNames](https://www.geonames.org/2465840/) |
+| **El Hajeb, Sfax** | A published olive orchard experiment compared rainfed, well-water and treated-water conditions. Current quality analyses, authorization and measured deliveries are needed to assess any reuse scenario. [Field study and coordinates](https://doi.org/10.1155/2014/973638) | Published station reference, 34°43′ N, 10°41′ E. |
 
-The selector lists all three alongside Assila and the Jendouba planning pilot. The atlas links nearby registered sites. Each profile shares its evidence with the same assistant used by the pilot.
+The selector lists the six study areas alongside Assila and the Jendouba planning pilot. The atlas links nearby registered sites. Each profile shares its evidence with the same assistant used by the pilot.
 
 ## Site-specific 3D scenes
 
@@ -39,6 +42,6 @@ python -m pip install -r tools/field_zones/requirements.txt
 python -m tools.field_zones.refresh --year 2025 --cache-dir .venv/field-sources
 ```
 
-The importer can download approximately 176 MB of original WorldCover tiles and keeps them in the cache directory. It validates all three windows before writing their compact profiles. It also fetches the Copernicus terrain and NASA climate sources. Restart the API to load refreshed files. The app can serve the committed derived data without contacting the data publishers at startup.
+The importer can download approximately 176 MB of original WorldCover tiles and keeps them in the cache directory. Areas on the same source tile use independent crops at their recorded bounds. It validates all selected windows before writing their compact profiles. It also fetches the Copernicus terrain and NASA climate sources. To update only selected windows, supply their IDs with `--sites`. The imagery refresh supports `--site` for a single window. Restart the API to load refreshed files. The app can serve the committed derived data without contacting the data publishers at startup.
 
 The WorldCover map is © ESA WorldCover project 2021 and contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium. Produced using Copernicus WorldDEM™-90 © DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018 provided under COPERNICUS by the European Union and ESA. [Copernicus licence and attribution](../tunisia/README.md)

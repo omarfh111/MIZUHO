@@ -92,11 +92,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=DATA_DIR)
     parser.add_argument("--dates", type=date.fromisoformat, nargs="+", default=DEFAULT_DAYS)
+    parser.add_argument("--sites", nargs="+", help="Refresh only these registered study windows.")
     args = parser.parse_args()
     days = sorted(set(args.dates))
     archives = []
+    zones = read_field_zones(args.data_dir)
+    unknown = set(args.sites or ()) - {zone.site.properties.site_id for zone in zones}
+    if unknown:
+        parser.error(f"Unknown sites: {', '.join(sorted(unknown))}")
     with httpx.Client(verify=ssl.create_default_context(), timeout=60) as client:
-        for zone in read_field_zones(args.data_dir):
+        for zone in zones:
+            if args.sites and zone.site.properties.site_id not in args.sites:
+                continue
             lon, lat = zone.site.geometry.coordinates
             archives.append(IrradiationArchive(site_id=zone.site.properties.site_id, longitude=lon, latitude=lat,
                                                days=[fetch_day(client, lon, lat, day) for day in days]))

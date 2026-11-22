@@ -1,0 +1,12 @@
+.commitment-register { min-width: 0; padding: clamp(16px, 2.5vw, 28px); }
+.commitment-register header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.commitment-register h2, .commitment-register header p { margin: 0; }
+.commitment-register .field { width: auto; min-width: 11rem; }
+.commitment-outcome { border-left: 3px solid var(--teal); padding: .4rem .85rem; }
+.commitment-outcome strong, .commitment-register td small { display: block; }
+.commitment-shortfall { border-left-color: var(--gold); }
+.commitment-deficit { color: var(--gold); font-weight: bold; }
+.commitment-register table { min-width: 620px; }
+.commitment-register td small { color: var(--muted); }
+.commitment-register td ul { padding: 0; margin: 0; list-style: none; }
+.commitment-register td li { white-space: nowrap; }

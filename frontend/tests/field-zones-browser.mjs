@@ -37,7 +37,7 @@ try {
   await page.goto(url.href);
   const picker = page.getByRole('combobox', { name: 'Agricultural site' });
   await picker.waitFor();
-  const ids = ['korba-cap-bon', 'kairouan-chebika', 'gafsa-oasis'];
+  const ids = ['korba-cap-bon', 'kairouan-chebika', 'gafsa-oasis', 'bizerte-mateur', 'sidi-bouzid-plain', 'sfax-el-hajeb'];
   const heatmaps = new Set();
   const number = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
   for (const id of ids) {
@@ -97,12 +97,18 @@ try {
     await page.getByRole('button', { name: 'Model an irrigation plan' }).click();
     const model = page.getByRole('region', { name: 'Regional simulation terrain' });
     await model.getByText('West sector', { exact: true }).waitFor();
-    assert.equal(await page.getByRole('spinbutton', { name: 'Withdrawal limit' }).inputValue(), '');
+    const quota = page.getByRole('spinbutton', { name: 'Withdrawal limit' });
+    const stockOnly = page.getByRole('button', { name: 'Use stored water only' });
+    assert.equal(await quota.inputValue(), '');
+    await stockOnly.click();
+    assert.equal(await quota.inputValue(), '0');
+    assert.equal(await page.getByRole('spinbutton', { name: 'Initial tank stock' }).inputValue(), '');
+    assert.equal(await page.getByRole('spinbutton', { name: /West sector demand/ }).inputValue(), '');
     await page.getByRole('button', { name: 'Load example assumptions' }).click();
+    if (id === 'gafsa-oasis') await page.getByRole('button', { name: 'Clear outage hours' }).click();
     const day = id === 'kairouan-chebika' ? '2025-01-15' : '2025-07-15';
     const dateControl = page.getByRole('combobox', { name: 'Irradiation day' });
     await dateControl.selectOption(day);
-    let derived;
     if (id === 'korba-cap-bon') {
       const west = page.getByRole('spinbutton', { name: /West sector demand/ });
       const east = page.getByRole('spinbutton', { name: /East sector demand/ });
@@ -113,24 +119,26 @@ try {
       assert.equal(await east.inputValue(), '24');
       await west.fill('24');
       await dateControl.selectOption(day);
-      derived = await useWeatherEstimate(page, 'east', id, day);
-      assert.equal(await east.inputValue(), String(derived.amount));
     }
+    const derived = await useWeatherEstimate(page, 'east', id, day);
+    assert.equal(await page.getByRole('spinbutton', { name: /East sector demand/ }).inputValue(), String(derived.amount));
     const endpointUrl = new URL(`/api/sites/${id}/planning`, url);
     const responsePromise = page.waitForResponse(r => r.url() === endpointUrl.href && r.request().method() === 'POST');
     await page.getByRole('button', { name: 'Compare regional plans' }).click();
     const response = await responsePromise;
     assert.equal(response.ok(), true);
-    if (derived) {
-      assert.deepEqual(response.request().postDataJSON().demand_basis, { east: derived.basis });
-      assert.equal(response.request().postDataJSON().demand_east_m3, derived.amount);
-    }
+    let previousInputs = response.request().postDataJSON();
+    if (id === 'gafsa-oasis') assert.deepEqual(previousInputs.outage_hours, []);
+    assert.deepEqual(previousInputs.demand_basis, { east: derived.basis });
+    assert.equal(previousInputs.demand_east_m3, derived.amount);
     const result = await response.json();
+    assert.equal(result.site_id, id);
     assert.equal(result.date, day);
     assert.equal(await page.getByRole('link', { name: 'NASA POWER hourly estimate' }).getAttribute('href'), result.source.url);
     const table = page.getByRole('region', { name: 'Regional plan comparison' });
+    const register = page.getByRole('region', { name: 'Daily delivery commitments', exact: true });
     await table.waitFor();
-    if (derived) {
+    if (id === 'korba-cap-bon') {
       await table.getByRole('button', { name: 'Approve simulated plan' }).click();
       await table.getByText('Simulated plan approved').waitFor();
       assert.ok(Number.isFinite(Date.parse(await table.locator('time').getAttribute('datetime'))));
@@ -155,6 +163,12 @@ try {
     const regionalRenderer = await model.locator('canvas').elementHandle();
     for (const [p, title] of [['optimized', 'Optimized plan'], ['baseline', 'Fixed turn']]) {
       await model.getByRole('button', { name: title }).click();
+      assert.equal(await register.getByRole('combobox', { name: 'Schedule to inspect' }).inputValue(), p);
+      for (const plot of result.comparison[p].plot_results) {
+        const name = plot.plot_id === 'west' ? 'West sector' : 'East sector';
+        const row = register.getByRole('row', { name: new RegExp(`^${name} `) });
+        assert.equal(await row.getByRole('cell').nth(2).textContent(), `${number.format(plot.delivered_on_time_m3)} m³`);
+      }
       const frame = result.comparison[p].actions[slot];
       const physicalScene = model.locator('figure');
       assert.equal(await physicalScene.getAttribute('data-stock-m3'), String(frame.tank_stock_m3));
@@ -167,7 +181,7 @@ try {
         assert.equal(await label.getAttribute('data-marker'), sector);
       }
     }
-    if (derived) {
+    if (id === 'korba-cap-bon') {
       const estimator = page.getByRole('form', { name: 'Weather-based demand estimator' });
       await estimator.getByRole('spinbutton', { name: /Irrigated area/ }).fill('1100');
       assert.equal(await page.getByRole('spinbutton', { name: /East sector demand/ }).inputValue(), '');
@@ -182,13 +196,29 @@ try {
       await page.getByRole('button', { name: 'Compare regional plans' }).click();
       const manual = await manualCall;
       assert.equal(manual.ok(), true);
-      assert.equal(manual.request().postDataJSON().demand_basis, undefined);
-      assert.equal(manual.request().postDataJSON().demand_east_m3, 12);
+      previousInputs = manual.request().postDataJSON();
+      assert.equal(previousInputs.demand_basis, undefined);
+      assert.equal(previousInputs.demand_east_m3, 12);
       await table.getByRole('button', { name: 'Approve simulated plan' }).waitFor();
     }
-    await page.getByRole('spinbutton', { name: 'Withdrawal limit' }).fill('0');
+    await stockOnly.click();
     assert.equal(await table.count(), 0);
+    assert.equal(await register.count(), 0);
     assert.equal(await model.getByRole('slider').count(), 0);
+    const [stored] = await Promise.all([
+      page.waitForResponse(r => r.url() === endpointUrl.href && r.request().method() === 'POST'),
+      page.getByRole('button', { name: 'Compare regional plans' }).click(),
+    ]);
+    assert.equal(stored.status(), 200);
+    assert.deepEqual(stored.request().postDataJSON(), { ...previousInputs, withdrawal_limit_m3: 0, outage_hours: [] });
+    const storedCase = await stored.json();
+    assert.equal(storedCase.site_id, id);
+    await register.getByRole('table').waitFor();
+    for (const plan of [storedCase.comparison.baseline, storedCase.comparison.optimized]) {
+      assert.equal(plan.metrics.withdrawn_m3, 0);
+      assert.equal(plan.metrics.grid_wh, 0);
+      assert.ok(plan.metrics.delivered_on_time_m3 > 0 && plan.metrics.delivered_on_time_m3 <= previousInputs.initial_stock_m3);
+    }
     await page.getByRole('button', { name: 'Back to map', exact: true }).click();
   }
   assert.equal(heatmaps.size, ids.length);
@@ -227,7 +257,7 @@ try {
   await mobile.getByText('A verified daily reference ET₀ and rainfall pair is unavailable.', { exact: false }).waitFor();
   assert.equal(await mobile.getByText('Estimate sector demand from weather', { exact: true }).count(), 0);
   assert.ok(await mobile.evaluate(() => document.body.scrollWidth <= document.documentElement.clientWidth));
-  console.log('Desktop and mobile passed all three regional layers, source inspection, hourly planning, map deliveries and invalidation.');
+  console.log('Desktop and mobile passed regional layers, source inspection, hourly planning, map deliveries and invalidation.');
 } finally {
   await browser.close();
 }

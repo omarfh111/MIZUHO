@@ -1,18 +1,21 @@
 import { Activity, ArrowLeft, ArrowUpRight, Droplets, FlaskConical, Globe2, Map, MapPin, Radio, Sparkles, Sun, Waves } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { getCatalog, type Catalog } from './api.ts';
+import { getCatalog, getTunisia, type Catalog } from './api.ts';
+import { nearestSiteCity, siteFromLocation } from './siteLocation.ts';
 import EvidencePanel from './components/EvidencePanel.tsx';
 import SiteMap from './components/SiteMap.tsx';
 import SolarComparison from './components/SolarComparison.tsx';
 import type { AssistantSimulationContext, RegionPlanContext, SolarOption, TunisiaCity, TunisiaPeriod } from './types.ts';
 import SitePicker from './components/SitePicker.tsx';
 import CivicContinuity from './components/CivicContinuity.tsx';
+import { LanguageSelector } from './i18n/LanguageProvider.tsx';
 
 const Simulation = lazy(() => import('./components/Simulation.tsx'));
 const AssistantPanel = lazy(() => import('./components/AssistantPanel.tsx'));
 const TunisiaExplorer = lazy(() => import('./components/TunisiaExplorer.tsx'));
 const ResourceView = lazy(() => import('./components/ResourceView.tsx'));
 const RegionalPlanning = lazy(() => import('./components/RegionalPlanning.tsx'));
+const FieldDayAudit = lazy(() => import('./components/FieldDayAudit.tsx'));
 type Page = 'tunisia' | 'map' | 'energy' | 'simulation';
 const currentPage = (): Page => {
   const hash = window.location.hash;
@@ -34,6 +37,8 @@ export default function App() {
   const [zonePlan, setZonePlan] = useState<RegionPlanContext>();
   const [city, setCity] = useState<TunisiaCity | null>(null);
   const [cityId, setCityId] = useState(() => new URLSearchParams(window.location.search).get('city') ?? '');
+  const [locationError, setLocationError] = useState('');
+  const [locationAttempt, retryLocation] = useState(0);
   const [period, setPeriod] = useState<TunisiaPeriod>();
   const applySite = useCallback((id: string) => {
     setSiteId(id);
@@ -67,9 +72,7 @@ export default function App() {
     getCatalog(controller.signal).then((result) => {
       if (controller.signal.aborted) return;
       setCatalog(result);
-      const requested = new URLSearchParams(window.location.search).get('site');
-      setSiteId(requested === null ? result.sites.features[0]?.properties.site_id ?? '' :
-        result.sites.features.find(s => s.properties.site_id === requested)?.properties.site_id ?? '');
+      setSiteId(siteFromLocation(result.sites.features, new URLSearchParams(window.location.search)));
     }).catch((error) => {
       if (!controller.signal.aborted) setFailure(error instanceof Error ? error.message : 'Service unavailable.');
     });
@@ -86,14 +89,32 @@ export default function App() {
         setPeriod(undefined);
       }
       if (!catalog) return;
-      const requested = query.get('site');
-      const next = requested === null ? catalog.sites.features[0]?.properties.site_id :
-        catalog.sites.features.find(s => s.properties.site_id === requested)?.properties.site_id;
-      if ((next ?? '') !== siteId) applySite(next ?? '');
+      const next = siteFromLocation(catalog.sites.features, query);
+      if (next !== siteId) applySite(next);
     };
     window.addEventListener('popstate', followLocation);
     return () => window.removeEventListener('popstate', followLocation);
   }, [applySite, catalog, siteId, cityId]);
+
+  useEffect(() => {
+    setLocationError('');
+    if (!cityId || siteId || page === 'tunisia' || catalog?.mode !== 'live') return;
+    if (city?.id === cityId && new URLSearchParams(location.search).has('site')) return;
+    const controller = new AbortController();
+    getTunisia(controller.signal).then(atlas => {
+      const query = new URLSearchParams(location.search);
+      if (controller.signal.aborted || query.get('city') !== cityId) return;
+      const selected = atlas.cities.find(item => item.id === cityId);
+      if (!selected) { setLocationError('This city link is outside the national catalogue.'); return; }
+      setCity(selected);
+      if (query.has('site')) return;
+      const nearby = catalog.sites.features.filter(site => nearestSiteCity(site.geometry.coordinates, atlas.cities) === cityId);
+      selectSite(nearby.length === 1 ? nearby[0].properties.site_id : '');
+    }).catch(() => {
+      if (!controller.signal.aborted) setLocationError('The city catalogue could not be loaded.');
+    });
+    return () => controller.abort();
+  }, [catalog, city?.id, cityId, siteId, page, selectSite, locationAttempt]);
 
   useEffect(() => {
     const followHash = () => {
@@ -123,7 +144,7 @@ export default function App() {
       : properties.survey_available ? `Open ${properties.label} survey` : `Open simulated ${properties.label} pilot`,
     onOpen: () => { selectSite(properties.site_id); navigate('map'); },
   })) : [];
-  const activeCity = page === 'tunisia' ? city : null;
+  const activeCity = page === 'tunisia' || !site ? city : null;
   const activeSite = page === 'tunisia' ? undefined : site;
 
   return <>
@@ -147,7 +168,7 @@ export default function App() {
             {displayMode ? <FlaskConical size={14} /> : <Radio size={14} />}
             {catalog.mode === 'demo' ? 'Simulated data' : displayMode ? 'API · simulated site' : 'API connected'}
           </span>}
-          <span className="locale" aria-label="Tunisia">TN</span>
+          <LanguageSelector />
         </div>
       </div>
     </header>
@@ -165,12 +186,12 @@ export default function App() {
           <div className="eyebrow"><span className="eyebrow-rule" />
             {page === 'map' ? 'RESOURCE MAPPING' : page === 'energy' ? 'RESOURCE ASSESSMENT' : 'IRRIGATION CONTINUITY'}
           </div>
-          <h1>{page === 'map' ? <><em>Irrigation</em> observatory</> : page === 'energy' ? <><em>Water</em> &amp; energy</> : <><em>Irrigation</em> simulation</>}</h1>
+          <h1>{page === 'map' ? <><em>Irrigation</em> observatory</> : page === 'energy' ? <><em>Water</em> &amp; energy</> : <><em>Daily water</em> deliveries</>}</h1>
           <p>{page === 'map' ? site?.properties.field_zone
               ? 'Inspect the terrain, land cover, and evidence behind this agricultural zone.'
               : 'Explore the site, compare solar options, and plan irrigation.'
             : page === 'energy' ? 'Inspect the water and solar inputs available for the selected site.'
-            : 'Choose an outage, replay water deliveries and see how long essential household loads can stay powered.'}</p>
+            : 'Which parcels can receive their turn on time? Compare schedules against the available water, delivery windows and pumping capacity.'}</p>
         </div>
         {page === 'map' && site && <div className="hero-location"><MapPin size={19} />
           <div><strong>{site.properties.label}</strong><small>{site.properties.locality ?? 'Agricultural site'}</small></div></div>}
@@ -190,8 +211,10 @@ export default function App() {
       </div>}
       {page !== 'tunisia' && catalog && !site && <section className="surface resource-card">
         <h2>Choose a field site</h2>
-        <p>{city ? `Select a registered site to leave the ${city.name} city profile and inspect local inputs.` :
-          'Select a site from the catalogue to continue.'}</p>
+        {locationError ? <p role="alert">{locationError}{' '}
+          <button type="button" className="text-button" onClick={() => retryLocation(n => n + 1)}>Retry city lookup</button></p> :
+          <p>{city ? `Select a registered site to leave the ${city.name} city profile and inspect local inputs.` :
+            'Select a site from the catalogue to continue.'}</p>}
         <SitePicker sites={catalog.sites.features} siteId="" select={selectSite} />
       </section>}
       {catalog && site && page === 'map' && <SiteMap key={siteId} site={site} sites={catalog.sites.features} scenario={scenarios[0]}
@@ -203,6 +226,7 @@ export default function App() {
           onEvidence={setSource} onPlan={() => navigate('simulation')} />
       </Suspense>}
       {page === 'energy' && catalog?.mode === 'live' && <CivicContinuity key={siteId || cityId} city={site?.properties.label ?? city?.name ?? 'the selected area'} />}
+      {page === 'simulation' && <Suspense fallback={null}><FieldDayAudit key={siteId || cityId} /></Suspense>}
       {catalog && site && visitedSimulation && <div hidden={page !== 'simulation'}>
         {site.properties.field_zone ? <Suspense fallback={<p role="status">Loading regional planner…</p>}>
           <RegionalPlanning key={siteId} site={site} visible={page === 'simulation'} onPlanChange={setZonePlan} />
