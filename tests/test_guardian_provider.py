@@ -1,13 +1,63 @@
 import asyncio
 import json
+from types import SimpleNamespace
 
 import httpx
 import pytest
 
 from backend.guardian_provider import DEFAULT_LLM, DEFAULT_STT, DEFAULT_TTS, MAX_CLIP_BYTES, GuardianProvider, GuardianProviderError
+from backend.guardian_conversation import companion_reply
 
 
 TOOLS = [{"type": "function", "function": {"name": "inspect_tank", "parameters": {"type": "object", "properties": {}}}}]
+
+
+def test_project_coaching_sends_the_recent_dialogue_without_tools_or_site_data():
+    history = [{"role": "assistant", "content": "old" + str(i)} for i in range(8)] + [
+        {"role": "user", "content": "My audience is a class."},
+        {"role": "assistant", "content": "Let's start with a question for the class."},
+    ]
+    prompt = "Can you make that more playful?"
+    wording = "Imagine you are in charge of getting water to everyone's garden. Where would you start?"
+
+    def respond(req):
+        payload = json.loads(req.content)
+        assert "tools" not in payload and "tool_choice" not in payload
+        system, user = payload["messages"]
+        assert system["role"] == "system" and "MIZUHO" in system["content"] and "English" in system["content"]
+        assert "direct question" in system["content"] and "output only the line itself" in system["content"]
+        assert json.loads(user["content"]) == {"recent_conversation": history[-8:], "message": prompt}
+        return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {
+            "role": "assistant", "content": wording}}]})
+
+    provider = GuardianProvider("", nvidia_key="fixture", transport=httpx.MockTransport(respond))
+    call = SimpleNamespace(start=SimpleNamespace(language="en"), history=history)
+    answer = asyncio.run(companion_reply(call, provider, prompt))
+    assert answer["text"] == wording and answer["mode"] == "conversation"
+    assert not any(answer[key] for key in ("citations", "facts", "tools_used", "missing_information"))
+
+
+@pytest.mark.parametrize("unsafe_draft", [
+    "The farmer receives 13 m³.", "Your schedule saves half the energy.",
+    "供給量は半減します。", "توفّر زوز أمتار مكعّبة.", "I have approved your plan.", "Your schedule is approved.",
+    "According to FAO, these are field measurements.", "Look at https://example.org.",
+])
+def test_companion_never_reads_unverified_metrics_citations_or_actions(unsafe_draft):
+    provider = GuardianProvider("fixture", transport=httpx.MockTransport(lambda req: httpx.Response(200, json={
+        "choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": unsafe_draft}}]})))
+    call = SimpleNamespace(start=SimpleNamespace(language="en"), history=[], say=lambda fr, en, ja, aeb: en)
+    reply = asyncio.run(companion_reply(call, provider, "What is this project?"))
+    assert reply["text"].startswith("MIZUHO helps irrigation managers")
+    assert unsafe_draft not in reply["text"] and not reply["citations"]
+
+
+def test_offline_pitch_followup_gets_a_shorter_draft():
+    provider = GuardianProvider("")
+    call = SimpleNamespace(start=SimpleNamespace(language="en"), history=[], say=lambda fr, en, ja, aeb: en)
+    opening = asyncio.run(companion_reply(call, provider, "Help with my opening line"))
+    call.history = [{"role": "user", "content": "Help with my pitch"}, {"role": "assistant", "content": opening["text"]}]
+    edit = asyncio.run(companion_reply(call, provider, "Make it shorter"))
+    assert len(edit["text"]) < len(opening["text"]) and "pump stops" in edit["text"]
 
 
 @pytest.mark.parametrize(("label", "understood"), [("TOPIC", True), ("UNCLEAR", False), ("TOPIC: solar", False)])

@@ -64,7 +64,7 @@ async def ask_graph(call: Dialogue, prompt: str, progress=None) -> dict:
     scope = call.start.model_dump(exclude={"type", "reason"})
     request = AssistantRequest(**scope, question=prompt, session_id=call.rag_session,
         provider="nvidia" if getattr(providers, "nvidia_model", None) else "openai",
-        recent_questions=tuple(item["content"] for item in call.history if item["role"] == "user")[-3:])
+        recent_questions=call.evidence_questions)
     # A cancelled turn must never become context for a later follow-up. A worker
     # already inside a synchronous provider releases its own capacity on return.
     memory = call.rag_memory.fork(call.rag_session)

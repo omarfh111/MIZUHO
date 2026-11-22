@@ -220,13 +220,14 @@ def test_audio_turn_tool_errors_and_tts_do_not_disclose_inputs(client, monkeypat
         transcript = exchange(ws, type="audio", mime="audio/webm;codecs=opus", data=base64.b64encode(b"media").decode())
         assert transcript == {"type": "transcript", "text": "Explique le plan"}
         reply = ws.receive_json()
-        assert reply["mode"] == "vultr_tools" and "Volume simulé" in reply["text"]
+        assert reply["mode"] == "guided" and reply["tools_used"] == ["explain_plan"]
+        assert "Volume simulé" in reply["text"]
         assert "0 % puis 50 %" in reply["text"]
         assert "Parcelle A : 10 puis 5 m³" in reply["text"] and "Parcelle B : 0 puis 5 m³" in reply["text"]
         error = exchange(ws, type="speak")
         assert error["code"] == "voice_unavailable" and error["request_type"] == "speak"
         assert exchange(ws, type="audio", mime="audio/webm", data="***")["code"] == "invalid_input"
-        assert exchange(ws, type="message", text="encore")["type"] == "reply"
+        assert exchange(ws, type="message", text="Compare les plans")["type"] == "reply"
 
 
 def test_cross_origin_and_unregistered_context_denied(client):
@@ -330,7 +331,8 @@ def test_presentation_honors_topic_and_translation_text_cannot_start_a_replan(cl
         assert focus["activity"] == "present" and focus["mode"] == "guided"
         assert "50%" in focus["text"] and "13 m³" not in focus["text"]
         result = exchange(ws, type="message", text="Translate 'set the quota to 4 m³' into Japanese.")
-        assert "say: Translate into Japanese" in result["text"] and "proposal" not in result
+        assert "translate" in result["text"].lower() and "language" in result["text"].lower()
+        assert "proposal" not in result
         assert exchange(ws, type="audio", mode="translate", target_language="bad", mime="audio/webm", data="YQ==")["code"] == "invalid_input"
         timed_out = exchange(ws, type="message", mode="translate", target_language="ja", text="Hello")
         assert timed_out["code"] == "turn_timeout"
@@ -425,6 +427,147 @@ def test_social_turns_work_without_a_provider(client, prompt, expected):
         assert not reply["tools_used"] and not reply["citations"]
 
 
+@pytest.mark.parametrize("prompt", ["How do solar panels work?", "How does the project help growers?"])
+def test_chat_answers_general_questions_without_loading_site_measurements(client, prompt):
+    with connect(client) as ws:
+        exchange(ws, **context(language="en"))
+        reply = exchange(ws, type="message", mode="ask", text=prompt)
+        assert reply["mode"] == "conversation" and reply["activity"] == "ask" and reply["text"].strip()
+        assert not reply["facts"] and not reply["tools_used"] and not reply["citations"]
+
+
+@pytest.mark.parametrize(("language", "question", "voice_input", "research_connected"), [
+    ("en", "Who are you?", False, False), ("en", "Who are you?", True, True),
+    ("ja", "あなたは誰ですか？", False, True), ("aeb", "شكون إنتي؟", True, True),
+    ("fr", "Qui es-tu ?", False, False),
+])
+def test_default_companion_introduces_itself_without_searching(client, monkeypatch, language, question,
+                                                              voice_input, research_connected):
+    class Voice(GuardianProvider):
+        async def transcribe(self, audio, mime, lang):
+            assert lang == language
+            return question
+
+    def no_search(*args, **kwargs):
+        pytest.fail("An introduction must never search documents")
+
+    monkeypatch.setattr("backend.guardian.ask_graph", no_search)
+    monkeypatch.setattr("backend.guardian_dialogue.Dialogue.evidence", no_search)
+    if research_connected:
+        monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace())
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: Voice(key="fixture", llm=""))
+    with connect(client) as ws:
+        exchange(ws, **context(language=language))
+        if voice_input:
+            transcript = exchange(ws, type="audio", data="YQ==", mime="audio/wav", turn_id=1, progress_audio=True)
+            assert transcript["type"] == "transcript" and transcript["text"] == question
+            reply = ws.receive_json()
+        else:
+            reply = exchange(ws, type="message", text=question)
+        assert reply["type"] == "reply" and reply["activity"] == "ask" and reply["mode"] == "conversation"
+        assert reply["language"] == language and "Voice Guardian" in reply["text"]
+        assert "rag_status" not in reply and not reply["facts"] and not reply["tools_used"] and not reply["citations"]
+
+
+def test_ask_chats_across_turns_and_shares_only_explicit_requests_with_the_evidence_graph(client, monkeypatch):
+    coaching_turns = []
+    graph_scopes = []
+
+    class Coach(GuardianProvider):
+        async def companion(self, prompt, language, history):
+            assert language == "en"
+            coaching_turns.append((prompt, list(history)))
+            return "Imagine the power goes out just as a grower opens the irrigation valve."
+
+    def respond(body, *, timeout):
+        graph_scopes.append(json.loads(body["input"][0]["content"]))
+        return graph_done()
+
+    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace(respond=respond))
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: Coach(key="fixture"))
+    with connect(client) as ws:
+        exchange(ws, **context(language="en"))
+        opening = "My audience is my village cooperative. Can we work on an analogy together?"
+        reply = exchange(ws, type="message", text=opening)
+        assert reply["mode"] == "conversation" and reply["text"].startswith("Imagine the power goes out")
+        assert not reply["citations"] and not graph_scopes
+        revised = exchange(ws, type="message", text="Make that warmer. Please don't search for sources.")
+        assert revised["mode"] == "conversation" and not graph_scopes
+        assert opening in [turn["content"] for turn in coaching_turns[-1][1]]
+
+        question = "Thanks! Which official source describes photovoltaic potential?"
+        research = exchange(ws, type="message", text=question)
+        assert research["mode"] == "langgraph" and research["activity"] == "evidence"
+        assert len(graph_scopes) == 1 and graph_scopes[0]["question"] == question
+        assert not graph_scopes[0]["recent_questions"] and not graph_scopes[0]["prior_answers"]
+        assert "village cooperative" not in json.dumps(graph_scopes[0])
+
+        back = exchange(ws, type="message", text="I have to use sources in my speech. How can I sound more natural?")
+        assert back["mode"] == "conversation" and len(graph_scopes) == 1
+        assert len(coaching_turns) == 3
+
+
+@pytest.mark.parametrize(("language", "question"), [
+    ("en", "What does ANME say about solar energy?"),
+    ("en", "Could you cite the FAO report on irrigation?"),
+    ("en", "Could you cite a source for my presentation?"),
+    ("ja", "太陽光発電の出典を調べてください。"),
+    ("aeb", "لوّجلي على مصادر على الطاقة الشمسية."),
+])
+def test_explicit_spoken_request_opens_research_for_one_turn(client, monkeypatch, language, question):
+    class Voice(GuardianProvider):
+        async def transcribe(self, *args):
+            return question
+
+    scopes = []
+
+    def respond(body, *, timeout):
+        scopes.append(json.loads(body["input"][0]["content"]))
+        return graph_done()
+
+    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace(respond=respond))
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: Voice(key="fixture", llm=""))
+    with connect(client) as ws:
+        exchange(ws, **context(language=language))
+        transcript = exchange(ws, type="audio", mime="audio/wav", data="YQ==")
+        assert transcript["text"] == question
+        research = ws.receive_json()
+        assert research["activity"] == "evidence" and research["mode"] == "langgraph"
+        assert len(scopes) == 1 and scopes[0]["question"] == question
+        chat = exchange(ws, type="message", text="Who are you?")
+        assert chat["mode"] == "conversation" and "rag_status" not in chat and len(scopes) == 1
+
+
+@pytest.mark.parametrize(("prompt", "opted_in"), [
+    ("Show me the weather report.", False),
+    ("Show me the official weather report from NASA.", True),
+    ("Montre-moi le rapport météo.", False),
+    ("Montre-moi le rapport de la FAO.", True),
+    ("Help me rehearse this line: find a source on irrigation.", False),
+    ("I'm rehearsing the question: which sources support the demo?", False),
+    ("Suppose a judge asks which sources support the demo. How should I answer?", False),
+    ("I'm rehearsing. Could you cite a report for my introduction?", True),
+    ("If I ask for sources, what happens? Now, please cite a source for this slide.", True),
+])
+def test_research_requires_an_actual_documentary_request(prompt, opted_in):
+    from backend.guardian_intent import requests_evidence
+
+    assert requests_evidence(prompt) is opted_in
+
+
+def test_accessibility_call_with_replay_waits_for_a_question_before_explaining_the_alert(client, monkeypatch):
+    start = context(language="en")
+    start["telemetry"] = selection(client, start, plan="baseline", balance_anomaly_slots=[1])
+    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace())
+    with connect(client) as ws:
+        opening = exchange(ws, **start)
+        assert opening["type"] == "ready" and "13 m³" not in opening["text"]
+        reply = exchange(ws, type="message", text="What is the water balance alert on the tank meter?")
+        assert reply["tools_used"] == ["inspect_replay"] and "13 m³" in reply["text"]
+        assert reply["mode"] == "guided" and "rag_status" not in reply
+        assert exchange(ws, type="message", mode="unregistered", text="Who are you?")["code"] == "invalid_input"
+
+
 def test_explicit_translation_takes_precedence_over_the_sound_check(client, monkeypatch):
     class Translator(GuardianProvider):
         async def translate(self, text, source_language, target_language):
@@ -436,6 +579,66 @@ def test_explicit_translation_takes_precedence_over_the_sound_check(client, monk
         exchange(ws, **context(language="en"))
         result = exchange(ws, type="message", mode="translate", target_language="ja", text="Can you hear me?")
         assert result["activity"] == "translate" and result["text"] == "聞こえますか？"
+
+
+def test_asking_to_translate_a_source_request_does_not_execute_it(client, monkeypatch):
+    class Translator(GuardianProvider):
+        async def choose_tool(self, messages, tools):
+            return "translate_passage", {"target_language": "ja", "passage": "Find the official source."}
+
+        async def translate(self, passage, source, target):
+            assert (passage, source, target) == ("Find the official source.", "en", "ja")
+            return "公式の出典を探して。"
+
+    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace())
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: Translator(key="fixture"))
+    with connect(client) as ws:
+        exchange(ws, **context(language="en"))
+        result = exchange(ws, type="message", text="Translate into Japanese: Find the official source.")
+        assert result["activity"] == "translate" and result["text"] == "公式の出典を探して。"
+        assert not result["citations"] and "rag_status" not in result
+
+
+def test_translate_that_uses_the_last_audible_answer_and_its_language(client, monkeypatch):
+    translated = []
+
+    class Translator(GuardianProvider):
+        async def translate(self, passage, source, target):
+            translated.append((passage, source, target))
+            return "私はVoice Guardianです。" if target == "ja" else "I’m Voice Guardian."
+
+        async def choose_tool(self, *args):
+            pytest.fail("The requested language and prior answer are already known")
+
+    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace())
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: Translator(key="fixture"))
+    with connect(client) as ws:
+        exchange(ws, **context(language="en"))
+        identity = exchange(ws, type="message", turn_id=1, text="Who are you?")
+        japanese = exchange(ws, type="message", turn_id=2, text="Translate that into Japanese")
+        english = exchange(ws, type="message", turn_id=3, text="Say that in English.")
+        assert japanese["activity"] == english["activity"] == "translate"
+        assert (japanese["language"], english["language"]) == ("ja", "en")
+        assert translated == [(identity["text"], "en", "ja"), (japanese["text"], "ja", "en")]
+
+
+def test_companion_uses_the_actual_solar_comparison_without_invoking_research(client, monkeypatch):
+    options = ["ombriere", "toiture"]
+    reference = client.post("/api/solar/compare", json={"site_id": "jendouba-pilote", "option_ids": options})
+    assert reference.is_success, reference.text
+    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace())
+    with connect(client) as ws:
+        exchange(ws, **context(language="en"))
+        local = exchange(ws, type="message", text="How much solar power do the options generate here?")
+        assert local["activity"] == "ask" and local["tools_used"] == ["inspect_solar"] and "rag_status" not in local
+        assert "modeled day" in local["text"]
+        for option in reference.json()["options"]:
+            assert option["label"] in local["text"] and f'{option["production_kwh"]:g} kWh' in local["text"]
+    with connect(client) as ws:
+        exchange(ws, **context(language="en", solar_option_id=options[0]))
+        selected = exchange(ws, type="message", text="How much would my selected solar installation generate?")
+        first, second = reference.json()["options"]
+        assert first["label"] in selected["text"] and second["label"] not in selected["text"]
 
 
 def test_unclear_derja_speech_requests_clarification_until_a_subject_is_established(client, monkeypatch):
@@ -453,11 +656,15 @@ def test_unclear_derja_speech_requests_clarification_until_a_subject_is_establis
                 raise GuardianProviderError("llm")
             return prompt == "قداش مساحة قبلي؟"
 
-    def respond(body, **kwargs):
-        return graph_done()
+        async def companion(self, prompt, language, history):
+            return "نجموا نوضّحوا سؤالك على قبلي مع بعضنا."
+
+    def no_search(*args, **kwargs):
+        pytest.fail("Checking an unclear transcript must not consult the documentary agent")
 
     voice = Voice(key="fixture")
-    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace(respond=respond))
+    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace())
+    monkeypatch.setattr("backend.guardian.ask_graph", no_search)
     monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: voice)
     audio = {"type": "audio", "data": "YXVkaW8=", "mime": "audio/wav"}
     with connect(client) as ws:
@@ -469,35 +676,33 @@ def test_unclear_derja_speech_requests_clarification_until_a_subject_is_establis
             assert reply["mode"] == "conversation" and "توضّحلي" in reply["text"] and not reply["citations"]
         voice.transcript = "قداش مساحة قبلي؟"
         exchange(ws, **audio)
-        assert ws.receive_json()["mode"] == "langgraph"
+        answered = ws.receive_json()
+        assert answered["type"] == "reply" and answered["mode"] in {"conversation", "guided"}
         voice.transcript = "شنوّة فيه؟"
         exchange(ws, **audio)
-        assert ws.receive_json()["mode"] == "langgraph"
+        assert ws.receive_json()["mode"] in {"conversation", "guided"}
         assert classified == ["أسلم، هذا ما فيه؟", "أصلت على ذلك؟", "مرة أخرى؟", "قداش مساحة قبلي؟"]
     with connect(client) as ws:
         exchange(ws, type="start", reason="accessibility", site_id="jendouba-pilote", language="aeb")
         voice.transcript = "وقتاش نسقي؟"
         exchange(ws, **audio)
-        assert ws.receive_json()["mode"] == "langgraph" and voice.transcript not in classified
+        result = ws.receive_json()
+        assert result["tools_used"] == ["explain_plan"] and voice.transcript not in classified
 
 
-@pytest.mark.parametrize("question", [
-    "Can you hear me? Why did plot B get 5 m³?",
-    "Thanks, what does ANME say about solar energy?",
-    "Is the flow sensor working?",
+@pytest.mark.parametrize(("question", "tool"), [
+    ("Can you hear me? Why did plot B get 5 m³?", "explain_plan"),
+    ("Is the flow sensor working?", "inspect_replay"),
+    ("Show me the weather report.", "inspect_site"),
 ])
-def test_domain_questions_with_social_language_still_reach_the_graph(client, monkeypatch, question):
-    forwarded = []
-
-    def respond(body, **kwargs):
-        forwarded.append(json.loads(body["input"][0]["content"])["question"])
-        return graph_done()
-
-    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace(respond=respond))
+def test_domain_questions_with_social_language_use_local_verified_tools(client, monkeypatch, question, tool):
+    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace())
     with connect(client) as ws:
         exchange(ws, **context(language="en"))
         reply = exchange(ws, type="message", text=question)
-        assert reply["mode"] == "langgraph" and forwarded[0] == question
+        assert reply["mode"] == "guided" and reply["tools_used"] == [tool] and "rag_status" not in reply
+        if tool == "explain_plan":
+            assert "5 m³" in reply["text"]
 
 
 def test_voice_ask_uses_read_only_graph_verified_facts_and_per_call_memory(client, monkeypatch):
@@ -533,16 +738,16 @@ def test_voice_ask_uses_read_only_graph_verified_facts_and_per_call_memory(clien
         assert scopes[-1]["active_scenario"] == "mini" and not scopes[-1]["prior_answers"]
         assert exchange(ws, type="message", text="تسمعني؟")["mode"] == "conversation"
         assert len(scopes) == 1
-        again = exchange(ws, type="message", turn_id=2, text="تنجّم تعاود تفسّرها؟")
+        again = exchange(ws, type="message", mode="evidence", turn_id=2, text="تنجّم تعاود تفسّرها؟")
         assert again["mode"] == "langgraph" and again["facts"][0]["text"].startswith("Plot A ")
         assert scopes[-1]["prior_answers"] and len(scopes[-1]["recent_questions"]) == 1
         proposed = exchange(ws, type="propose", quota_m3=3)["proposal"]
         assert exchange(ws, type="confirm", id=proposed["id"])["type"] == "confirmed"
-        exchange(ws, type="message", text="What about that plot now?")
+        exchange(ws, type="message", mode="evidence", text="What about that plot now?")
         assert not scopes[-1]["recent_questions"]
         assert not any(prior["facts"] for prior in scopes[-1]["prior_answers"])
         exchange(other, **start)
-        exchange(other, type="message", text="علاش القطعة A؟")
+        exchange(other, type="message", mode="evidence", text="علاش القطعة A؟")
         assert not scopes[-1]["prior_answers"] and not scopes[-1]["recent_questions"]
 
 
@@ -557,7 +762,7 @@ def test_voice_atlas_can_only_retrieve_documentary_evidence(client, monkeypatch)
     monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace(respond=respond))
     with connect(client) as ws:
         exchange(ws, type="start", reason="accessibility", language="en")
-        reply = exchange(ws, type="message", text="How much water did that plot receive?")
+        reply = exchange(ws, type="message", mode="evidence", text="How much water did that plot receive?")
         assert reply["mode"] == "langgraph" and not reply["facts"] and not reply["tools_used"]
         assert observed == [["search_evidence"], ["search_evidence"]]
 
@@ -569,11 +774,13 @@ def test_voice_rag_outage_falls_back_to_verified_local_data_and_recovers(client,
     monkeypatch.setattr(client.app.state.assistant, "providers", provider)
     with connect(client) as ws:
         exchange(ws, **context(language="en"))
-        fail = exchange(ws, type="message", text="Explain the calculated plan")
-        assert fail["rag_status"] == "unavailable" and fail["mode"] == "guided"
-        assert "unavailable" in fail["text"] and "50%" in fail["text"]
+        fail = exchange(ws, type="message", mode="evidence", text="ANME photovoltaic solar potential")
+        assert fail["rag_status"] == "unavailable" and fail["mode"] == "guided" and fail["activity"] == "evidence"
+        assert fail["citations"] and any(item["excerpt"] in fail["text"] for item in fail["citations"])
+        local = exchange(ws, type="message", text="Explain the calculated plan")
+        assert "50%" in local["text"] and "rag_status" not in local and "unavailable" not in local["text"]
         provider.respond = lambda body, **kwargs: graph_done()
-        assert exchange(ws, type="message", text="Any field measurements for this?")["mode"] == "langgraph"
+        assert exchange(ws, type="message", mode="evidence", text="Any field measurements for this?")["mode"] == "langgraph"
 
 
 def test_barge_in_discards_cancelled_graph_and_spent_requests_release_capacity(client, monkeypatch):
@@ -594,18 +801,18 @@ def test_barge_in_discards_cancelled_graph_and_spent_requests_release_capacity(c
     monkeypatch.setattr(service, "providers", SimpleNamespace(respond=respond))
     with connect(client) as ws:
         exchange(ws, **context(language="en"))
-        ws.send_json({"type": "message", "turn_id": 1, "text": "Explain the first allocation to plot A"})
+        ws.send_json({"type": "message", "mode": "evidence", "turn_id": 1, "text": "Explain the first allocation to plot A"})
         try:
             assert entered.wait(5)
             ws.send_json({"type": "cancel", "turn_id": 1})
-            reply = exchange(ws, type="message", turn_id=2, text="My new question")
+            reply = exchange(ws, type="message", mode="evidence", turn_id=2, text="My new question")
             assert reply["turn_id"] == 2 and not scopes[-1]["prior_answers"]
             assert not scopes[-1]["recent_questions"]
             assert exchange(ws, type="speak", turn_id=1)["code"] == "stale_turn"
         finally:
             release.set()
         assert finished.wait(5)
-        assert exchange(ws, type="message", turn_id=3, text="Which plot?")["turn_id"] == 3
+        assert exchange(ws, type="message", mode="evidence", turn_id=3, text="Which plot?")["turn_id"] == 3
         assert not scopes[-1]["prior_answers"]
         assert scopes[-1]["recent_questions"] == ["My new question"]
 
@@ -680,7 +887,7 @@ def test_voice_scope_matches_selected_solar_and_excludes_stale_plan(client, monk
         ready = exchange(ws, type="start", reason="accessibility", language="ja", site_id="jendouba-pilote",
                          selected_scenario_id="mini", simulation_pending=True, pvgis_option_id="ombriere")
         assert ready["type"] == "ready"
-        answer = exchange(ws, type="message", turn_id=1, text="なぜ")
+        answer = exchange(ws, type="message", mode="evidence", turn_id=1, text="なぜ")
         assert answer["mode"] == "langgraph" and not answer["facts"]
         assert scopes[0]["selected_pvgis"] == "ombriere" and scopes[0]["simulation_pending"]
         assert scopes[0]["active_scenario"] is None
@@ -732,7 +939,7 @@ def test_live_voice_starts_verified_audio_before_graph_finishes_and_skips_repeat
     start["telemetry"] = selection(client, start, plan="baseline", **selection_args)
     with connect(client) as ws:
         exchange(ws, **start)
-        transcript = exchange(ws, type="audio", mode="ask", turn_id=1, mime="audio/webm", data="YQ==",
+        transcript = exchange(ws, type="audio", mode="evidence", turn_id=1, mime="audio/webm", data="YQ==",
                               progress_audio=True, stream_audio=True)
         try:
             assert transcript["type"] == "transcript"
@@ -842,11 +1049,12 @@ def test_barge_in_during_streamed_preview_releases_audio_without_publishing_the_
     with connect(client) as ws:
         exchange(ws, **start)
         try:
-            progress = exchange(ws, type="message", turn_id=1, progress_audio=True, stream_audio=True, text="My first question about the alert.")
+            progress = exchange(ws, type="message", mode="evidence", turn_id=1, progress_audio=True, stream_audio=True,
+                                text="My first question about the alert.")
             assert progress["type"] == "progress" and ws.receive_json()["type"] == "audio_chunk"
             assert speaking.is_set()
             ws.send_json({"type": "cancel", "turn_id": 1})
-            next_reply = exchange(ws, type="message", turn_id=2, text="Let us discuss another topic.")
+            next_reply = exchange(ws, type="message", mode="evidence", turn_id=2, text="Let us discuss another topic.")
             assert next_reply["turn_id"] == 2 and next_reply["type"] == "reply" and closed.is_set()
         finally:
             graph_finished.set()

@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from pydantic import Field
-from tools.m2m3.mizu_m2m3.solar import simulation_solar_profile
+from tools.m2m3.mizu_m2m3.solar import compare_solar, simulation_solar_profile
 
 from .assistant_api import AssistantRuntime
 from .assistant_memory import AssistantMemory
@@ -16,6 +16,7 @@ from .compare import compare, effective_scenario
 from .evidence import search
 from .models import AssistantCityPeriod, AssistantTelemetry, CompareRequest, Comparison, PlanningModel, RegionalPlanContext
 from .providers import ServiceError
+from .solar import compare_option
 from .telemetry import known_site, replay
 from .tunisia import ARCHIVE_DIR, Climate, get_city_analysis
 from .zone_planning import compare_zone
@@ -60,6 +61,7 @@ class Dialogue:
     plan: Comparison | None = None
     observations: list[str] = field(default_factory=list)
     history: list[dict] = field(default_factory=list)
+    evidence_questions: tuple[str, ...] = ()
     proposal: dict | None = None
     approval_failures: int = 0
     last_text: str = ""
@@ -140,7 +142,7 @@ class Dialogue:
                 (site.survey_available and catalog.agriculture[ctx.site_id].quota_m3 is None) or
                 (site.field_zone and not ctx.zone_plan)):
             raise ValueError("No clarification needed")
-        if self.event or self.frame:
+        if ctx.reason != "accessibility" and (self.event or self.frame):
             return self.replay_summary()
         if ctx.reason == "clarification":
             return self.say(f"{site.label}. Quel volume votre autorisation permet-elle encore de prélever ?",
@@ -150,11 +152,11 @@ class Dialogue:
 
     def site_summary(self):
         if not self.start.site_id:
-            return self.say(f"Atlas : {self.site_label}. Vous pouvez consulter les sources. Sélectionnez une station pour examiner une alerte ou un planning.",
+            return self.say(f"Bienvenue ! On regarde la carte de {self.site_label}. Tu veux préparer ton introduction, traduire une phrase ou explorer la carte ?",
                             f"Welcome! We're looking at {self.site_label}. I can walk you through the map, help you introduce it, or translate a phrase for your audience.",
                             f"{self.site_label}の地図へようこそ。地図の説明や発表の練習をしましょう。伝えたい言葉の翻訳もお手伝いします。",
                             f"عسلامة! توّا نشوفو في خريطة {self.site_label}. ننجّم نفسّرلك الخريطة، نعاونك تحضّر العرض، وإلا نترجملك جملة للحاضرين.")
-        return self.say(f"Vous consultez {self.site_label}. Demandez-moi d’expliquer un graphique, un plan ou une source.",
+        return self.say(f"Bienvenue à {self.site_label} ! Tu veux discuter du projet, répéter ta présentation ou traduire une phrase ?",
                         f"Hi! We're at {self.site_label}. What would help you most: walking through this screen, practicing your introduction or translating a phrase?",
                         f"{self.site_label}を一緒に見てみましょう。画面の説明、発表の練習、伝えたい言葉の翻訳をお手伝いします。",
                         f"عسلامة! توّا إحنا في {self.site_label}. شنوة تحبّ نعملو مع بعضنا؟ نفسّرلك الشاشة، نحضّروا العرض، وإلا نترجمولك جملة؟")
@@ -184,7 +186,10 @@ class Dialogue:
                             f"{self.site_label} at the start of the simulation: stock {state.tank_stock_m3} m³, remaining withdrawal quota {state.quota_remaining_m3} m³.",
                             f"{self.site_label} のシミュレーション開始時の貯水量は{state.tank_stock_m3} m³、残りの取水枠は{state.quota_remaining_m3} m³です。",
                             f"في بداية المحاكاة متاع {self.site_label}، في الخزّان {state.tank_stock_m3} m³ ومازال مسموح نسحبو {state.quota_remaining_m3} m³."), []
-        return self.site_summary(), []
+        return self.say(f"Pour {self.site_label}, je n’ai ni relevé agricole ni données climatiques pour cette vue. Quelle information veux-tu explorer ?",
+                        f"For {self.site_label}, this view has no agricultural survey or climate record to read. What would you like to explore about the site?",
+                        f"{self.site_label} のこの画面には、農地調査や気候の記録がありません。この場所について何を一緒に見ましょうか？",
+                        f"بالنسبة لـ {self.site_label}، في الشاشة هاذي ما عناش مسح فلاحي ولا سجلّ متاع الطقس. شنوة تحبّ تعرف على البلاصة؟"), []
 
     def replay_summary(self):
         if not self.frame:
@@ -201,6 +206,25 @@ class Dialogue:
                 f" Écart : {value:g} m³.", f" Discrepancy: {value:g} m³.", f" 差は{value:g} m³です。", f" الفرق {value:g} m³.")
             message += details + " " + self.say(*EVENTS[self.event["type"]])
         return message
+
+    def solar_summary(self):
+        site_id = self.start.site_id
+        solar = self.service.catalog.solar.get(site_id)
+        if self.start.pvgis_option_id:
+            option, = compare_solar(site_id, [self.start.pvgis_option_id])
+            label, output, period = option["label"], option["production_kwh"], option["profile_date"]
+            return self.say(f"Selon le profil PVGIS du {period}, {label} produirait {output:g} kWh.",
+                            f"For {label}, the archived PVGIS profile estimates {output:g} kWh on {period}.",
+                            f"{period}のPVGIS推定では、{label}の発電量は{output:g} kWhです。",
+                            f"حسب أرشيف PVGIS متاع {period}، الإنتاج المقدّر لـ {label} هو {output:g} kWh.")
+        if solar:
+            outputs = [f"{o.label} ({compare_option(solar, o, None).production_kwh:g} kWh)"
+                       for o in solar.options if not self.start.solar_option_id or o.id == self.start.solar_option_id]
+            return self.say("Production sur la journée modélisée : ", "Generation on the modeled day: ",
+                            "モデル日の推定発電量は、", "الإنتاج في النهار متاع المحاكاة: ") + ", ".join(outputs) + "."
+        return self.say("Aucun profil solaire de production n’est disponible pour cette sélection.",
+                        "I don’t have a solar generation profile for this selection.",
+                        "この選択範囲の発電量プロファイルはありません。", "ما عناش بروفيل إنتاج شمسي للاختيار هذا.")
 
     def plan_summary(self):
         if self.plan is None and self.start.comparison:
@@ -350,5 +374,6 @@ class Dialogue:
         self.start = self.start.model_copy(update={**updates, "telemetry": None, "reason": "accessibility"})
         self.frame = self.event = self.proposal = None
         self.history.clear()
+        self.evidence_questions = ()
         self.presentation_brief = ""
         return receipt
