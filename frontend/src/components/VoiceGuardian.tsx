@@ -6,6 +6,7 @@ import type { AssistantAnswer, Citation, Comparison, CompareRequest, RegionalPla
 import type { ReplayContext } from '../twin.ts';
 import { Modal } from './EvidencePanel.tsx';
 import GuardianMicrophone from './GuardianMicrophone.tsx';
+import GuardianPresenterNotes, { type NotesLanguage } from './GuardianPresenterNotes.tsx';
 import GuardianOrb, { type GuardianOrbState } from './GuardianOrb.tsx';
 import { useGuardianLiveVoice, type GuardianActivity } from './useGuardianLiveVoice.ts';
 import { Metric, SourceCitation } from './AssistantEvidence.tsx';
@@ -47,16 +48,18 @@ function languageOptions(exclude?: SpeechLanguage) {
 type Source = Pick<Citation, 'title' | 'url'> & Partial<Citation>;
 interface Entry {
   speaker: 'guardian' | 'farmer'; text: string; language: SpeechLanguage;
+  script?: boolean; moreScript?: boolean;
   citations?: Source[]; facts?: AssistantAnswer['facts']; gaps?: string[];
 }
 interface Capabilities { stt: boolean; tts: boolean; llm: boolean }
 type ServerMessage =
   | { type: 'ready'; text: string; voice: Capabilities; requires_manager_code?: boolean }
   | { type: 'language'; language: SpeechLanguage; voice: Capabilities }
-  | { type: 'reply'; text: string; language?: SpeechLanguage; speech_available?: boolean; citations?: Source[];
+  | { type: 'reply'; text: string; language?: SpeechLanguage; mode?: string; has_more?: boolean; speech_available?: boolean; citations?: Source[];
       facts?: Entry['facts']; missing_information?: string[]; proposal?: Proposal }
   | { type: 'recorded' | 'transcript'; text: string }
   | { type: 'progress'; text: string }
+  | { type: 'notes_saved'; has_notes: boolean }
   | { type: 'audio'; mime: string; data: string; phase?: 'preview' | 'final' }
   | { type: 'audio_chunk'; data: string; sample_rate: number }
   | { type: 'audio_end'; phase: 'preview' | 'final'; partial?: boolean }
@@ -85,6 +88,8 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
   const ignoreAudio = useRef(false);
   const sourceLanguage = useRef(call.language);
   const [observation, setObservation] = useState('');
+  const [presenterNotes, setPresenterNotes] = useState<{text: string; language: NotesLanguage}>({ text: '', language: call.language });
+  const submittedNotes = useRef(presenterNotes);
   const [quota, setQuota] = useState('');
   const [pending, setPending] = useState(false);
   const [proposal, setProposal] = useState<Proposal>();
@@ -203,6 +208,9 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
         setSpeechAvailable(false);
       } else if (reply.type === 'transcript') {
         append({ speaker: 'farmer', text: reply.text, language: sourceLanguage.current });
+      } else if (reply.type === 'notes_saved') {
+        settle();
+        setPresenterNotes(submittedNotes.current);
       } else if (reply.type === 'progress' && id !== undefined) {
         live.setPreview(reply.text);
       } else if (reply.type === 'audio_chunk' && id !== undefined && reply.sample_rate === 24_000) {
@@ -213,7 +221,8 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
       } else if (reply.type === 'reply' || reply.type === 'recorded') {
         settle();
         append({ speaker: 'guardian', text: reply.text, language: reply.type === 'reply' && reply.language || sourceLanguage.current,
-          ...(reply.type === 'reply' && { citations: reply.citations, facts: reply.facts, gaps: reply.missing_information }) });
+          ...(reply.type === 'reply' && { citations: reply.citations, facts: reply.facts, gaps: reply.missing_information,
+            script: reply.mode === 'presenter_script', moreScript: reply.has_more }) });
         if (reply.type === 'reply' && reply.proposal) setProposal(reply.proposal);
         if (reply.type === 'recorded') { setProposal(undefined); approval.current = ''; }
         const available = reply.type === 'reply' ? reply.speech_available ?? tts : tts;
@@ -279,6 +288,7 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
   }
   function reconnect() {
     setProposal(undefined); setEntries([]); setConfirmed(false); setError('');
+    submittedNotes.current = { text: '', language }; setPresenterNotes(submittedNotes.current);
     setActivity('ask');
     setObservation(''); setRecordingObservation(false); setDraft(''); setQuota('');
     setConnection('connecting'); setCapabilities(idleCapabilities); setRequiresManagerCode(false); setAttempt(value => value + 1);
@@ -313,6 +323,11 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
               <Icon size={16} aria-hidden="true"/>{label}</button>;
           })}
         </div>
+        {(activity === 'ask' || activity === 'present') && <GuardianPresenterNotes
+          saved={presenterNotes.text} savedLanguage={presenterNotes.language} disabled={busy || manualRecording}
+          connectedModel={capabilities.llm} apply={(notes, notesLanguage) => {
+            if (post({ type: 'presentation_notes', notes, language: notesLanguage })) submittedNotes.current = { text: notes, language: notesLanguage };
+          }} />}
         <div className="guardian-languages">
           <label className="field"><span>Speaking language</span>
             <select value={language} disabled={busy} onChange={event => changeLanguage(event.target.value as SpeechLanguage)}>{languageOptions()}</select></label>
@@ -323,8 +338,11 @@ function GuardianCall({ call, close, onConfirm, liveLaunch }: {
       </>}
       <div className="guardian-transcript" ref={transcript} role="log" aria-label="Conversation" aria-live="polite">
         {entries.map((entry, index) => <div className={`guardian-turn ${entry.speaker}`} key={index}>
-          <strong>{entry.speaker === 'guardian' ? 'Voice Guardian' : 'You'}</strong>
+          <strong>{entry.script ? 'Presenter’s script' : entry.speaker === 'guardian' ? 'Voice Guardian' : 'You'}</strong>
+          {entry.speaker === 'guardian' && entry.language !== language && <small lang={languageTags[entry.language]}
+            translate="no"> · {languageNames[entry.language]}</small>}
           <p lang={languageTags[entry.language]} dir="auto" translate="no">{entry.text}</p>
+          {entry.moreScript && <small className="guardian-note">Say “Continue” for the next passage.</small>}
           {entry.citations?.filter(source => /^https?:\/\//i.test(source.url)).map(source =>
             source.id && source.excerpt && source.organization
               ? <SourceCitation citation={source as Citation} key={source.id} />

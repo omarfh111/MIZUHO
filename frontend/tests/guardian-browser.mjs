@@ -183,6 +183,47 @@ try {
     assert.equal(await page.evaluate(() => window.micRequests), 0);
     await assistant.getByRole('button', { name: scenario.done, exact: true }).click();
   }
+  const gafsa = new URL(url);
+  gafsa.searchParams.set('lang', 'en');
+  gafsa.searchParams.set('site', 'gafsa-oasis');
+  gafsa.hash = 'map';
+  await page.goto(gafsa.href);
+  await page.getByRole('button', { name: 'Voice assistant', exact: true }).click();
+  await log.getByText(/Gafsa/).waitFor();
+  await call.getByText('Presenter notes', { exact: true }).click();
+  const noteFile = call.getByLabel('Import notes (.txt or .md)');
+  await noteFile.setInputFiles({ name: 'jury.md', mimeType: 'text/markdown', buffer: Buffer.from('Welcome the Sakura cooperative.') });
+  await page.waitForFunction(() => document.querySelector('.guardian-review textarea')?.value === 'Welcome the Sakura cooperative.');
+  await call.getByRole('button', { name: 'Use these notes' }).click();
+  await call.getByText('Notes attached to this session').waitFor();
+  await noteFile.setInputFiles({ name: 'long.txt', mimeType: 'text/plain', buffer: Buffer.from('a'.repeat(4001)) });
+  await call.getByRole('alert').filter({ hasText: /4,000 characters/ }).waitFor();
+  await call.getByRole('button', { name: 'Remove notes' }).click();
+  await call.getByText('Notes attached to this session').waitFor({ state: 'hidden' });
+  const spokenSections = [];
+  for (const prompt of [
+    "Okay you're gonna present a full project in Japanese to our judge",
+    'Can you tell them our solution and the features integrated in our platform?',
+    'For water and energy',
+    'Speak more details.',
+  ]) {
+    const delivered = opened.at(-1).waitForEvent('framereceived', {
+      predicate: ({ payload }) => JSON.parse(payload).type === 'reply',
+    }).then(({ payload }) => JSON.parse(payload));
+    await call.getByLabel('Message', { exact: true }).fill(prompt);
+    await call.getByRole('button', { name: 'Send message' }).click();
+    const reply = await delivered;
+    assert.equal(reply.language, 'ja');
+    assert.match(reply.text, /[ぁ-んァ-ン]/);
+    assert.notEqual(reply.mode, 'langgraph');
+    assert.ok(!spokenSections.includes(reply.text), 'The judge should hear new material on each follow-up');
+    spokenSections.push(reply.text);
+    const section = log.locator('.guardian-turn.guardian p[lang="ja"]').nth(spokenSections.length - 1);
+    await section.waitFor();
+    assert.equal(await section.textContent(), reply.text);
+  }
+  assert.equal(await call.getByLabel('Speaking language').inputValue(), 'en');
+  await call.getByRole('button', { name: 'Done' }).click();
   assert.deepEqual(errors, []);
   console.log('Guardian verified on the Jendouba replay, Assila survey, Korba planning and dated Tozeur climate with real WebSockets and explicit M5 approvals.');
 } finally {
