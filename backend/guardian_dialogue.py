@@ -4,12 +4,14 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Literal
-from uuid import uuid4
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from pydantic import Field
+from tools.m2m3.mizu_m2m3.solar import simulation_solar_profile
 
 from .assistant_api import AssistantRuntime
+from .assistant_memory import AssistantMemory
 from .compare import compare, effective_scenario
 from .evidence import search
 from .models import AssistantCityPeriod, AssistantTelemetry, CompareRequest, Comparison, PlanningModel, RegionalPlanContext
@@ -29,6 +31,10 @@ class CallStart(PlanningModel):
     comparison: CompareRequest | None = None
     telemetry: AssistantTelemetry | None = None
     zone_plan: RegionalPlanContext | None = None
+    solar_option_id: Annotated[str, Field(min_length=1, max_length=120)] | None = None
+    pvgis_option_id: Literal["ombriere", "toiture"] | None = None
+    selected_scenario_id: Annotated[str, Field(min_length=1, max_length=120)] | None = None
+    simulation_pending: bool = False
 
 
 EVENTS = {
@@ -59,16 +65,33 @@ class Dialogue:
     last_text: str = ""
     last_language: str = ""
     presentation_brief: str = ""
+    rag_session: UUID = field(default_factory=uuid4)
+    rag_memory: AssistantMemory = field(default_factory=AssistantMemory)
 
     def say(self, fr: str, en: str, ja: str, aeb: str) -> str:
         return {"fr": fr, "en": en, "ja": ja, "aeb": aeb}[self.start.language]
 
     def open(self):
         ctx, catalog = self.start, self.service.catalog
+        if ctx.simulation_pending and (ctx.comparison or ctx.telemetry or ctx.zone_plan):
+            raise ValueError("Recalculate after changing simulation inputs")
+        if ctx.selected_scenario_id:
+            scenario = catalog.scenarios.get(ctx.selected_scenario_id)
+            if (not scenario or scenario.site_id != ctx.site_id
+                    or ctx.comparison and ctx.comparison.scenario_id != scenario.id):
+                raise ValueError("Invalid selected scenario")
+        if ctx.solar_option_id:
+            solar = catalog.solar.get(ctx.site_id)
+            if not solar or ctx.pvgis_option_id or not any(o.id == ctx.solar_option_id for o in solar.options):
+                raise ValueError("Invalid solar option")
+        if ctx.pvgis_option_id:
+            simulation_solar_profile(ctx.site_id, ctx.pvgis_option_id)
+        if ctx.zone_plan and (ctx.solar_option_id or ctx.pvgis_option_id or ctx.selected_scenario_id):
+            raise ValueError("Conflicting regional context")
         if ctx.city_period and not ctx.city_id:
             raise ValueError("Choose a city before selecting a climate period")
         if not ctx.site_id:
-            if ctx.reason != "accessibility" or ctx.comparison or ctx.telemetry or ctx.zone_plan:
+            if ctx.reason != "accessibility" or ctx.comparison or ctx.telemetry or ctx.zone_plan or ctx.simulation_pending:
                 raise ValueError("No registered station")
             if ctx.city_id:
                 period = ctx.city_period
@@ -262,10 +285,10 @@ class Dialogue:
                                 "بعد اختار من الخريطة موقع فيه محاكاة. الحاضرين ينجّموا يبدّلوا فرضيّة ويقارنوا شكون يوصلو الماء في كلّ برنامج.")
         return {"type": "reply", "activity": "present", "text": " ".join([audience_opener or opening, facts, closing]), "citations": citations}
 
-    def evidence(self, query: str):
+    def evidence(self, query: str, *, local_only=False):
         service = self.service
         hits = []
-        if service.providers and service.capacity.acquire(blocking=False):
+        if not local_only and service.providers and service.capacity.acquire(blocking=False):
             try:
                 hits = search(service.corpus, service.providers, query, timeout=6, limit=2)
             except ServiceError:

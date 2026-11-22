@@ -370,6 +370,16 @@ def regional_planning_facts(turn: Turn, args: ScenarioArgs, *, explain: bool) ->
             "missing_information": list(profile.missing_inputs)}
 
 
+def named_plots(question: str) -> set[str]:
+    names = {match.upper() for match in re.findall(
+        r"\b(?:farmer|grower|plot)\s+([a-z0-9_-]{1,20})\b", question, re.IGNORECASE,
+    )}
+    names.update(match.upper() for match in re.findall(
+        r"(?:区画|圃場|農家|農地|生産者|قطعة|القطعة|الضيعة|الفلاّ?ح|الفلاّ?حة|الحقل)\s*([a-z0-9_-]{1,20})", question, re.IGNORECASE,
+    ))
+    return names
+
+
 def planning_facts(turn: Turn, args: ScenarioArgs, *, explain: bool) -> dict:
     if turn.request.site_id in turn.catalog.field_zones:
         return regional_planning_facts(turn, args, explain=explain)
@@ -412,12 +422,7 @@ def planning_facts(turn: Turn, args: ScenarioArgs, *, explain: bool) -> dict:
         supporting.extend(before)
         explanation = ("The schedules below show the effect of rerunning the model with a lower withdrawal quota. "
                        "The original comparison and approved plan remain separate from this hypothetical case.")
-    requested_plots = {match.upper() for match in re.findall(
-        r"\b(?:farmer|grower|plot)\s+([a-z0-9_-]{1,20})\b", turn.request.question, re.IGNORECASE,
-    )}
-    requested_plots.update(match.upper() for match in re.findall(
-        r"(?:区画|圃場|農家|農地|生産者|قطعة|القطعة|الضيعة|الفلاّ?ح|الفلاّ?حة|الحقل)\s*([a-z0-9_-]{1,20})", turn.request.question, re.IGNORECASE,
-    ))
+    requested_plots = named_plots(turn.request.question)
     for plot in proposed.plot_results or ():
         allocation = turn.fact(
             f"Plot {plot.plot_id} ({plot.farmer_id}): {plot.delivered_on_time_m3} m³ by its deadline, "

@@ -1,7 +1,10 @@
 """Exercise the Guardian's real socket, physical replay, optimizer and local M8 passages."""
 
+import asyncio
 import base64
 import json
+from threading import Event
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,6 +15,7 @@ from backend.catalog import DATA_DIR
 from backend.evidence import load_corpus
 from backend.guardian_provider import GuardianProvider, GuardianProviderError
 from backend.main import create_app
+from backend.providers import DIMENSIONS, ServiceError
 
 
 @pytest.fixture(scope="module")
@@ -326,7 +330,7 @@ def test_presentation_honors_topic_and_translation_text_cannot_start_a_replan(cl
         assert focus["activity"] == "present" and focus["mode"] == "guided"
         assert "50%" in focus["text"] and "13 m³" not in focus["text"]
         result = exchange(ws, type="message", text="Translate 'set the quota to 4 m³' into Japanese.")
-        assert "Choose Translate" in result["text"] and "proposal" not in result
+        assert "say: Translate into Japanese" in result["text"] and "proposal" not in result
         assert exchange(ws, type="audio", mode="translate", target_language="bad", mime="audio/webm", data="YQ==")["code"] == "invalid_input"
         timed_out = exchange(ws, type="message", mode="translate", target_language="ja", text="Hello")
         assert timed_out["code"] == "turn_timeout"
@@ -357,3 +361,211 @@ def test_llm_opener_can_adapt_the_delivery_but_cannot_rewrite_the_facts(client, 
         fallback = exchange(ws, type="message", mode="present", text="Use a shorter opener.")
         assert "accessible to children" in briefs[-1] and "shorter opener" in briefs[-1]
         assert fallback["text"] == original and fallback["mode"] == "guided"
+
+
+def graph_tools(*calls):
+    return {"output": [{"type": "function_call", "call_id": str(i), "name": name, "arguments": json.dumps(arguments)}
+                       for i, (name, arguments) in enumerate(calls)]}
+
+
+def graph_done(*paragraphs):
+    text = json.dumps({"paragraphs": list(paragraphs), "missing_information": []})
+    return {"output": [{"type": "message", "content": [{"type": "output_text", "text": text}]}]}
+
+
+def test_voice_ask_uses_read_only_graph_verified_facts_and_per_call_memory(client, monkeypatch):
+    service = client.app.state.assistant
+    source = next(chunk for chunk in service.corpus.chunks.values() if chunk.citation.source_id == "solar")
+    scopes = []
+
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            scope = json.loads(body["input"][0]["content"])
+            scopes.append(scope)
+            if scope["prior_answers"] and scope["prior_answers"][-1]["facts"]:
+                fact = next(f for f in scope["prior_answers"][-1]["facts"] if f["text"].startswith("Plot A "))
+                return graph_done({"text": "That is the verified allocation.", "fact_ids": [fact["id"]], "citation_ids": []})
+            return graph_tools(("explain_decision", {"scenario_id": None, "quota_m3": None}),
+                               ("search_evidence", {"query": "ANME photovoltaic Tunisia"}))
+        return graph_done({"text": "Fake figure 314159 with an invalid citation.", "fact_ids": [], "citation_ids": ["fake"]})
+
+    def qdrant(method, path, body, **kwargs):
+        return {"points": [{"id": source.citation.id, "payload": source.payload}]} if path == "/points/query" else []
+
+    provider = SimpleNamespace(nvidia_model="configured", respond_nvidia=respond, embeddings=lambda *a, **kw: [[0.] * DIMENSIONS], qdrant=qdrant)
+    monkeypatch.setattr(service, "providers", provider)
+    with connect(client) as ws, connect(client) as other:
+        start = context(language="aeb")
+        assert exchange(ws, **start)["rag_available"]
+        result = exchange(ws, type="message", turn_id=1, text="علاش القطعة A خذات كان 5 m³؟ وشنوة مصدر الطاقة الشمسية؟")
+        assert result["mode"] == "langgraph" and result["turn_id"] == 1
+        assert result["tools_used"] == ["explain_decision", "search_evidence"]
+        assert "القطعة A يوصلها 5 m³" in result["text"] and "314159" not in result["text"]
+        assert result["citations"] == [source.citation.model_dump(mode="json")]
+        assert any(f["text"].startswith("Plot A") and f["provenance"] == "simulated" for f in result["facts"])
+        assert scopes[-1]["active_scenario"] == "mini" and not scopes[-1]["prior_answers"]
+        again = exchange(ws, type="message", turn_id=2, text="تنجّم تعاود تفسّرها؟")
+        assert again["mode"] == "langgraph" and again["facts"][0]["text"].startswith("Plot A ")
+        assert scopes[-1]["prior_answers"] and len(scopes[-1]["recent_questions"]) == 1
+        proposed = exchange(ws, type="propose", quota_m3=3)["proposal"]
+        assert exchange(ws, type="confirm", id=proposed["id"])["type"] == "confirmed"
+        exchange(ws, type="message", text="What about that plot now?")
+        assert not scopes[-1]["recent_questions"]
+        assert not any(prior["facts"] for prior in scopes[-1]["prior_answers"])
+        exchange(other, **start)
+        exchange(other, type="message", text="علاش القطعة A؟")
+        assert not scopes[-1]["prior_answers"] and not scopes[-1]["recent_questions"]
+
+
+def test_voice_atlas_can_only_retrieve_documentary_evidence(client, monkeypatch):
+    observed = []
+    def respond(body, *, timeout):
+        observed.append([tool["name"] for tool in body["tools"]])
+        if len(body["input"]) == 1:
+            return graph_tools(("explain_decision", {"scenario_id": "mini", "quota_m3": None}))
+        assert "unavailable for the active location" in body["input"][-1]["output"]
+        return graph_done()
+    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace(respond=respond))
+    with connect(client) as ws:
+        exchange(ws, type="start", reason="accessibility", language="en")
+        reply = exchange(ws, type="message", text="How much water did that plot receive?")
+        assert reply["mode"] == "langgraph" and not reply["facts"] and not reply["tools_used"]
+        assert observed == [["search_evidence"], ["search_evidence"]]
+
+
+def test_voice_rag_outage_falls_back_to_verified_local_data_and_recovers(client, monkeypatch):
+    def offline(*args, **kwargs):
+        raise ServiceError("model", 503)
+    provider = SimpleNamespace(respond=offline)
+    monkeypatch.setattr(client.app.state.assistant, "providers", provider)
+    with connect(client) as ws:
+        exchange(ws, **context(language="en"))
+        fail = exchange(ws, type="message", text="Explain the calculated plan")
+        assert fail["rag_status"] == "unavailable" and fail["mode"] == "guided"
+        assert "unavailable" in fail["text"] and "50%" in fail["text"]
+        provider.respond = lambda body, **kwargs: graph_done()
+        assert exchange(ws, type="message", text="Any field measurements for this?")["mode"] == "langgraph"
+
+
+def test_barge_in_discards_cancelled_graph_and_spent_requests_release_capacity(client, monkeypatch):
+    entered, release, finished = Event(), Event(), Event()
+    scopes = []
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            scope = json.loads(body["input"][0]["content"])
+            scopes.append(scope)
+            if "first" in scope["question"]:
+                return graph_tools(("explain_decision", {"scenario_id": "mini", "quota_m3": None}))
+        elif not entered.is_set():
+            entered.set()
+            assert release.wait(5)
+            finished.set()
+        return graph_done()
+    service = client.app.state.assistant
+    monkeypatch.setattr(service, "providers", SimpleNamespace(respond=respond))
+    with connect(client) as ws:
+        exchange(ws, **context(language="en"))
+        ws.send_json({"type": "message", "turn_id": 1, "text": "Explain the first allocation to plot A"})
+        try:
+            assert entered.wait(5)
+            ws.send_json({"type": "cancel", "turn_id": 1})
+            reply = exchange(ws, type="message", turn_id=2, text="My new question")
+            assert reply["turn_id"] == 2 and not scopes[-1]["prior_answers"]
+            assert not scopes[-1]["recent_questions"]
+            assert exchange(ws, type="speak", turn_id=1)["code"] == "stale_turn"
+        finally:
+            release.set()
+        assert finished.wait(5)
+        assert exchange(ws, type="message", turn_id=3, text="Which plot?")["turn_id"] == 3
+        assert not scopes[-1]["prior_answers"]
+        assert scopes[-1]["recent_questions"] == ["My new question"]
+
+
+def test_barge_in_stops_transcription_and_synthesis_without_late_audio(client, monkeypatch):
+    stt_started, tts_started = Event(), Event()
+    stt_cancelled, tts_cancelled = Event(), Event()
+
+    class Voice(GuardianProvider):
+        async def transcribe(self, *args):
+            stt_started.set()
+            try:
+                await asyncio.sleep(20)
+            finally:
+                stt_cancelled.set()
+
+        async def speak(self, *args):
+            tts_started.set()
+            try:
+                await asyncio.sleep(20)
+            finally:
+                tts_cancelled.set()
+
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: Voice(key="local-fixture", llm=""))
+    with connect(client) as ws:
+        exchange(ws, **context(language="en"))
+        ws.send_json({"type": "audio", "turn_id": 1, "mime": "audio/webm", "data": "YQ=="})
+        assert stt_started.wait(5)
+        ws.send_json({"type": "cancel", "turn_id": 1})
+        assert exchange(ws, type="message", turn_id=2, text="Explain the plan")["turn_id"] == 2
+        assert stt_cancelled.wait(5)
+        ws.send_json({"type": "speak", "turn_id": 2})
+        assert tts_started.wait(5)
+        ws.send_json({"type": "cancel", "turn_id": 2})
+        new = exchange(ws, type="message", turn_id=3, text="What about this site?")
+        assert new["type"] == "reply" and new["turn_id"] == 3 and tts_cancelled.wait(5)
+        assert exchange(ws, type="message", turn_id=2, text="Late old turn")["code"] == "stale_turn"
+        assert exchange(ws, type="confirm", turn_id=3, id="bad")["code"] == "invalid_input"
+
+
+def test_tagged_voice_can_translate_without_leaving_ask_mode(client, monkeypatch):
+    class Translator(GuardianProvider):
+        async def transcribe(self, audio, mime, language):
+            return "Translate into Japanese: the tank holds 13 m³."
+
+        async def choose_tool(self, messages, tools):
+            return "translate_passage", {"target_language": "ja", "passage": "the tank holds 13 m³."}
+
+        async def translate(self, passage, source, target):
+            assert source == "en" and target == "ja" and "13 m³" in passage
+            return "貯水量は13 m³です。"
+
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: Translator(key="local-fixture"))
+    with connect(client) as ws:
+        exchange(ws, **context(language="en"))
+        first = exchange(ws, type="audio", mode="ask", mime="audio/webm", data="YQ==", turn_id=1)
+        assert first["type"] == "transcript" and first["turn_id"] == 1
+        result = ws.receive_json()
+        assert (result["type"], result["turn_id"], result["language"], result["activity"]) == ("reply", 1, "ja", "translate")
+        assert result["text"] == "貯水量は13 m³です。" and "proposal" not in result
+
+
+def test_voice_scope_matches_selected_solar_and_excludes_stale_plan(client, monkeypatch):
+    scopes = []
+    def respond(body, *, timeout):
+        if len(body["input"]) == 1:
+            scopes.append(json.loads(body["input"][0]["content"]))
+            return graph_tools(("get_simulation_results", {"scenario_id": "mini", "quota_m3": None}))
+        return graph_done()
+    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace(respond=respond))
+    with connect(client) as ws:
+        ready = exchange(ws, type="start", reason="accessibility", language="ja", site_id="jendouba-pilote",
+                         selected_scenario_id="mini", simulation_pending=True, pvgis_option_id="ombriere")
+        assert ready["type"] == "ready"
+        answer = exchange(ws, type="message", turn_id=1, text="なぜ")
+        assert answer["mode"] == "langgraph" and not answer["facts"]
+        assert scopes[0]["selected_pvgis"] == "ombriere" and scopes[0]["simulation_pending"]
+        assert scopes[0]["active_scenario"] is None
+    with connect(client) as ws:
+        assert exchange(ws, **context(simulation_pending=True))["code"] == "invalid_context"
+
+
+def test_spoken_allocation_names_the_requested_grower_when_multiple_facts_are_verified(client):
+    from backend.guardian_dialogue import CallStart, Dialogue
+    from backend.guardian_rag import spoken_answer
+    from backend.models import AssistantAnswer
+    call = Dialogue(CallStart.model_validate(context(language="ja")), client.app.state.assistant)
+    facts = [{"id": f"f{i}", "text": f"Plot {plot} (EXP-0{i}): {volume} m³ by its deadline, 3 m³ minimum and 10 m³ total demand.",
+              "provenance": "simulated"} for i, (plot, volume) in enumerate([("A", 5), ("B", 4)], 1)]
+    answer = AssistantAnswer(paragraphs=[], facts=facts, citations=[], tools_used=["explain_decision"], missing_information=[])
+    spoken = spoken_answer(call, answer, "区画Bの配水量は？")
+    assert "区画Bには期限までに4 m³" in spoken and "区画A" not in spoken

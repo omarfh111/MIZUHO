@@ -3,6 +3,11 @@
 import re
 
 
+def valid_question_length(text: str, language: str) -> bool:
+    # 「なぜ」 and 「雨」 are complete spoken follow-ups.
+    return len(text.strip()) >= 3 or (language == "ja" and bool(re.search(r"[ぁ-んァ-ヶ一-龠]", text)))
+
+
 _SENTENCES = {
     "The figures below compare the reference and proposed schedules under the same inputs.":
         "同じ条件で固定計画と提案計画を計算しました。各計画の結果を以下に示します。",

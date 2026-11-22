@@ -10,7 +10,7 @@ from langgraph.graph import END, START, StateGraph
 from langsmith import tracing_context
 
 from .assistant_memory import AssistantMemory, recall
-from .assistant_language import japanese_explanation, tunisian_explanation
+from .assistant_language import japanese_explanation, tunisian_explanation, valid_question_length
 from .assistant_tools import TOOLS, Turn, run_tool
 from .catalog import Catalog
 from .compare import InputError, effective_scenario
@@ -110,6 +110,14 @@ FUNCTIONS = [
 CITY_TOOLS = {"get_city_data", "search_evidence"}
 
 
+def available_tools(turn: Turn):
+    if turn.city:
+        return CITY_TOOLS
+    if not turn.request.site_id:
+        return {"search_evidence"}
+    return TOOLS.keys() - {"get_city_data"}
+
+
 class GraphState(TypedDict):
     turn: Turn
     messages: list[dict]
@@ -121,16 +129,17 @@ class GraphState(TypedDict):
 def think(state: GraphState) -> dict:
     turn = state["turn"]
     respond = turn.providers.respond_nvidia if turn.request.provider == "nvidia" else turn.providers.respond
-    city_mode = turn.city is not None
+    allowed = available_tools(turn)
     answer_language = {"ja": "Japanese", "en": "English", "aeb": "friendly Tunisian Derja in Arabic script"}[turn.request.language]
     language = (f"Write explanations and missing-information messages in {answer_language}. Keep original source excerpts, "
                 "fact IDs, place IDs and tool arguments intact. For documentary retrieval, search using the "
                 "publisher's terminology in English or French.")
     data = respond({
-        "instructions": INSTRUCTIONS + "\n" + language + ("\n" + CITY_INSTRUCTIONS if city_mode else ""),
+        "instructions": INSTRUCTIONS + "\n" + language + ("\n" + CITY_INSTRUCTIONS if turn.city else
+            "\nThe national atlas is open. Only documentary sources are in scope. Ask for a location before discussing field data or plans."
+            if not turn.request.site_id else ""),
         "input": state["messages"],
-        "tools": [tool for tool in FUNCTIONS
-                  if (tool["name"] in CITY_TOOLS if city_mode else tool["name"] != "get_city_data")],
+        "tools": [tool for tool in FUNCTIONS if tool["name"] in allowed],
         "tool_choice": "auto",
         "max_output_tokens": 1200,
         "parallel_tool_calls": True,
@@ -196,8 +205,7 @@ def tools(state: GraphState) -> dict:
     for call in state["pending"]:
         turn.remaining()
         name = call["name"]
-        allowed = name in CITY_TOOLS if turn.city else name != "get_city_data"
-        data = (run_tool(turn, name, call["arguments"]) if allowed else
+        data = (run_tool(turn, name, call["arguments"]) if name in available_tools(turn) else
                 {"error": "This tool is unavailable for the active location."})
         results.append({"type": "function_call_output", "call_id": call["call_id"], "output": json.dumps(data, ensure_ascii=False)})
     return {"messages": [*state["messages"], *results], "pending": []}
@@ -329,9 +337,12 @@ def run_assistant(request: AssistantRequest, catalog: Catalog, corpus: Corpus, p
             raise InputError("city_period", "Choose dates within the city's climate archive.") from None
     elif request.city_period:
         raise InputError("city_period", "Select a Tunisian city before choosing a date range.")
-    elif request.site_id not in sites:
+    elif not request.site_id and (request.comparison or request.zone_plan or request.telemetry or request.solar_option_id
+                                  or request.pvgis_option_id or request.selected_scenario_id or request.simulation_pending):
+        raise InputError("site_id", "Choose a registered site before discussing a simulation.")
+    elif request.site_id and request.site_id not in sites:
         raise InputError("site_id", "Unknown site.")
-    if len(request.question.strip()) < 3:
+    if not valid_question_length(request.question, request.language):
         raise InputError("question", "Enter a question with at least three characters.")
     if request.solar_option_id is not None:
         site = catalog.solar.get(request.site_id)

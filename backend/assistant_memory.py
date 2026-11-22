@@ -31,6 +31,15 @@ class AssistantMemory:
         self._active: set[str] = set()
         self._used: OrderedDict[str, float] = OrderedDict()
 
+    def fork(self, session_id: UUID) -> "AssistantMemory":
+        """Give an interruptible voice turn a private copy of the last completed turn."""
+        key = str(session_id)
+        pending = AssistantMemory()
+        with self._lock:
+            if item := self.store.get(NAMESPACE, key):
+                pending.store.put(NAMESPACE, key, item.value)
+        return pending
+
     @contextmanager
     def session(self, session_id: UUID) -> Iterator[str]:
         key = str(session_id)
