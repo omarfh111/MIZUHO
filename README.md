@@ -1,18 +1,37 @@
-# MIZUHO
-
 <picture>
   <source media="(prefers-reduced-motion: reduce)" srcset="docs/readme-hero-still.svg">
   <img src="docs/readme-hero.svg" width="100%" alt="MIZUHO irrigation planning in Tunisia. An illustrated map marks Jendouba, Korba and Gafsa.">
 </picture>
 
-[![CI on main](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml?query=branch%3Amain)
-[![Security on main](https://github.com/omarfh111/MIZUHO/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/omarfh111/MIZUHO/actions/workflows/security.yml?query=branch%3Amain)
+<h1 align="center">MIZUHO</h1>
 
-**When a power cut interrupts pumping, which parcels can still receive their water on time?** MIZUHO helps a Tunisian irrigation manager answer that question. Explore a site, compare its usual rotation with a constrained plan, then replay the consequences for each parcel, the reservoir and the electricity supply. A farmer can ask for an explanation. The manager reviews the proposal before approving it in the simulator.
+<p align="center"><em>When a power cut interrupts pumping, which parcels can still receive their promised water on time?</em></p>
+
+<p align="center">
+  <a href="#how-it-works"><img alt="M4–M6 · Simulation &amp; CP-SAT" src="https://img.shields.io/static/v1?label=M4%E2%80%93M6&amp;message=Simulation%20%26%20CP-SAT&amp;color=66dce4&amp;labelColor=102523&amp;style=for-the-badge"></a>
+  <a href="#use-the-dashboard"><img alt="M7 · 3D dashboard" src="https://img.shields.io/static/v1?label=M7&amp;message=3D%20dashboard&amp;color=c6ea88&amp;labelColor=102523&amp;style=for-the-badge"></a>
+  <a href="#voice-and-evidence"><img alt="M8 · Evidence assistant" src="https://img.shields.io/static/v1?label=M8&amp;message=Evidence%20assistant&amp;color=f5ce80&amp;labelColor=102523&amp;style=for-the-badge"></a>
+  <a href="#voice-and-evidence"><img alt="M9 · Voice Guardian" src="https://img.shields.io/static/v1?label=M9&amp;message=Voice%20Guardian&amp;color=c5bbf5&amp;labelColor=102523&amp;style=for-the-badge"></a>
+  <a href="#reproduce-the-pilot"><img alt="Pilot · Jendouba, Tunisia" src="https://img.shields.io/static/v1?label=Pilot&amp;message=Jendouba%2C%20Tunisia&amp;color=e9f3ea&amp;labelColor=102523&amp;style=for-the-badge"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml?query=branch%3Amain"><img alt="CI on main" src="https://github.com/omarfh111/MIZUHO/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/omarfh111/MIZUHO/actions/workflows/security.yml?query=branch%3Amain"><img alt="Security on main" src="https://github.com/omarfh111/MIZUHO/actions/workflows/security.yml/badge.svg?branch=main"></a>
+  <img alt="Python · 3.12" src="https://img.shields.io/static/v1?label=Python&amp;message=3.12&amp;color=397e83">
+  <img alt="API · FastAPI" src="https://img.shields.io/static/v1?label=API&amp;message=FastAPI&amp;color=397e83">
+  <img alt="Search · LangGraph + Qdrant" src="https://img.shields.io/static/v1?label=Search&amp;message=LangGraph%20%2B%20Qdrant&amp;color=397e83">
+  <img alt="UI · React + Three.js" src="https://img.shields.io/static/v1?label=UI&amp;message=React%20%2B%20Three.js&amp;color=397e83">
+  <img alt="Build · TypeScript + Vite" src="https://img.shields.io/static/v1?label=Build&amp;message=TypeScript%20%2B%20Vite&amp;color=397e83">
+</p>
+
+<p align="center">
+  <a href="#run-mizuho">Setup</a> · <a href="#use-the-dashboard">Dashboard</a> · <a href="#data-and-provenance">Data and provenance</a> · <a href="#how-it-works">Architecture</a> · <a href="#voice-and-evidence">Voice and evidence</a> · <a href="#api-reference">API</a> · <a href="#checks">Checks</a>
+</p>
+
+MIZUHO helps a Tunisian irrigation manager answer that question. Explore a site, compare its usual rotation with a constrained plan, then replay the consequences for each parcel, the reservoir and the electricity supply. A farmer can ask for an explanation. The manager reviews the proposal before approving it in the simulator.
 
 In the reproducible Jendouba A/B case, both schedules have 10 m³ in storage and zero remaining withdrawal quota. The fixed turn gives A all 10 m³. The optimized plan gives each parcel 5 m³, raising the least-served parcel’s coverage from **0% to 50%**. This is a simulated result under documented assumptions. [Run the example](#reproduce-the-pilot)
-
-[Setup](#run-mizuho) · [Dashboard](#use-the-dashboard) · [Data and provenance](#data-and-provenance) · [Architecture](#how-it-works) · [Voice and evidence](#voice-and-evidence) · [API](#api-reference) · [Checks](#checks)
 
 ## Run MIZUHO
 
