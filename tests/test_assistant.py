@@ -67,12 +67,16 @@ def test_langgraph_uses_real_m6_for_farmer_a(context):
     assert {item.provenance for item in answer.facts} == {Provenance.SIMULATED}
 
 
-def test_japanese_reply_preserves_solver_values_and_original_evidence(context):
+@pytest.mark.parametrize(("language", "instruction", "question", "rationale", "attribution"), [
+    ("ja", "in Japanese", "なぜ区画Aへの配水量が制限されたのですか？", "最適化では", "の原文"),
+    ("aeb", "Tunisian Derja", "علاش القطعة A خذات كان 5 m³؟ وشنوة المصدر؟", "تغطية القطعة", "النصّ الأصلي"),
+])
+def test_localized_reply_preserves_solver_values_and_original_evidence(context, language, instruction, question, rationale, attribution):
     catalog, corpus = context
     source = next(chunk for chunk in corpus.chunks.values() if chunk.citation.source_id == "solar")
 
     def respond(body, *, timeout):
-        assert "in Japanese" in body["instructions"]
+        assert instruction in body["instructions"]
         if len(body["input"]) == 1:
             return response(call("explain_decision", {"scenario_id": "mini", "quota_m3": None}),
                             call("search_evidence", {"query": "ANME photovoltaic Tunisia"}, "source"))
@@ -84,12 +88,12 @@ def test_japanese_reply_preserves_solver_values_and_original_evidence(context):
 
     providers = SimpleNamespace(respond=respond, embeddings=lambda *args, **kwargs: [[0.] * DIMENSIONS],
                                 qdrant=retrieve)
-    result = run_assistant(AssistantRequest(site_id="jendouba-pilote", language="ja",
-                           question="なぜ区画Aへの配水量が制限されたのですか？"), catalog, corpus, providers, 5)
-    assert "最適化では" in result.paragraphs[0].text
+    result = run_assistant(AssistantRequest(site_id="jendouba-pilote", language=language,
+                           question=question), catalog, corpus, providers, 5)
+    assert rationale in result.paragraphs[0].text
     assert any(fact.text.startswith("Plot A (EXP-01): 5 m³") for fact in result.facts)
     assert result.citations == (source.citation,)
-    assert any("の原文" in paragraph.text for paragraph in result.paragraphs)
+    assert any(attribution in paragraph.text for paragraph in result.paragraphs)
 
 
 def test_city_assistant_uses_the_same_public_profile_and_isolates_city_facts():

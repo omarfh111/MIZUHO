@@ -10,7 +10,7 @@ from langgraph.graph import END, START, StateGraph
 from langsmith import tracing_context
 
 from .assistant_memory import AssistantMemory, recall
-from .assistant_language import japanese_explanation
+from .assistant_language import japanese_explanation, tunisian_explanation
 from .assistant_tools import TOOLS, Turn, run_tool
 from .catalog import Catalog
 from .compare import InputError, effective_scenario
@@ -70,6 +70,12 @@ NUMERIC = re.compile(
     r"double|triple|zéro|deux|trois|quatre|cinq|sept|huit|neuf|dix|vingt|cinquante|cent|mille)\b",
     re.IGNORECASE,
 )
+ARABIC_QUANTITY = re.compile(
+    r"\b(?:و?(?:ال)?(?:صفر|واحد[ةه]?|اثني?ن|اثنان|زوز|زوج|ثلاث[ةه]?|ثلاثين|ثلاثون|ثلاثطاش|"
+    r"أربع[ةه]?|اربعة|أربعين|خمس[ةه]?|خمسين|ست[ةه]?|ستين|سبع[ةه]?|سبعين|ثماني?[ةه]?|"
+    r"ثمنية|ثمانين|تسع[ةه]?|تسعين|عشر[ةه]?|عشرين|عشرون|حداش|اثناش|مئة|مائة|مية|"
+    r"ميتين|ألف|آلاف|مليون|ملايين|نص|نصف|ربع|ثلث|ضعف|ضعفين|مرتين))\b"
+)
 
 
 def object_schema(properties: dict) -> dict:
@@ -116,10 +122,10 @@ def think(state: GraphState) -> dict:
     turn = state["turn"]
     respond = turn.providers.respond_nvidia if turn.request.provider == "nvidia" else turn.providers.respond
     city_mode = turn.city is not None
-    language = ("Write explanations and missing-information messages in Japanese. Keep original source excerpts, "
+    answer_language = {"ja": "Japanese", "en": "English", "aeb": "friendly Tunisian Derja in Arabic script"}[turn.request.language]
+    language = (f"Write explanations and missing-information messages in {answer_language}. Keep original source excerpts, "
                 "fact IDs, place IDs and tool arguments intact. For documentary retrieval, search using the "
-                "publisher's terminology in English or French." if turn.request.language == "ja"
-                else "Write explanations and missing-information messages in English.")
+                "publisher's terminology in English or French.")
     data = respond({
         "instructions": INSTRUCTIONS + "\n" + language + ("\n" + CITY_INSTRUCTIONS if city_mode else ""),
         "input": state["messages"],
@@ -216,6 +222,7 @@ def clean_text(value: object, maximum: int) -> str | None:
     text = " ".join(value.split())
     if (not text or any(char.isnumeric() for char in text) or NUMERIC.search(text)
             or re.search(r"半分|半減|倍増|倍量|倍に|倍の", text)
+            or ARABIC_QUANTITY.search(re.sub(r"[\u064b-\u065f\u0670\u0640]", "", text))
             or re.search(r"https?://|www\.|[<>{}\[\]]", text, re.IGNORECASE)):
         return None
     return text
@@ -270,6 +277,7 @@ def finalize(turn: Turn, answer: dict) -> AssistantAnswer:
     for citation in cited.values():
         paragraphs.append(GroundedParagraph(
             text=(f"{citation.organization} の原文で「{citation.section}」を確認できます。" if turn.request.language == "ja"
+                  else f"النصّ الأصلي متاع {citation.organization} تلقاه في القسم «{citation.section}»." if turn.request.language == "aeb"
                   else f"The verified passage from {citation.organization} covers {citation.section}."),
             citation_ids=(citation.id,), fact_ids=(),
         ))
@@ -290,9 +298,10 @@ def finalize(turn: Turn, answer: dict) -> AssistantAnswer:
         rationale = decision.model_copy(update={"fact_ids": references})
         paragraphs = [rationale, *(p for p in paragraphs if not supporting.intersection(p.fact_ids))]
         used.update((key, turn.facts[key]) for key in references)
-    if turn.request.language == "ja":
-        paragraphs = [paragraph.model_copy(update={"text": japanese_explanation(paragraph.text)}) for paragraph in paragraphs]
-        gaps = [japanese_explanation(gap) for gap in gaps]
+    localize = {"ja": japanese_explanation, "aeb": tunisian_explanation}.get(turn.request.language)
+    if localize:
+        paragraphs = [paragraph.model_copy(update={"text": localize(paragraph.text)}) for paragraph in paragraphs]
+        gaps = [localize(gap) for gap in gaps]
     return AssistantAnswer(
         paragraphs=tuple(paragraphs), citations=tuple(cited.values()), facts=tuple(used.values()),
         missing_information=tuple(dict.fromkeys(gaps)), tools_used=tuple(turn.tools_used),

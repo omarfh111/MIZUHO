@@ -579,7 +579,7 @@ class RegionalPlanContext(PlanningModel):
 
 
 class AssistantRequest(PlanningModel):
-    language: Literal["en", "ja"] = "en"
+    language: Literal["en", "ja", "aeb"] = "en"
     provider: Literal["openai", "nvidia"] = "openai"
     question: Annotated[str, StringConstraints(min_length=3, max_length=1600, strip_whitespace=True)]
     site_id: Annotated[str, Field(min_length=1, max_length=120)] | None = None

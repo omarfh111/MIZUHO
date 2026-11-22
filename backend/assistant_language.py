@@ -1,4 +1,4 @@
-"""Japanese renderings of the simulator's deterministic explanations and data gaps."""
+"""Localize deterministic explanations without changing facts or documentary excerpts."""
 
 import re
 
@@ -68,6 +68,112 @@ _SENTENCES = {
     "Simulation inputs changed.": "シミュレーションの入力値が変更されました。",
     "Recalculate the schedules before asking about current results.": "現在の結果について質問する前に、計画を再計算してください。",
 }
+
+
+_TUNISIAN = {
+    "The figures below compare the reference and proposed schedules under the same inputs.":
+        "الأرقام اللي تحت تقارن بين البرنامج المرجعي والبرنامج المقترح بنفس المعطيات.",
+    "The schedules below show the effect of rerunning the model with a lower withdrawal quota.":
+        "البرنامجين يوريّوك شنوة يتبدّل كي نعاودوا نحسبوا بحصّة سحب أقلّ.",
+    "The original comparison and approved plan remain separate from this hypothetical case.":
+        "المقارنة الأصلية والبرنامج المصادق عليه يبقاو مستقلّين على الفرضيّة هاذي.",
+    "The reserve leaves some minimum demand unmet under adverse conditions.":
+        "حتّى بالاحتياطي، في الطقس الصعيب يبقى شطر من الحدّ الأدنى للطلب موش مغطّى.",
+    "Pumping before the risk window protects minimum deliveries under the adverse profile.":
+        "الضخّ قبل ساعات الخطر يعاون باش نوصلوا الحدّ الأدنى من الما في الظروف الصعيبة.",
+    "Weather planning protects minimum coverage under both profiles before minimizing early pumping.":
+        "التخطيط حسب الطقس يحمي أقلّ تغطية في الزوز فرضيّات، وبعد ينقّص الضخّ المبكّر.",
+    "The solver maximizes the worst priority coverage before weighted shortfall and delivered water, then minimizes grid peak, grid energy, and water withdrawals.":
+        "الحساب يحسّن أوّل حاجة تغطية القطعة الأقلّ خدمة حسب الأولويّة، وبعد يراعي النقص الموزون والما اللي وصل، ومن بعد ينقّص ذروة القدرة واستهلاك الشبكة وسحب الما.",
+    "Grid-tied pumping is unavailable during outages.":
+        "وقت تقصّ الضوّ ما ننجموش نضخّوا بمضخّة مربوطة بالشبكة وحدها.",
+    "Gravity-fed delivery can continue while water remains in the reservoir.":
+        "التوزيع بالجاذبية ينجم يواصل مادام فمّا ما في الخزّان.",
+    "The proposed plan exhausts the available withdrawal quota.":
+        "البرنامج المقترح يستهلك حصّة السحب المتوفّرة الكلّ.",
+    "The fixed turn alternates sectors.":
+        "في الدور الثابت، القطاعات يتناوبوا.",
+    "The solver prioritizes the least-covered sector under the same tank, pump, grid and delivery constraints.":
+        "الحساب يقدّم القطاع اللي تغطيتو أقلّ، بنفس حدود الخزّان والمضخّة والشبكة وأوقات التوزيع.",
+    "The sectors represent hypothetical demand on mapped cropland.":
+        "الطلب متاع القطاعات افتراضي، والأراضي الفلاحية ظاهرة على الخريطة.",
+    "The solver returned no verified proposed schedule within its budget.":
+        "في الوقت المسموح، الحساب ما عطاش برنامج مقترح متثبّت منّو.",
+    "Only the fixed schedule can be assessed.":
+        "ننجمو نقيّموا كان برنامج الدور الثابت.",
+    "The proposed schedule passed the physical checks; optimality was not established within the time limit.":
+        "البرنامج المقترح تعدّى التثبّت الفيزيائي، أمّا الوقت ما كفاش باش نثبتوا اللي هو أحسن حلّ ممكن.",
+    "The reduced withdrawal limit is a separate what-if calculation.":
+        "تنقيص حصّة السحب تجربة مستقلّة باش نشوفوا شنوة يصير.",
+    "The city profile combines a mapped location, archived climate estimates, and sampled elevation where available.":
+        "ملفّ المدينة يجمع موقعها على الخريطة وتقديرات المناخ من الأرشيف وعيّنات الارتفاع وين تتوفّر.",
+    "The research describes this site's water management context.":
+        "الدراسة تفسّر كيفاش يتصرّفوا في الما في المنطقة هاذي.",
+    "The mapped cover and regional climate estimates help frame field questions.":
+        "خريطة الغطاء الأرضي وتقديرات المناخ يعاونونا نحدّدوا شنوة يلزمنا نتثبّتوا منّو في الميدان.",
+    "The site and layer records below identify which pilot data are available and how they were obtained.":
+        "في التفاصيل تلقى المعطيات المتوفّرة للموقع التجريبي ومنين جات.",
+    "Archived PVGIS estimates describe the reference location and day.":
+        "تقديرات PVGIS في الأرشيف تخصّ النقطة والنهار المرجعيّين.",
+    "Grid savings use simulated pumping demand.":
+        "التوفير في كهرباء الشبكة محسوب حسب طلب الضخّ في المحاكاة.",
+    "The solar options are compared using their modeled generation and avoided grid energy.":
+        "قارنّا حلول الطاقة الشمسية بالإنتاج المقدّر وبقدّاش ننقّصوا من استهلاك الشبكة.",
+    "Those results describe the modeled day.":
+        "النتائج هاذي تخصّ النهار اللي عملنالو محاكاة.",
+    "A field recommendation requires site measurements.":
+        "باش نعطيو توصية للتطبيق، يلزمنا قياسات من الموقع.",
+    "Parcel volumes estimate positive actual evapotranspiration minus gross rainfall.":
+        "الأحجام المقدّرة لكلّ قطعة تمثّل الفرق الموجب بين التبخّر والنتح الفعليين ومجموع المطر.",
+    "Irrigation demand requires crop, soil storage, effective rain and application efficiency.":
+        "باش نحسبوا حاجيات السقي يلزمنا نوع الزراعة ومخزون الما في التربة والمطر الفعّال ونجاعة السقي.",
+    "No validated withdrawal quota or operational schedule is available.":
+        "ما عناش حصّة سحب ولا برنامج خدمة مصادق عليه.",
+    "These virtual meters describe the supplied actions after physical feasibility checks.":
+        "العدّادات الافتراضية توري العمليات المدخلة بعدما تثبّتنا اللي تنجم تصير فيزيائيا.",
+    "Solver optimality is available separately from the planning results.":
+        "تنجم تشوف وحدها نتيجة التثبّت إذا البرنامج هو الحلّ الأمثل.",
+    "A missing reading leaves the physical state intact.":
+        "كي تنقص قراءة من العدّاد، حالة الخزّان والمضخّة ما تتبدّلش.",
+    "An unexplained balance calls for checking meter readings and reservoir stock before assigning a cause.":
+        "كي ما يتفسّرش فرق في حصيلة الما، نراجعوا العدّادات ومستوى الخزّان قبل ما نحكموا على السبب.",
+    "These verified results describe the available context.":
+        "هاذم النتائج اللي تثبّتنا منهم للوضعيّة هاذي.",
+    "I could not establish a further explanation from them.":
+        "المعطيات هاذي ما تكفيش باش نزيد نفسّر أكثر.",
+    "I don't have enough verified evidence or simulation results to answer this question.":
+        "ما عنديش مصادر متثبّت منها ولا نتائج محاكاة تكفي باش نجاوبك.",
+    "The server could not reproduce the displayed schedule exactly.":
+        "السيرفر ما نجّمش يعاود بالضبط حساب البرنامج اللي قدّامك.",
+    "Recalculate before asking about its allocations.":
+        "عاود احسب البرنامج قبل ما تسأل على التوزيع متاعو.",
+    "The comparison uses simulated inputs.":
+        "المقارنة هاذي مبنية على معطيات المحاكاة.",
+    "Field measurements are needed for an operational decision.":
+        "باش ناخذوا قرار في الميدان، يلزمنا قياسات محليّة.",
+    "The evidence search found no matching verified passage.":
+        "البحث ما لقا حتى فقرة متثبّت منها تجاوب على السؤال.",
+    "The assistant reached its tool-call budget before finishing the answer.":
+        "المساعد وصل للحدّ المسموح متاع الاستفسارات قبل ما يكمّل الإجابة.",
+    "The answer uses the verified results already retrieved.":
+        "الإجابة مبنيّة على النتائج اللي تمّ جلبها والتثبّت منها.",
+    "Simulation inputs changed.":
+        "معطيات المحاكاة تبدّلت.",
+    "Recalculate the schedules before asking about current results.":
+        "عاود احسب البرنامج قبل ما تسأل على النتائج الحالية.",
+}
+
+
+def tunisian_explanation(text: str) -> str:
+    localized = []
+    for sentence in re.split(r"(?<=\.)\s+", text):
+        if sentence.endswith(" is unavailable for this answer."):
+            localized.append(f"{sentence.removesuffix(' is unavailable for this answer.')} موش متوفّر للإجابة هاذي.")
+        elif sentence.endswith(" could not complete the response."):
+            localized.append(f"{sentence.removesuffix(' could not complete the response.')} ما نجّمش يكمّل الإجابة.")
+        else:
+            localized.append(_TUNISIAN.get(sentence, sentence))
+    return " ".join(localized)
 
 
 def japanese_explanation(text: str) -> str:

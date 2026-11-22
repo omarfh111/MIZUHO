@@ -416,7 +416,7 @@ def planning_facts(turn: Turn, args: ScenarioArgs, *, explain: bool) -> dict:
         r"\b(?:farmer|grower|plot)\s+([a-z0-9_-]{1,20})\b", turn.request.question, re.IGNORECASE,
     )}
     requested_plots.update(match.upper() for match in re.findall(
-        r"(?:区画|圃場|農家|農地|生産者)\s*([a-z0-9_-]{1,20})", turn.request.question, re.IGNORECASE,
+        r"(?:区画|圃場|農家|農地|生産者|قطعة|القطعة|الضيعة|الفلاّ?ح|الفلاّ?حة|الحقل)\s*([a-z0-9_-]{1,20})", turn.request.question, re.IGNORECASE,
     ))
     for plot in proposed.plot_results or ():
         allocation = turn.fact(
