@@ -105,6 +105,68 @@ def test_language_specific_media_contract(locale, language, model):
     assert not any(provider.capabilities_for("unknown").values())
 
 
+def test_progressive_speech_forwards_whole_samples_immediately_and_closes_on_interrupt():
+    class Utterance(httpx.AsyncByteStream):
+        def __init__(self):
+            self.finish = asyncio.Event()
+            self.closed = False
+
+        async def __aiter__(self):
+            yield b"abc"
+            await self.finish.wait()
+            yield b"d" + b"ef" * 5000
+
+        async def aclose(self):
+            self.closed = True
+
+    async def scenario(interrupt):
+        speech = Utterance()
+        requests = []
+
+        def respond(request):
+            requests.append(json.loads(request.content))
+            return httpx.Response(200, stream=speech, headers={"Content-Type": 'audio/pcm; channels=1; rate="24000"'})
+
+        provider = GuardianProvider("fixture", transport=httpx.MockTransport(respond))
+        parts = provider.stream_speech("  قصّة قصيرة  ", "aeb")
+        async with asyncio.timeout(2):
+            assert await anext(parts) == b"ab"
+        if interrupt:
+            await parts.aclose()
+        else:
+            speech.finish.set()
+            rest = [chunk async for chunk in parts]
+            assert all(0 < len(chunk) <= 8192 and not len(chunk) % 2 for chunk in rest)
+            assert b"".join(rest) == b"cd" + b"ef" * 5000
+        assert speech.closed
+        assert requests == [{"input": "قصّة قصيرة", "language": "ar", "model": "chatterbox",
+                             "response_format": "pcm", "speed": 1, "stream_format": "audio"}]
+
+    asyncio.run(scenario(False))
+    asyncio.run(scenario(True))
+
+
+@pytest.mark.parametrize(("content_type", "content"), [
+    ("audio/mpeg", b"ID3"),
+    ("audio/pcm", b"data"),
+    ("audio/pcm;rate=16000;channels=1", b"data"),
+    ("audio/pcm;rate=24000;channels=2", b"data"),
+    ("audio/pcm;rate=24000;channels=1", b""),
+    ("audio/pcm;rate=24000;channels=1", b"x"),
+    ("audio/pcm;rate=24000;channels=1", b"x" * 34),
+])
+def test_progressive_speech_rejects_mislabeled_truncated_and_oversized_audio(monkeypatch, content_type, content):
+    monkeypatch.setattr("backend.guardian_provider.MAX_PCM_BYTES", 32)
+    provider = GuardianProvider("fixture", transport=httpx.MockTransport(lambda r: httpx.Response(
+        200, headers={"Content-Type": content_type}, content=content)))
+
+    async def read():
+        return [chunk async for chunk in provider.stream_speech("Hello", "en")]
+
+    with pytest.raises(GuardianProviderError):
+        asyncio.run(read())
+
+
 @pytest.mark.parametrize("fallback", [True, False])
 def test_translation_stays_on_its_own_origin_and_never_receives_tools(fallback):
     phrase = "Translate me, including the number 13."

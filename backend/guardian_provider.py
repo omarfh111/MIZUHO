@@ -4,7 +4,10 @@ import asyncio
 import json
 import os
 import ssl
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from email.message import Message
 from functools import cache
 
 import httpx
@@ -17,6 +20,8 @@ DEFAULT_STT = "whisper-large-v3-turbo"
 DEFAULT_TTS = "qwen3-tts-12hz-1.7b"
 DEFAULT_LLM = "qwen3.8-flash-next"
 MAX_CLIP_BYTES = 2 * 1024 * 1024
+PCM_SAMPLE_RATE = 24_000
+MAX_PCM_BYTES = PCM_SAMPLE_RATE * 2 * 120  # Two minutes of mono, 16-bit audio per reply.
 LANGUAGES = {"en": "English", "ja": "Japanese", "aeb": "Tunisian Derja (Arabic script)", "fr": "French"}
 AUDIO_FORMATS = {"audio/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "m4a", "audio/wav": "wav",
                  "audio/x-wav": "wav", "audio/mpeg": "mp3", "audio/flac": "flac"}
@@ -70,7 +75,8 @@ class GuardianProvider:
     def text_backend(self) -> str:
         return "vultr" if self.key and self.llm else "nvidia" if self.nvidia_key else "unavailable"
 
-    async def _post(self, service: str, path: str, *, limit: int, **kwargs) -> tuple[bytes, str]:
+    @asynccontextmanager
+    async def _response(self, service: str, path: str, **kwargs) -> AsyncIterator[httpx.Response]:
         if not self.capabilities[service]:
             raise GuardianProviderError(service)
         api, key = API, self.key
@@ -85,14 +91,18 @@ class GuardianProvider:
                                          **kwargs) as response:
                     if response.status_code != 200:
                         raise GuardianProviderError(service, response.status_code)
-                    data = bytearray()
-                    async for block in response.aiter_bytes():
-                        if len(data) + len(block) > limit:
-                            raise GuardianProviderError(service)
-                        data.extend(block)
-                    return bytes(data), response.headers.get("content-type", "").split(";")[0].lower().strip()
+                    yield response
         except (httpx.HTTPError, TimeoutError):
             raise GuardianProviderError(service) from None
+
+    async def _post(self, service: str, path: str, *, limit: int, **kwargs) -> tuple[bytes, str]:
+        async with self._response(service, path, **kwargs) as response:
+            data = bytearray()
+            async for block in response.aiter_bytes():
+                if len(data) + len(block) > limit:
+                    raise GuardianProviderError(service)
+                data.extend(block)
+            return bytes(data), response.headers.get("content-type", "").split(";")[0].lower().strip()
 
     async def transcribe(self, audio: bytes, mime_type: str, language: str = "fr") -> str:
         mime = mime_type.split(";")[0].strip().lower()
@@ -111,19 +121,50 @@ class GuardianProvider:
         except (KeyError, ValueError, TypeError):
             raise GuardianProviderError("stt") from None
 
-    async def speak(self, text: str, language: str = "fr", *, seed: int | None = None) -> tuple[bytes, str]:
+    def _speech_request(self, text: str, language: str, fmt: str) -> dict:
         if not 0 < len(text.strip()) <= 1600 or language not in LANGUAGES:
             raise GuardianProviderError("tts")
         # Qwen3-TTS has no Arabic checkpoint. Chatterbox uses its multilingual
         # checkpoint for explicit "ar"; neither service promises a Tunisian accent.
         model = "chatterbox" if language == "aeb" else self.tts
+        return {"model": model, "input": text.strip(), "language": "ar" if language == "aeb" else language,
+                "response_format": fmt}
+
+    async def speak(self, text: str, language: str = "fr", *, seed: int | None = None) -> tuple[bytes, str]:
+        payload = self._speech_request(text, language, "mp3")
+        if seed is not None:
+            payload["seed"] = seed
         data, mime = await self._post("tts", "/audio/speech", limit=MAX_CLIP_BYTES,
-                                     json={"model": model, "input": text.strip(), "language": "ar" if language == "aeb" else language,
-                                           "response_format": "mp3", **({"seed": seed} if seed is not None else {})})
+                                     json=payload)
         if mime != "audio/mpeg" or not (data.startswith(b"ID3") or
                                          len(data) > 2 and data[0] == 0xff and data[1] & 0xe0 == 0xe0):
             raise GuardianProviderError("tts")
         return data, mime
+
+    async def stream_speech(self, text: str, language: str = "fr") -> AsyncIterator[bytes]:
+        """Yield playable S16LE samples as Vultr generates them, without splitting a sample."""
+        payload = self._speech_request(text, language, "pcm")
+        payload.update(stream_format="audio", speed=1)
+        async with self._response("tts", "/audio/speech", json=payload) as response:
+            mime = Message()
+            mime["Content-Type"] = response.headers.get("content-type", "")
+            if (mime.get_content_type() != "audio/pcm" or mime.get_param("rate") != str(PCM_SAMPLE_RATE)
+                    or mime.get_param("channels") != "1"):
+                raise GuardianProviderError("tts")
+            total = 0
+            pending = b""
+            async for block in response.aiter_bytes():
+                total += len(block)
+                if total > MAX_PCM_BYTES:
+                    raise GuardianProviderError("tts")
+                samples = pending + block
+                end = len(samples) - len(samples) % 2
+                pending = samples[end:]
+                # Forward short first chunks immediately; cap large HTTP reads for the WebSocket.
+                for offset in range(0, end, 8192):
+                    yield samples[offset:min(offset + 8192, end)]
+            if not total or pending:
+                raise GuardianProviderError("tts")
 
     async def translate(self, text: str, source_language: str, target_language: str) -> str:
         if (source_language not in LANGUAGES or target_language not in LANGUAGES
