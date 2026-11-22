@@ -10,6 +10,18 @@ from backend.guardian_provider import DEFAULT_LLM, DEFAULT_STT, DEFAULT_TTS, MAX
 TOOLS = [{"type": "function", "function": {"name": "inspect_tank", "parameters": {"type": "object", "properties": {}}}}]
 
 
+@pytest.mark.parametrize(("label", "understood"), [("TOPIC", True), ("UNCLEAR", False), ("TOPIC: solar", False)])
+def test_speech_intent_accepts_only_a_single_label(label, understood):
+    def respond(req):
+        body = json.loads(req.content)
+        assert body["messages"][1:] == [{"role": "user", "content": "شنوة فيه؟"}]
+        return httpx.Response(200, json={"choices": [{"finish_reason": "stop",
+                            "message": {"role": "assistant", "content": label}}]})
+
+    provider = GuardianProvider("fixture", transport=httpx.MockTransport(respond))
+    assert asyncio.run(provider.has_spoken_subject("شنوة فيه؟")) is understood
+
+
 def test_vultr_key_is_specific_to_its_origin(monkeypatch):
     monkeypatch.delenv("VULTR_INFERENCE_API_KEY", raising=False)
     monkeypatch.setenv("LLM_API_KEY", "other-provider")

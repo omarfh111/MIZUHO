@@ -17,7 +17,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .assistant_language import valid_question_length
 from .compare import InputError
-from .guardian_conversation import conversational_reply
+from .guardian_conversation import conversational_reply, unfocused_spoken_opening
 from .guardian_dialogue import CallStart, Dialogue
 from .guardian_presentation import audience_question
 from .guardian_provider import GuardianProvider, GuardianProviderError
@@ -106,15 +106,15 @@ def local_route(text, default, *, detect_presentation=True):
     # Transparent, offline access to the same verified read-only tools.
     if detect_presentation and PRESENTATION_REQUEST.search(text):
         return "prepare_presentation", {}
-    if re.search(r"source|evidence|document|étude|資料|文献|出典|anme|wapor|وثيق|وثائق|مصدر|مصادر|دليل", text, re.I):
+    if re.search(r"source|evidence|document|étude|資料|文献|出典|anme|wapor|\b(?:fao|dgre|sonede|pvgis)\b|وثيق|وثائق|مصدر|مصادر|دليل", text, re.I):
         return "search_evidence", {"query": text[:600]}
     if re.search(r"observat|noté|note|constat|記録|ملاحظة|ملاحظتي", text, re.I):
         return "read_observation", {}
-    if re.search(r"plan|schedule|quota|allocation|répart|fairness|deliver|deadline|coverage|grower|計画|配分|農家|期限|配水|公平|برنامج|توزيع|حصّة|حصة|خطّة|خطة|نوبة|نوبتي|دورة السقي|فلّاح|تغطية", text, re.I):
+    if re.search(r"plan|schedule|quota|allocation|répart|fairness|deliver|deadline|coverage|grower|計画|配分|農家|期限|配水|公平|برنامج|توزيع|حصّة|حصة|خطّة|خطة|نوبة|نوبتي|السقي|نسقي|nes9i|فلّاح|تغطية", text, re.I):
         return "explain_plan", {}
     if re.search(r"site|climat|pluie|température|rain|weather|temperature|parcelle|雨|気温|مطر|مناخ|سخانة|حرارة|طقس|أرض|الصبّة", text, re.I):
         return "inspect_site", {}
-    if re.search(r"alert|pump|pompe|débit|réservoir|sensor|capteur|cuve|流量|警報|تنبيه|خزان|خزّان|البومبة|العدّاد|العداد|الدفْق|تسرّب", text, re.I):
+    if re.search(r"alert|pump|pompe|débit|réservoir|sensor|capteur|cuve|流量|警報|تنبيه|خزان|خزّان|البومبة|العدّاد|العداد|الدفْق|تسرّب|الكهرباء|الضوّ|بقى من الما", text, re.I):
         return "inspect_replay", {}
     return default, {}
 
@@ -273,6 +273,17 @@ async def respond(call, provider, prompt, message, send):
     prompt = short_text(prompt)
     voice = provider.capabilities_for(call.start.language)
     text = conversational_reply(call, prompt, spoken=message["type"] == "audio", voice_input_available=voice["stt"])
+    if (not text and message["type"] == "audio" and unfocused_spoken_opening(call, prompt)
+            and local_route(prompt, None)[0] is None and not TRANSLATION_REQUEST.search(prompt)):
+        understood = False
+        if voice["llm"]:
+            try:
+                async with asyncio.timeout(5):
+                    understood = await provider.has_spoken_subject(prompt)
+            except (GuardianProviderError, TimeoutError):
+                pass
+        if not understood:
+            text = "وصلني صوتك، أمّا ما فهمتش بالضبط على شنوة تحكي. تنجّم توضّحلي؟"
     if text:
         return {"type": "reply", "mode": "conversation", "text": text,
                 "citations": [], "facts": [], "tools_used": [], "missing_information": []}

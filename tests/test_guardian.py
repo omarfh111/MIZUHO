@@ -438,6 +438,49 @@ def test_explicit_translation_takes_precedence_over_the_sound_check(client, monk
         assert result["activity"] == "translate" and result["text"] == "聞こえますか？"
 
 
+def test_unclear_derja_speech_requests_clarification_until_a_subject_is_established(client, monkeypatch):
+    classified = []
+
+    class Voice(GuardianProvider):
+        transcript = "أسلم، هذا ما فيه؟"
+
+        async def transcribe(self, *args):
+            return self.transcript
+
+        async def has_spoken_subject(self, prompt):
+            classified.append(prompt)
+            if prompt == "مرة أخرى؟":
+                raise GuardianProviderError("llm")
+            return prompt == "قداش مساحة قبلي؟"
+
+    def respond(body, **kwargs):
+        return graph_done()
+
+    voice = Voice(key="fixture")
+    monkeypatch.setattr(client.app.state.assistant, "providers", SimpleNamespace(respond=respond))
+    monkeypatch.setitem(client.app.state._state, "guardian_provider", lambda: voice)
+    audio = {"type": "audio", "data": "YXVkaW8=", "mime": "audio/wav"}
+    with connect(client) as ws:
+        exchange(ws, type="start", reason="accessibility", site_id="jendouba-pilote", language="aeb")
+        for prompt in ("أسلم، هذا ما فيه؟", "أصلت على ذلك؟", "مرة أخرى؟"):
+            voice.transcript = prompt
+            assert exchange(ws, **audio)["text"] == prompt
+            reply = ws.receive_json()
+            assert reply["mode"] == "conversation" and "توضّحلي" in reply["text"] and not reply["citations"]
+        voice.transcript = "قداش مساحة قبلي؟"
+        exchange(ws, **audio)
+        assert ws.receive_json()["mode"] == "langgraph"
+        voice.transcript = "شنوّة فيه؟"
+        exchange(ws, **audio)
+        assert ws.receive_json()["mode"] == "langgraph"
+        assert classified == ["أسلم، هذا ما فيه؟", "أصلت على ذلك؟", "مرة أخرى؟", "قداش مساحة قبلي؟"]
+    with connect(client) as ws:
+        exchange(ws, type="start", reason="accessibility", site_id="jendouba-pilote", language="aeb")
+        voice.transcript = "وقتاش نسقي؟"
+        exchange(ws, **audio)
+        assert ws.receive_json()["mode"] == "langgraph" and voice.transcript not in classified
+
+
 @pytest.mark.parametrize("question", [
     "Can you hear me? Why did plot B get 5 m³?",
     "Thanks, what does ANME say about solar energy?",

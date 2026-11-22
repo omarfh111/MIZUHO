@@ -14,7 +14,7 @@ MIC_CHECK = re.compile(
     r"(?:is )?my (?:mic|microphone) (?:on|working)|(?:mic|microphone|sound) check|"
     r"(?:est ce que )?(?:tu m entends|vous m entendez|m entendez vous)(?: (?:bien|maintenant))?|"
     r"(?:(?:私の)?声(?:が|は)?\s*)?[聞聴]こえ(?:て(?:い)?ますか|てる|ます(?:か)?|る(?:かな)?|ていますでしょうか)|"
-    r"(?:بالله )?(?:تسمعني|تسمع فيا|الصوت (?:واصل|واضح))(?: (?:توا|مليح|باهي))?|"
+    r"(?:(?:بالله|هل) )?(?:تسمعني|تسمع فيا|الصوت (?:واصل|واضح))(?: (?:توا|مليح|باهي))?|"
     r"tesma3(?:ni| fiya)(?: tawa)?"
 )
 PLAYBACK = re.compile(r"i (?:can t|cant|cannot|can not) hear (?:you|u)|je (?:ne )?(?:t|vous) entends pas|"
@@ -22,6 +22,14 @@ PLAYBACK = re.compile(r"i (?:can t|cant|cannot|can not) hear (?:you|u)|je (?:ne 
 PRESENCE = re.compile(r"are (?:you|u) (?:still )?there|can we (?:talk|chat)|tu es là|t es là|vous êtes là|いますか|موجود[ةه]?")
 THANKS = re.compile(r"(?:thank you|thanks)(?: so much| a lot)?|merci(?: beaucoup)?|どうもありがとう(?:ございます)?|ありがとう(?:ございます)?|يعيشك|شكرا")
 WELLBEING = re.compile(r"how are (?:you|u)(?: doing)?|how s it going|ça va|comment (?:tu vas|allez vous)|元気(?:ですか)?|لاباس")
+
+
+def unfocused_spoken_opening(call, prompt: str) -> bool:
+    """Brief Derja transcripts are uncertain without a prior topic or an explicitly selected result."""
+    return (call.start.language == "aeb" and call.start.reason == "accessibility" and len(prompt.split()) <= 12
+            and not any((call.history, call.observations, call.proposal, call.presentation_brief, call.start.comparison,
+                         call.start.zone_plan, call.start.selected_scenario_id, call.start.solar_option_id,
+                         call.start.pvgis_option_id, call.start.city_id)))
 
 
 def conversational_reply(call, prompt: str, *, spoken: bool, voice_input_available: bool) -> str | None:
