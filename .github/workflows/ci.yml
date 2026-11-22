@@ -91,3 +91,25 @@ jobs:
           curl --fail --silent --show-error --retry 20 --retry-all-errors --retry-delay 1 --max-time 3 "$url/api/health" |
             python -c 'import json, sys; assert json.load(sys.stdin)["status"] == "ok"'
           npm --prefix frontend run test:integration
+
+  aws-container:
+    name: AWS container and browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install the browser test dependencies
+        run: npm --prefix frontend ci
+      - name: Validate deployment and bootstrap templates for Paris
+        run: pipx run --spec cfn-lint==1.61.0 cfn-lint -r eu-west-3 -t deploy/aws/*.yml
+      - name: Build the release image
+        run: docker build --platform linux/amd64 --build-arg "MIZUHO_RELEASE_SHA=$GITHUB_SHA" --tag mizuho:ci .
+      - name: Exercise judge access, planning and voice through HTTPS
+        run: node frontend/tests/aws-container-browser.mjs
