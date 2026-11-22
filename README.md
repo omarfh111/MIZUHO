@@ -47,7 +47,7 @@ The manager schedules deliveries and growers receive them. A regional authority 
 | **M6 · API and irrigation planning** | Load the site and scenarios, compare solar options, and run the M4 simulator and M5 CP-SAT optimizer through FastAPI. |
 | **M7 · National map and 3D dashboard** | Zoom from Tunisia to one of its 24 governorate capitals. In **Site map**, compare six agricultural study zones, the Assila survey, and the Jendouba planning pilot. |
 | **M8 · Evidence assistant** | Search official passages with Qdrant dense retrieval and BM25. Ask about a city's archive or the current site simulation with the same LangGraph agent. |
-| **M9 · AI Voice Guardian** | Receive a call about a replay alert, report a field observation in French and review a revised withdrawal limit with the manager. |
+| **M9 · Voice accessibility** | Open the voice assistant to ask about the screen, rehearse a presentation or translate a passage in English, Japanese or Tunisian Derja. |
 
 ## How it works
 
@@ -155,17 +155,19 @@ flowchart TD
   mem -.-> think
 ```
 
-### Answering a Voice Guardian call (M9)
+### Presenting and translating with the voice assistant (M9)
 
-In **Irrigation planning**, open the Jendouba pilot, calculate the normal day and expand **Virtual sensors and event injection**. Select **Water-balance discrepancy** at the current hour and accept the incoming call. The Guardian reads the M3 alert and M4 tank level for that hour. It asks the farmer to check the meter and reservoir before attributing the discrepancy to a leak. **Missing flow reading** triggers a clarification instead. **Call Voice Guardian** also opens a conversation on demand.
+Open **Voice assistant** from the dashboard. Choose **Ask** to explore the current screen, **Present** to prepare a short explanation for the audience, or **Translate** to translate your own passage. The speaking language follows the interface initially. You can switch between English, Japanese and Tunisian Derja during the session and choose a separate translation target.
 
-The call starts with the microphone off. Type a reply or select **Record message**, then **Send recording** to send that clip to Vultr for French transcription. Use **Record observation** to confirm what the farmer reported. MIZUHO keeps observations and the conversation in memory for that call. Documentary answers cite retrieved M8 passages. The guided text controls also work without Vultr credentials.
+For the jury, open Jendouba in **Irrigation planning**, calculate the A/B scenario and select **Present**. The presenter can explain who received water under each plan using M5's verified comparison. For a different demonstration, inject a water-balance discrepancy in the virtual sensors and choose **Explain alert**. The assistant reads the selected M3/M4 hour and suggests checking the meter and the reservoir before diagnosing a leak.
+
+The microphone starts off. You can type, or choose **Record message** and then **Send recording** to submit the selected clip. Confirm a farmer's statement with **Record observation**. MIZUHO keeps the conversation and observations in memory for that session. Documentary answers cite M8 passages.
 
 In a calculated planning scenario, open **Review a new quota** to preview a lower withdrawal allowance. M5 recalculates the planning horizon and displays the projected on-time delivery. The current schedule changes only after the manager selects **Confirm simulated plan**. Set `MIZHUO_MANAGER_APPROVAL_CODE` on shared instances to require a separate manager code. With this setting empty, the local demo trusts the person operating the planning screen. All changes apply to the simulator.
 
-For spoken calls, set `VULTR_INFERENCE_API_KEY` in the backend's root `.env` using the model settings from [.env.example](.env.example) and restart FastAPI. The browser requires HTTPS or localhost for microphone access. The reverse proxy must forward WebSocket upgrades on `/api/guardian/call`. With the project environment active, `python -m tools.guardian_smoke --live` verifies French synthesis, transcription and tool selection using synthetic speech and the configured billable endpoint.
+The existing Vultr language model powers conversation and translation. The configured NVIDIA model also supports the text workflows when Vultr language inference is unconfigured. Keep credentials in the backend's root `.env`. Speech uses Vultr Whisper for recognition, Qwen3 for English and Japanese playback, and Chatterbox's Arabic voice for Derja text. Regional pronunciation and recognition in field noise still need evaluation with Tunisian speakers. Microphone access requires HTTPS or localhost, and the reverse proxy must forward WebSocket upgrades on `/api/guardian/call`. [Server settings](.env.example)
 
-With both local servers running and the backend Python environment active, run `node frontend/tests/guardian-live-browser.mjs --live` for the complete Chrome walkthrough. It feeds a synthetic French question through the browser recorder, checks the answer against the M3 discrepancy and decodes the spoken reply. Tunisian Arabic and performance with field noise still need evaluation with speakers.
+With the backend Python environment active, `python -m tools.guardian_smoke --live` checks all three languages using synthetic speech, translation and tool selection. With both local servers running, `node frontend/tests/guardian-live-browser.mjs --live` also exercises the microphone controls, a spoken M3 answer, Japanese and Tunisian presentations, and Japanese-to-Derja translation in Chrome. These opt-in tests use the configured billable endpoints.
 
 ### From sources to citations
 
@@ -206,7 +208,7 @@ The six georeferenced study windows cover Korba, Chebika, Gafsa–El Ksar, Mateu
 
 ## Run MIZUHO
 
-Choose **English** or **日本語** in the opening or dashboard. Changing language keeps the selected site, unsaved planning inputs and calculated comparison. The browser remembers the choice. A link such as `/?lang=ja&intro=0&site=sfax-el-hajeb#simulation` opens El Hajeb in Japanese. The assistant accepts questions and explains results in the chosen language. Publisher excerpts retain their original wording.
+Choose **English**, **日本語** or **تونسي** in the opening or dashboard. Changing language preserves the selected site, unsaved inputs and calculated comparison. The browser remembers your choice. For example, `/?lang=aeb&intro=0&site=sfax-el-hajeb#simulation` opens El Hajeb in Tunisian Derja with a right-to-left layout. Publisher excerpts retain their original wording.
 
 Use Git, Python **3.12** and Node.js **22.12 or later**. Once dependencies are installed, the local backend and frontend run the maps, optimizer, digital twin, forecast and event demonstrations without credentials or network access. Configure OpenAI and Qdrant in step 2 for conversational answers and indexed retrieval.
 
