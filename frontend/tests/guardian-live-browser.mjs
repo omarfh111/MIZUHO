@@ -12,19 +12,22 @@ url.searchParams.set('intro', '0');
 url.searchParams.set('site', 'jendouba-pilote');
 url.hash = 'simulation';
 
-// Only this short synthetic question enters the browser microphone track.
+// The microphone receives only these two synthetic questions; no personal speech is recorded.
 const synthesizeQuestion = [
-  'import asyncio, sys',
+  'import asyncio, base64, json',
   'from dotenv import load_dotenv',
   'from backend.guardian_provider import GuardianProvider',
   'load_dotenv(".env")',
-  'audio, _ = asyncio.run(GuardianProvider.from_env().speak("Please explain the water balance alert on the tank meter.", "en"))',
-  'sys.stdout.buffer.write(audio)',
+  'async def synthesize():',
+  '    provider = GuardianProvider.from_env()',
+  '    questions = ("Please explain the water balance alert on the tank meter.", "Which official source describes solar photovoltaic potential in northwest Tunisia? Please cite the national energy agency.")',
+  '    return [base64.b64encode((await provider.speak(question, "en"))[0]).decode() for question in questions]',
+  'print(json.dumps(asyncio.run(synthesize())))',
 ].join('\n');
 const fixture = spawnSync(process.env.MIZHUO_TEST_PYTHON || 'python', ['-X', 'utf8', '-c', synthesizeQuestion], {
-  cwd: new URL('../../', import.meta.url), timeout: 45_000, maxBuffer: 2 * 1024 * 1024,
+  cwd: new URL('../../', import.meta.url), timeout: 90_000, maxBuffer: 4 * 1024 * 1024,
 });
-assert.ok(fixture.status === 0 && fixture.stdout?.length, 'Unable to synthesize the English test question.');
+assert.ok(fixture.status === 0 && fixture.stdout?.length, 'Unable to synthesize the two test questions.');
 
 const browser = await chromium.launch({
   ...(process.env.MIZHUO_CHROME_PATH ? { executablePath: process.env.MIZHUO_CHROME_PATH } : { channel: 'chrome' }),
@@ -35,22 +38,26 @@ try {
   page.setDefaultTimeout(45_000);
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.addInitScript(base64 => {
+  await page.addInitScript(fixtures => {
     navigator.mediaDevices.getUserMedia = async () => {
       const ctx = new AudioContext();
-      const buffer = Uint8Array.from(atob(base64), char => char.charCodeAt(0));
-      const source = ctx.createBufferSource();
-      source.buffer = await ctx.decodeAudioData(buffer.buffer);
       const sink = ctx.createMediaStreamDestination();
-      source.connect(sink);
+      const questions = await Promise.all(fixtures.map(fixture =>
+        ctx.decodeAudioData(Uint8Array.from(atob(fixture), char => char.charCodeAt(0)).buffer)));
       await ctx.resume();
       window.testGuardianTrack = sink.stream.getAudioTracks()[0];
-      window.testQuestionEnded = new Promise(resolve => { source.onended = resolve; });
+      window.sayTestQuestion = index => {
+        const source = ctx.createBufferSource();
+        source.buffer = questions[index];
+        source.connect(sink);
+        source.onended = () => { source.disconnect(); window.questionEndedAt = performance.now(); };
+        source.start();
+        return performance.now();
+      };
       window.closeTestAudio = () => ctx.close();
-      source.start(ctx.currentTime + 0.35);
       return sink.stream;
     };
-  }, fixture.stdout.toString('base64'));
+  }, JSON.parse(fixture.stdout.toString('utf8')));
 
   await page.goto(url.href);
   const replay = page.waitForResponse(r => new URL(r.url()).pathname === '/api/telemetry/replay');
@@ -61,39 +68,39 @@ try {
   await twin.getByLabel('Water-balance discrepancy').check();
   await page.getByRole('region', { name: 'Guardian alert' }).waitFor();
   const connection = page.waitForEvent('websocket', { predicate: ws => new URL(ws.url()).pathname === '/api/guardian/call' });
-  await page.getByRole('button', { name: 'Voice assistant' }).click();
+  await page.getByRole('button', { name: 'Start live voice', exact: true }).click();
   const ws = await connection;
   const dialog = page.getByRole('dialog', { name: 'Voice Guardian' });
   const log = dialog.getByRole('log', { name: 'Conversation' });
-  await log.getByText(/13 m³.*meter/i).waitFor();
-  const player = dialog.locator('audio');
-  assert.equal(await player.count(), 0);
-  assert.equal(await page.evaluate(() => !!window.testGuardianTrack), false);
+  const orb = state => dialog.locator(`.guardian-orb[data-state="${state}"]`);
+  const frame = (type, turn) => ws.waitForEvent('framereceived', {
+    predicate: ({ payload }) => { const msg = JSON.parse(payload); return msg.type === type && msg.turn_id === turn; },
+    timeout: 90_000,
+  }).then(({ payload }) => JSON.parse(payload));
+  await orb('listening').waitFor();
+  const firstTranscript = frame('transcript', 1), firstAnswer = frame('reply', 1);
+  await page.evaluate(() => window.sayTestQuestion(0));
+  assert.match((await firstTranscript).text, /water.balance.*tank meter/i);
+  const answer = await firstAnswer;
+  assert.equal(answer.mode, 'langgraph');
+  assert.ok(answer.tools_used.includes('get_sensor_anomalies'));
+  assert.match(answer.text, /13 m³/);
+  await orb('speaking').waitFor({ timeout: 90_000 });
+  const firstReplyMs = await page.evaluate(() => Math.round(performance.now() - window.questionEndedAt));
 
-  await dialog.getByRole('button', { name: 'Record message' }).click();
-  await dialog.getByRole('button', { name: 'Stop recording' }).waitFor();
-  await page.evaluate(() => window.testQuestionEnded.then(() => true));
-  await dialog.getByRole('button', { name: 'Stop recording' }).click();
-  const replyFrames = [];
-  const replyAudio = ws.waitForEvent('framereceived', {
-    predicate: ({ payload }) => JSON.parse(payload).type === 'audio', timeout: 60_000,
-  });
-  ws.on('framereceived', ({ payload }) => {
-    const msg = JSON.parse(payload);
-    if (msg.type === 'transcript' || msg.type === 'reply') replyFrames.push(msg);
-  });
-  await dialog.getByRole('button', { name: 'Send recording' }).click();
-  await log.getByText(/water.balance.*tank meter/i).waitFor({ timeout: 45_000 });
-  // Both the initial alert and the answer must report the M3 discrepancy.
-  await log.getByText(/13 m³.*meter/i).nth(1).waitFor({ timeout: 45_000 });
-  assert.ok(['vultr_tools', 'nvidia_tools'].includes(replyFrames.find(message => message.type === 'reply')?.mode));
-  assert.match(replyFrames.find(message => message.type === 'transcript')?.text ?? '', /water.balance.*tank meter/i);
-  const { mime, data } = JSON.parse((await replyAudio).payload);
-  assert.ok(mime === 'audio/mpeg' && data.length > 1000);
-  await page.waitForFunction(expected => {
-    const audio = document.querySelector('dialog[open] audio');
-    return audio?.src === expected && audio.duration > 0;
-  }, `data:${mime};base64,${data}`, { timeout: 45_000 });
+  // Interrupt audible output with a documentary question on the same live mic.
+  const evidenceReply = frame('reply', 2);
+  const interruptedAt = await page.evaluate(() => window.sayTestQuestion(1));
+  await orb('hearing').waitFor();
+  const interruptionMs = await page.evaluate(start => Math.round(performance.now() - start), interruptedAt);
+  const evidence = await evidenceReply;
+  assert.equal(evidence.mode, 'langgraph');
+  assert.ok(evidence.tools_used.includes('search_evidence'));
+  assert.ok(evidence.citations.some(item => item.organization === 'ANME' && item.excerpt && item.url.startsWith('https://')));
+  await log.locator('.assistant-citation').filter({ hasText: /ANME/ }).first().waitFor();
+  await orb('speaking').waitFor({ timeout: 90_000 });
+  const evidenceReplyMs = await page.evaluate(() => Math.round(performance.now() - window.questionEndedAt));
+  await dialog.getByRole('button', { name: 'Pause microphone' }).click();
   assert.equal(await page.evaluate(() => window.testGuardianTrack.readyState), 'ended');
   await page.evaluate(() => window.closeTestAudio());
   const speaking = dialog.getByLabel('Speaking language');
@@ -113,7 +120,8 @@ try {
   await dialog.getByRole('button', { name: 'Done' }).click();
   await dialog.waitFor({ state: 'detached' });
   assert.deepEqual(errors, []);
-  console.log('Chrome verified direct English microphone assistance, a spoken M3 answer, Japanese and Tunisian presentations and a real Japanese-to-Derja translation.');
+  console.log(`End of synthetic speech to first playback: replay ${firstReplyMs} ms, official evidence ${evidenceReplyMs} ms. Spoken interruption registered in ${interruptionMs} ms.`);
+  console.log('Chrome verified one-click hands-free speech, interruption, M8 retrieval with an ANME citation, a spoken M3 result, Japanese and Tunisian presentations and a real Japanese-to-Derja translation.');
 } finally {
   await browser.close();
 }
