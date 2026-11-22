@@ -1,0 +1,54 @@
+.guardian-orb {
+  --orb-accent: #a6bdaf;
+  position: relative;
+  isolation: isolate;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid #35483f;
+  border-radius: 14px;
+  color: var(--text);
+  background-color: #0b1512;
+  background-image:
+    radial-gradient(ellipse at 50% 42%, #23433594, transparent 65%),
+    radial-gradient(circle, #54746425 .7px, transparent .9px);
+  background-size: auto, 8px 8px;
+}
+.guardian-orb:is([data-state="listening"], [data-state="hearing"], [data-state="connecting"]) { --orb-accent: #89ead0; }
+.guardian-orb[data-state="thinking"] { --orb-accent: #bfcaff; }
+.guardian-orb[data-state="speaking"] { --orb-accent: #d4f785; }
+.guardian-orb[data-state="unavailable"] { --orb-accent: #edae9d; }
+.guardian-orb canvas {
+  display: block;
+  width: 100%;
+  height: clamp(122px, 20dvh, 174px);
+}
+.guardian-orb canvas:not([data-drawn]) {
+  background: radial-gradient(circle at center, var(--orb-accent) 1px, transparent 2px 24px, var(--orb-accent) 25px, transparent 26px);
+}
+.guardian-orb figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 12px 10px;
+  font: 650 .76rem/1.4 var(--display);
+  color: var(--orb-accent);
+}
+.guardian-orb-status-light {
+  width: 6px;
+  height: 6px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+.guardian-orb:is([data-state="listening"], [data-state="hearing"], [data-state="speaking"]) .guardian-orb-status-light {
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+@media (max-height: 520px) {
+  .guardian-orb canvas { height: 85px; }
+  .guardian-orb figcaption { padding-bottom: 6px; }
+}
+@media (forced-colors: active) {
+  .guardian-orb figcaption { color: CanvasText; }
+}

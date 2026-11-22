@@ -31,7 +31,19 @@ try {
   assert.equal(await page.getByRole('combobox', { name: '農業サイト' }).inputValue(), 'sfax-el-hajeb');
   assert.equal(await page.locator('html').getAttribute('lang'), 'ja');
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-  await page.getByRole('combobox', { name: '言語', exact: true }).selectOption('en');
+  await page.getByRole('combobox', { name: '言語', exact: true }).selectOption('aeb');
+  await page.getByRole('link', { name: 'التخطيط للسقي', exact: true }).waitFor();
+  assert.equal(await page.locator('html').getAttribute('lang'), 'aeb-TN');
+  assert.equal(await page.locator('html').getAttribute('dir'), 'rtl');
+  const tnSummary = page.locator('.region-summary');
+  assert.match(await tnSummary.getAttribute('aria-label'), /[ء-ي]/);
+  assert.deepEqual(await tnSummary.locator('tbody tr:first-child td').allTextContents(), displayed);
+  assert.equal(await page.getByRole('spinbutton', { name: /المخزون الأولي للخزّان/ }).inputValue(), '7');
+  assert.equal(await page.getByRole('combobox', { name: 'الموقع الفلاحي' }).inputValue(), 'sfax-el-hajeb');
+  await page.getByRole('button', { name: 'المعاون الصوتي', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'حضّر العرض', exact: true }).waitFor();
+  await page.keyboard.press('Escape');
+  await page.getByRole('combobox', { name: 'اللغة', exact: true }).selectOption('en');
   await summary.waitFor();
   assert.equal(await stock.inputValue(), '7');
   await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('ja');
@@ -43,6 +55,16 @@ try {
   await page.getByRole('link', { name: '灌漑計画', exact: true }).click();
   await page.getByRole('heading', { name: '計画の前提条件を設定' }).waitFor();
   assert.equal(await page.getByRole('combobox', { name: '農業サイト' }).inputValue(), 'sfax-el-hajeb');
+  await page.getByRole('combobox', { name: '言語', exact: true }).selectOption('aeb');
+  await page.goto(base.href);
+  assert.equal(await page.locator('html').getAttribute('dir'), 'rtl');
+  const citySearch = page.getByRole('searchbox');
+  await citySearch.fill('صَفَاقِس');
+  const directory = page.getByRole('complementary', { name: 'دليل المدن' });
+  assert.equal(await directory.getByRole('listitem').count(), 1);
+  await directory.getByRole('button').click();
+  await page.getByRole('heading', { name: 'صفاقس', exact: true }).first().waitFor();
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   assert.deepEqual(errors, []);
-  console.log('English and Japanese preserve the active site, edited stock and calculated results. Japanese city search and saved preferences passed on mobile.');
+  console.log('English, Japanese and Tunisian preserve the site, edited stock and calculated results. RTL layout, direct voice tools, native city searches and saved preferences passed on mobile.');
 } finally { await browser.close(); }

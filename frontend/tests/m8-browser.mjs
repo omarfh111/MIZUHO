@@ -20,6 +20,7 @@ function waitForChat(page) {
 
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  page.setDefaultTimeout(25_000);
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(base.href);
   await visible(page.getByText('API · simulated site'));
@@ -30,8 +31,17 @@ try {
   await page.keyboard.press('Escape');
   await page.getByRole('link', { name: 'Irrigation planning', exact: true }).click();
   await page.getByRole('combobox', { name: 'Scenario' }).selectOption('mini');
+  const miniPending = page.waitForResponse(r => new URL(r.url()).pathname === '/api/compare');
   await page.getByRole('button', { name: 'Calculate schedules' }).click();
-  await visible(page.getByText('Group minimum · 50 %'));
+  const miniResponse = await miniPending;
+  assert.equal(miniResponse.status(), 200);
+  const mini = await miniResponse.json();
+  assert.equal(mini.baseline.metrics.worst_coverage_bp, 0);
+  assert.equal(mini.optimized.metrics.worst_coverage_bp, 5000);
+  const metrics = page.getByRole('region', { name: 'Performance comparison' });
+  const coverage = metrics.getByRole('article').filter({ has: page.getByRole('heading', { name: 'Minimum coverage', exact: true }) });
+  await visible(coverage);
+  assert.match(await coverage.locator('strong').innerText(), /^\s*50\s*%\s*$/);
   await page.getByRole('button', { name: 'Approve simulated plan' }).click();
   await visible(page.getByText(/Simulated plan approved/));
 
@@ -56,6 +66,7 @@ try {
   await visible(panel.getByText(/Plot A \(EXP-01\): 5 m³ by its deadline/).first());
   await visible(panel.locator('.assistant-paragraph > p').filter({ hasText: /coverage|fairness/i }).first());
   await visible(panel.getByText('MIZUHO · Simulated', { exact: true }).first());
+  console.log('Approved numerical comparison and grounded assistant allocation passed.');
 
   await panel.getByRole('textbox', { name: 'Your question' }).fill(
     'What does ANME say about photovoltaic potential in northwest Tunisia?',
@@ -90,6 +101,7 @@ try {
   assert.equal(followUp.request().postDataJSON().session_id, session);
   assert.ok((await followUp.json()).citations.some((source) => source.source_id === 'solar'));
   await visible(panel.getByRole('article').last().locator('.assistant-paragraph > p').filter({ hasText: /from ANME/ }));
+  console.log('Citations, same-session follow-up and transient provider failure recovery passed.');
 
   await page.keyboard.press('Escape');
   if (provider === 'nvidia') {
@@ -169,9 +181,12 @@ try {
   if (await panel.isVisible()) await page.keyboard.press('Escape');
   await page.getByRole('link', { name: 'Land & agriculture', exact: true }).click();
   await page.getByRole('searchbox', { name: 'Search cities' }).fill('Tozeur');
-  const archive = await (await page.request.get(new URL('/api/tunisia', base).href)).json();
-  const tozeur = archive.cities.find(city => /tozeur/i.test(city.name));
-  await page.getByRole('button', { name: `View ${tozeur.name}`, exact: true }).click();
+  const selectedCity = page.waitForResponse(r => new URL(r.url()).pathname.startsWith('/api/tunisia/cities/'));
+  await page.getByRole('button', { name: /^View .*Tozeur/i }).click();
+  const citySelection = await selectedCity;
+  assert.equal(citySelection.status(), 200);
+  const { city: tozeur } = await citySelection.json();
+  assert.match(tozeur.name, /tozeur/i);
   const analysis = page.getByRole('region', { name: `${tozeur.name} analysis` });
   const period = { start: '2025-07-01', end: '2025-07-07' };
   await analysis.getByLabel('Start date').fill(period.start);

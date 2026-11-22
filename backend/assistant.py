@@ -2,6 +2,7 @@
 
 import json
 import re
+from collections.abc import Callable
 from pathlib import Path
 from time import monotonic
 from typing import TypedDict
@@ -10,7 +11,7 @@ from langgraph.graph import END, START, StateGraph
 from langsmith import tracing_context
 
 from .assistant_memory import AssistantMemory, recall
-from .assistant_language import japanese_explanation
+from .assistant_language import japanese_explanation, tunisian_explanation, valid_question_length
 from .assistant_tools import TOOLS, Turn, run_tool
 from .catalog import Catalog
 from .compare import InputError, effective_scenario
@@ -70,6 +71,12 @@ NUMERIC = re.compile(
     r"double|triple|zéro|deux|trois|quatre|cinq|sept|huit|neuf|dix|vingt|cinquante|cent|mille)\b",
     re.IGNORECASE,
 )
+ARABIC_QUANTITY = re.compile(
+    r"\b(?:و?(?:ال)?(?:صفر|واحد[ةه]?|اثني?ن|اثنان|زوز|زوج|ثلاث[ةه]?|ثلاثين|ثلاثون|ثلاثطاش|"
+    r"أربع[ةه]?|اربعة|أربعين|خمس[ةه]?|خمسين|ست[ةه]?|ستين|سبع[ةه]?|سبعين|ثماني?[ةه]?|"
+    r"ثمنية|ثمانين|تسع[ةه]?|تسعين|عشر[ةه]?|عشرين|عشرون|حداش|اثناش|مئة|مائة|مية|"
+    r"ميتين|ألف|آلاف|مليون|ملايين|نص|نصف|ربع|ثلث|ضعف|ضعفين|مرتين))\b"
+)
 
 
 def object_schema(properties: dict) -> dict:
@@ -104,6 +111,14 @@ FUNCTIONS = [
 CITY_TOOLS = {"get_city_data", "search_evidence"}
 
 
+def available_tools(turn: Turn):
+    if turn.city:
+        return CITY_TOOLS
+    if not turn.request.site_id:
+        return {"search_evidence"}
+    return TOOLS.keys() - {"get_city_data"}
+
+
 class GraphState(TypedDict):
     turn: Turn
     messages: list[dict]
@@ -115,16 +130,17 @@ class GraphState(TypedDict):
 def think(state: GraphState) -> dict:
     turn = state["turn"]
     respond = turn.providers.respond_nvidia if turn.request.provider == "nvidia" else turn.providers.respond
-    city_mode = turn.city is not None
-    language = ("Write explanations and missing-information messages in Japanese. Keep original source excerpts, "
+    allowed = available_tools(turn)
+    answer_language = {"ja": "Japanese", "en": "English", "aeb": "friendly Tunisian Derja in Arabic script"}[turn.request.language]
+    language = (f"Write explanations and missing-information messages in {answer_language}. Keep original source excerpts, "
                 "fact IDs, place IDs and tool arguments intact. For documentary retrieval, search using the "
-                "publisher's terminology in English or French." if turn.request.language == "ja"
-                else "Write explanations and missing-information messages in English.")
+                "publisher's terminology in English or French.")
     data = respond({
-        "instructions": INSTRUCTIONS + "\n" + language + ("\n" + CITY_INSTRUCTIONS if city_mode else ""),
+        "instructions": INSTRUCTIONS + "\n" + language + ("\n" + CITY_INSTRUCTIONS if turn.city else
+            "\nThe national atlas is open. Only documentary sources are in scope. Ask for a location before discussing field data or plans."
+            if not turn.request.site_id else ""),
         "input": state["messages"],
-        "tools": [tool for tool in FUNCTIONS
-                  if (tool["name"] in CITY_TOOLS if city_mode else tool["name"] != "get_city_data")],
+        "tools": [tool for tool in FUNCTIONS if tool["name"] in allowed],
         "tool_choice": "auto",
         "max_output_tokens": 1200,
         "parallel_tool_calls": True,
@@ -190,9 +206,10 @@ def tools(state: GraphState) -> dict:
     for call in state["pending"]:
         turn.remaining()
         name = call["name"]
-        allowed = name in CITY_TOOLS if turn.city else name != "get_city_data"
-        data = (run_tool(turn, name, call["arguments"]) if allowed else
+        data = (run_tool(turn, name, call["arguments"]) if name in available_tools(turn) else
                 {"error": "This tool is unavailable for the active location."})
+        if turn.tool_result and "error" not in data:
+            turn.tool_result(name, data)
         results.append({"type": "function_call_output", "call_id": call["call_id"], "output": json.dumps(data, ensure_ascii=False)})
     return {"messages": [*state["messages"], *results], "pending": []}
 
@@ -216,6 +233,7 @@ def clean_text(value: object, maximum: int) -> str | None:
     text = " ".join(value.split())
     if (not text or any(char.isnumeric() for char in text) or NUMERIC.search(text)
             or re.search(r"半分|半減|倍増|倍量|倍に|倍の", text)
+            or ARABIC_QUANTITY.search(re.sub(r"[\u064b-\u065f\u0670\u0640]", "", text))
             or re.search(r"https?://|www\.|[<>{}\[\]]", text, re.IGNORECASE)):
         return None
     return text
@@ -270,6 +288,7 @@ def finalize(turn: Turn, answer: dict) -> AssistantAnswer:
     for citation in cited.values():
         paragraphs.append(GroundedParagraph(
             text=(f"{citation.organization} の原文で「{citation.section}」を確認できます。" if turn.request.language == "ja"
+                  else f"النصّ الأصلي متاع {citation.organization} تلقاه في القسم «{citation.section}»." if turn.request.language == "aeb"
                   else f"The verified passage from {citation.organization} covers {citation.section}."),
             citation_ids=(citation.id,), fact_ids=(),
         ))
@@ -290,9 +309,10 @@ def finalize(turn: Turn, answer: dict) -> AssistantAnswer:
         rationale = decision.model_copy(update={"fact_ids": references})
         paragraphs = [rationale, *(p for p in paragraphs if not supporting.intersection(p.fact_ids))]
         used.update((key, turn.facts[key]) for key in references)
-    if turn.request.language == "ja":
-        paragraphs = [paragraph.model_copy(update={"text": japanese_explanation(paragraph.text)}) for paragraph in paragraphs]
-        gaps = [japanese_explanation(gap) for gap in gaps]
+    localize = {"ja": japanese_explanation, "aeb": tunisian_explanation}.get(turn.request.language)
+    if localize:
+        paragraphs = [paragraph.model_copy(update={"text": localize(paragraph.text)}) for paragraph in paragraphs]
+        gaps = [localize(gap) for gap in gaps]
     return AssistantAnswer(
         paragraphs=tuple(paragraphs), citations=tuple(cited.values()), facts=tuple(used.values()),
         missing_information=tuple(dict.fromkeys(gaps)), tools_used=tuple(turn.tools_used),
@@ -301,7 +321,7 @@ def finalize(turn: Turn, answer: dict) -> AssistantAnswer:
 
 def run_assistant(request: AssistantRequest, catalog: Catalog, corpus: Corpus, providers: Providers,
                   solver_budget: float, memory: AssistantMemory | None = None, *,
-                  tunisia_data_dir: Path = ARCHIVE_DIR) -> AssistantAnswer:
+                  tunisia_data_dir: Path = ARCHIVE_DIR, tool_result: Callable[[str, dict], None] | None = None) -> AssistantAnswer:
     sites = {feature.properties.site_id for feature in catalog.sites.features}
     city = None
     if request.city_id:
@@ -320,9 +340,12 @@ def run_assistant(request: AssistantRequest, catalog: Catalog, corpus: Corpus, p
             raise InputError("city_period", "Choose dates within the city's climate archive.") from None
     elif request.city_period:
         raise InputError("city_period", "Select a Tunisian city before choosing a date range.")
-    elif request.site_id not in sites:
+    elif not request.site_id and (request.comparison or request.zone_plan or request.telemetry or request.solar_option_id
+                                  or request.pvgis_option_id or request.selected_scenario_id or request.simulation_pending):
+        raise InputError("site_id", "Choose a registered site before discussing a simulation.")
+    elif request.site_id and request.site_id not in sites:
         raise InputError("site_id", "Unknown site.")
-    if len(request.question.strip()) < 3:
+    if not valid_question_length(request.question, request.language):
         raise InputError("question", "Enter a question with at least three characters.")
     if request.solar_option_id is not None:
         site = catalog.solar.get(request.site_id)
@@ -355,7 +378,7 @@ def run_assistant(request: AssistantRequest, catalog: Catalog, corpus: Corpus, p
         if scenario is None or scenario.site_id != request.site_id:
             raise InputError(("comparison", "scenario_id"), "The comparison must belong to the current site.")
         effective_scenario(catalog, comparison)
-    turn = Turn(request, catalog, corpus, providers, monotonic() + TURN_TIMEOUT, solver_budget, city=city)
+    turn = Turn(request, catalog, corpus, providers, monotonic() + TURN_TIMEOUT, solver_budget, city=city, tool_result=tool_result)
     if memory is None or request.session_id is None:
         return answer_turn(turn, [])
     with memory.session(request.session_id) as key:

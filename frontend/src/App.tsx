@@ -1,6 +1,6 @@
 import { Activity, ArrowLeft, ArrowUpRight, Droplets, FlaskConical, Globe2, Map, MapPin, Radio, Sparkles, Sun, Waves } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { getCatalog, getTunisia, type Catalog } from './api.ts';
+import { assistantSolarContext, getCatalog, getTunisia, type Catalog } from './api.ts';
 import { nearestSiteCity, siteFromLocation } from './siteLocation.ts';
 import EvidencePanel from './components/EvidencePanel.tsx';
 import SiteMap from './components/SiteMap.tsx';
@@ -9,6 +9,7 @@ import type { AssistantSimulationContext, RegionPlanContext, SolarOption, Tunisi
 import SitePicker from './components/SitePicker.tsx';
 import CivicContinuity from './components/CivicContinuity.tsx';
 import { LanguageSelector } from './i18n/LanguageProvider.tsx';
+import { useLanguage } from './i18n/language.ts';
 
 const Simulation = lazy(() => import('./components/Simulation.tsx'));
 const AssistantPanel = lazy(() => import('./components/AssistantPanel.tsx'));
@@ -16,6 +17,7 @@ const TunisiaExplorer = lazy(() => import('./components/TunisiaExplorer.tsx'));
 const ResourceView = lazy(() => import('./components/ResourceView.tsx'));
 const RegionalPlanning = lazy(() => import('./components/RegionalPlanning.tsx'));
 const FieldDayAudit = lazy(() => import('./components/FieldDayAudit.tsx'));
+const VoiceGuardian = lazy(() => import('./components/VoiceGuardian.tsx'));
 type Page = 'tunisia' | 'map' | 'energy' | 'simulation';
 const currentPage = (): Page => {
   const hash = window.location.hash;
@@ -23,6 +25,7 @@ const currentPage = (): Page => {
 };
 
 export default function App() {
+  const language = useLanguage();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [failure, setFailure] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -178,6 +181,16 @@ export default function App() {
         <a href="#tunisia" aria-current={page === 'tunisia' ? 'page' : undefined}><Globe2 size={15} /> Tunisia</a>
         <a href="#map" aria-current={page === 'map' ? 'page' : undefined}><Map size={15} /> Site map</a>
       </nav>}
+      {catalog?.mode === 'live' && !(page === 'simulation' && site && (site.properties.field_zone || scenarios.length > 0)) &&
+        <Suspense fallback={null}><VoiceGuardian key={activeCity ? [activeCity.id, period?.start, period?.end].join('/') : activeSite?.properties.site_id ?? 'national'}
+          context={{ site_id: activeSite?.properties.site_id, city_id: activeCity?.id, city_period: activeCity ? period : undefined,
+            ...(activeSite?.properties.field_zone && zonePlan ? { zone_plan: zonePlan } : assistantSolarContext(activeSite ? solar : null)),
+            ...(activeSite && assistantSimulation && { comparison: assistantSimulation.comparison,
+              selected_scenario_id: assistantSimulation.scenarioId, simulation_pending: !assistantSimulation.comparison || assistantSimulation.pending }) }}
+          incoming={page === 'simulation' && activeSite?.properties.survey_available ? {
+            id: activeSite.properties.site_id + '/missing-planning-inputs', reason: 'clarification',
+            context: { site_id: activeSite.properties.site_id },
+          } : undefined} /></Suspense>}
       {page === 'tunisia' ? <Suspense fallback={<div className="surface page-fallback" role="status">Loading Tunisia explorer…</div>}>
         <TunisiaExplorer selectedCityId={cityId} onCityResolved={setCity} selectedPeriod={period}
           onCityChange={selectCity} onPeriodChange={setPeriod} sites={citySites} />
@@ -186,7 +199,7 @@ export default function App() {
           <div className="eyebrow"><span className="eyebrow-rule" />
             {page === 'map' ? 'RESOURCE MAPPING' : page === 'energy' ? 'RESOURCE ASSESSMENT' : 'IRRIGATION CONTINUITY'}
           </div>
-          <h1>{page === 'map' ? <><em>Irrigation</em> observatory</> : page === 'energy' ? <><em>Water</em> &amp; energy</> : <><em>Daily water</em> deliveries</>}</h1>
+          <h1>{page === 'map' ? (language === 'aeb' ? <>مرصد <em>السقي</em></> : <><em>Irrigation</em> observatory</>) : page === 'energy' ? <><em>Water</em> &amp; energy</> : <><em>Daily water</em> deliveries</>}</h1>
           <p>{page === 'map' ? site?.properties.field_zone
               ? 'Inspect the terrain, land cover, and evidence behind this agricultural zone.'
               : 'Explore the site, compare solar options, and plan irrigation.'
@@ -226,7 +239,7 @@ export default function App() {
           onEvidence={setSource} onPlan={() => navigate('simulation')} />
       </Suspense>}
       {page === 'energy' && catalog?.mode === 'live' && <CivicContinuity key={siteId || cityId} city={site?.properties.label ?? city?.name ?? 'the selected area'} />}
-      {page === 'simulation' && <Suspense fallback={null}><FieldDayAudit key={siteId || cityId} /></Suspense>}
+      {page === 'simulation' && <Suspense fallback={null}><FieldDayAudit key={siteId || cityId} siteId={site?.properties.site_id} /></Suspense>}
       {catalog && site && visitedSimulation && <div hidden={page !== 'simulation'}>
         {site.properties.field_zone ? <Suspense fallback={<p role="status">Loading regional planner…</p>}>
           <RegionalPlanning key={siteId} site={site} visible={page === 'simulation'} onPlanChange={setZonePlan} />
@@ -246,8 +259,11 @@ export default function App() {
         setSolar(option); setSolarIds(null); navigate('simulation');
       }} />}
     {catalog && source && <EvidencePanel key={source} source={source} mode={catalog.mode} close={() => setSource(null)} />}
-    {(activeCity || activeSite) && <button type="button" className="assistant-launch button button-primary" aria-haspopup="dialog"
-      onClick={() => setAssistantOpen(true)}><Sparkles size={19} /> Ask Mizhuo</button>}
+    <div className="assistant-launch">
+      <span id="live-voice-launcher" />
+      {(activeCity || activeSite) && <button type="button" className="button button-primary" aria-haspopup="dialog"
+        onClick={() => setAssistantOpen(true)}><Sparkles size={19} /> Ask Mizhuo</button>}
+    </div>
     {(activeCity || activeSite) && assistantOpen !== undefined && <Suspense fallback={null}>
       <AssistantPanel site={activeSite} city={activeCity ?? undefined} period={activeCity ? period : undefined}
         mode={activeCity ? 'live' : catalog?.mode ?? 'demo'}

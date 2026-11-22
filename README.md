@@ -47,6 +47,7 @@ The manager schedules deliveries and growers receive them. A regional authority 
 | **M6 · API and irrigation planning** | Load the site and scenarios, compare solar options, and run the M4 simulator and M5 CP-SAT optimizer through FastAPI. |
 | **M7 · National map and 3D dashboard** | Zoom from Tunisia to one of its 24 governorate capitals. In **Site map**, compare six agricultural study zones, the Assila survey, and the Jendouba planning pilot. |
 | **M8 · Evidence assistant** | Search official passages with Qdrant dense retrieval and BM25. Ask about a city's archive or the current site simulation with the same LangGraph agent. |
+| **M9 · Voice accessibility** | Open the voice assistant to ask about the screen, rehearse a presentation or translate a passage in English, Japanese or Tunisian Derja. |
 
 ## How it works
 
@@ -154,6 +155,28 @@ flowchart TD
   mem -.-> think
 ```
 
+### Presenting and translating with the voice assistant (M9)
+
+Select **Start live voice** and grant microphone access. On a phone, look for the waveform button beside **Ask Mizhuo**. Ask a question, pause for an answer, then speak again to interrupt or ask a follow-up. The orb responds to the microphone and playback levels. Its caption also identifies when the assistant is listening, processing a question or speaking. **Pause microphone**, leaving the dialog or hiding the tab releases the microphone.
+
+Voice Guardian opens in **Chat**. Try asking “Who are you?” or “Help me introduce MIZUHO to a grower.” You can follow up with “Make it shorter” or “Translate that into Japanese.” To ask about the current simulation, name the alert, plan or solar option you see on screen. Numerical answers come from the selected simulation or site record. Choose **Present** to rehearse with the current view or **Translate** to enter a passage and select its target language. The initial speaking language follows the interface. English, Japanese and Tunisian Derja are available.
+
+For documentary evidence, select **Sources** or ask explicitly in Chat, for example “Which official source describes solar pumping?” This uses the M8 LangGraph assistant. Open a citation to read the publisher’s passage. If the connected research service is unavailable, Voice Guardian identifies the locally available material. A spoken request for sources in Chat applies to that turn.
+
+To hand the floor to Guardian, say “Present our project in Japanese to the judges.” Keep speaking English to guide the presentation. “What features have we integrated?”, “Focus on water and energy” and “Tell us more” bring up different parts of the briefing in Japanese. The project team can edit the multilingual speaking notes and see the implementation behind each section. [Project briefing](data/guardian/project-presentation.json)
+
+For your own script, open **Presenter notes** in **Chat** or **Present**. Paste up to 4,000 characters or import a UTF-8 `.txt` or `.md` file, select its language and choose **Use these notes**. “Read my notes in Japanese” reads the team’s words, translating with the connected model if needed. Say “Continue” for the next passage of a longer script. The transcript labels these words as the presenter’s script. Personalization and translation can send notes to the configured voice model. The app keeps notes in memory for this call. Closing the call starts the next session with the built-in briefing.
+
+For the jury, open Jendouba in **Irrigation planning**, calculate the A/B scenario and select **Present**. The presenter can explain who received water under each plan using M5's verified comparison. For a different demonstration, inject a water-balance discrepancy in the virtual sensors and choose **Explain alert**. The assistant reads the selected M3/M4 hour and suggests checking the meter and the reservoir before diagnosing a leak.
+
+Live voice detects pauses on the device and sends each completed phrase to the server for transcription. During a requested source search, the assistant can speak an initial finding while M8 prepares the full explanation. The browser plays incoming speech samples as they arrive. Source retrieval and model inference affect response time. For typing or individual clips, open **Voice assistant**. In that mode recording is optional and **Send recording** submits the selected clip. Confirm a farmer's statement with **Record observation**. MIZUHO keeps this conversation and its observations in memory for the session.
+
+In a calculated planning scenario, open **Review a new quota** to preview a lower withdrawal allowance. M5 recalculates the planning horizon and displays the projected on-time delivery. The current schedule changes only after the manager selects **Confirm simulated plan**. Set `MIZHUO_MANAGER_APPROVAL_CODE` on shared instances to require a separate manager code. With this setting empty, the local demo trusts the person operating the planning screen. All changes apply to the simulator.
+
+The existing Vultr language model powers conversation and translation. The configured NVIDIA model also supports the text workflows when Vultr language inference is unconfigured. Keep credentials in the backend's root `.env`. Speech uses Vultr Whisper for recognition, Qwen3 for English and Japanese playback, and Chatterbox's Arabic voice for Derja text. Regional pronunciation and recognition in field noise still need evaluation with Tunisian speakers. Microphone access requires HTTPS or localhost, and the reverse proxy must forward WebSocket upgrades on `/api/guardian/call`. [Server settings](.env.example)
+
+With the backend Python environment active, `python -m tools.guardian_smoke --live` checks all three languages using synthetic speech, translation and tool selection. With both local servers running, `node frontend/tests/guardian-live-browser.mjs --live` exercises one-click listening, interruption, a spoken M3 result, M8 retrieval with an official citation, Japanese and Tunisian presentations and Japanese-to-Derja translation in Chrome. These opt-in tests use the configured billable endpoints and synthetic microphone input.
+
 ### From sources to citations
 
 Every citation resolves to a verified excerpt of a registered source. Stable IDs and content hashes let re-ingestion reuse unchanged embeddings.
@@ -193,7 +216,7 @@ The six georeferenced study windows cover Korba, Chebika, Gafsa–El Ksar, Mateu
 
 ## Run MIZUHO
 
-Choose **English** or **日本語** in the opening or dashboard. Changing language keeps the selected site, unsaved planning inputs and calculated comparison. The browser remembers the choice. A link such as `/?lang=ja&intro=0&site=sfax-el-hajeb#simulation` opens El Hajeb in Japanese. The assistant accepts questions and explains results in the chosen language. Publisher excerpts retain their original wording.
+Choose **English**, **日本語** or **تونسي** in the opening or dashboard. Changing language preserves the selected site, unsaved inputs and calculated comparison. The browser remembers your choice. For example, `/?lang=aeb&intro=0&site=sfax-el-hajeb#simulation` opens El Hajeb in Tunisian Derja with a right-to-left layout. Publisher excerpts retain their original wording.
 
 Use Git, Python **3.12** and Node.js **22.12 or later**. Once dependencies are installed, the local backend and frontend run the maps, optimizer, digital twin, forecast and event demonstrations without credentials or network access. Configure OpenAI and Qdrant in step 2 for conversational answers and indexed retrieval.
 
@@ -272,6 +295,8 @@ Open **Irrigation planning** at Jendouba and choose **Normal day**. Select **Use
 Read the daily commitments for the selected plan. Open **Compare your own rotation** and try pumping 8 m³ and delivering 20 m³ to parcel A at 09:00 on that same day. The zero quota rules out pumping. The simulator shows how much of the requested delivery the stock and gravity flow can support. Omitted hours stay idle in the operator’s rotation.
 
 To review a completed day, open **Check a recorded delivery day**, download the blank CSV and enter anonymous parcel commitments and metered volumes. The browser reports which recorded deadlines were met and how many parcels had a reading. Missing observations stay unknown. The file stays in browser memory and is cleared when you leave the planning view or change sites. [Field validation protocol](docs/v5-capability-audit.md#how-a-water-group-could-validate-the-pilot)
+
+For a demonstration, download the selected site’s example and import it in the same panel. Six regional sites and the Jendouba pilot have simulated delivery files. The Assila template contains the mapped parcel codes and leaves operator readings blank. The regional examples replay the fixed irrigation schedule with documented equipment and demand assumptions. [Downloadable CSV files](frontend/src/assets/delivery-examples/) · [Inputs and reproduction](data/zone_planning/README.md)
 
 ### Try the same decision in different places
 

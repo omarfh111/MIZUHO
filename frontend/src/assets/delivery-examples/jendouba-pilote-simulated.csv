@@ -1,0 +1,6 @@
+date,parcel_id,last_slot,minimum_m3,by_deadline_m3,by_day_end_m3,simulated_site
+2025-07-15,A,11,10,10,10,jendouba-pilote
+2025-07-15,B,13,10,10,10,jendouba-pilote
+2025-07-15,C,15,12,10,10,jendouba-pilote
+2025-07-15,D,18,10,10,10,jendouba-pilote
+2025-07-15,E,20,8,10,10,jendouba-pilote

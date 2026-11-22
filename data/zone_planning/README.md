@@ -55,3 +55,15 @@ The physical model uses hourly steps and integer cubic metres. Hour 15 represent
 The reference rotation alternates west and east during the chosen window. Its schedule requests enough pumping to cover that turn after using available tank stock. M4 replays those scheduled requests with the selected outages, storage, withdrawal limit, gravity flow and power constraints. M5 searches for a schedule under identical constraints and can pump ahead of the window. M4 independently rechecks its actions. The answer includes the full hourly comparison, per-sector coverage and final water and energy balances. The source link applies to the solar forcing. All actions, pumped volumes and delivered volumes are simulated.
 
 The example yields 9 m³ delivered on time under the reference rotation, including 8 m³ withdrawn, and 16 m³ under the optimized plan, including 15 m³ withdrawn. These values depend on the stated assumptions. Official withdrawal permits, measured storage, a surveyed network, crop demands, canal turns and installation data are still needed for a field decision.
+
+## Delivery CSVs for the site demonstration
+
+In **Irrigation planning**, open **Check a recorded delivery day**. Select **Download simulated site CSV**, then import the file to see the deadline and shortfall for each sector. The `simulated_site` column travels with each row, including after a file rename. Real operator records use the six-column blank template. The browser reads both formats locally.
+
+The [downloadable examples](../../frontend/src/assets/delivery-examples/) reproduce the fixed rotation in M4. For the six regional sites, the input date is 15 July 2025. Each site's own NASA POWER weather drives its modeled PV generation and FAO-56 water demand. Both sectors use an assumed crop coefficient of 1.1, an effective rainfall fraction of 0.8 and an irrigation efficiency of 0.8. The hypothetical west and east sectors cover 1,000 m² and 750 m² respectively. Their modeled gross daily water demands serve as the minimum commitments for this exercise.
+
+The station assumptions are shared across the six sites. The 20 m³ tank starts with 1 m³, the withdrawal ceiling is 16 m³, and pumping and gravity delivery are limited to 4 m³/h. Pumping uses 500 Wh/m³. The grid limit is 500 W and the PV array is rated 2.5 kWp with a performance ratio of 0.8. Deliveries run from slot 08 through slot 15. A simulated outage covers slots 11 through 13. Locations with similar weather can produce the same rounded volumetric result. All delivery volumes are simulated.
+
+Jendouba uses the committed fictional 24-hour normal-day scenario. Its CSV uses the same example calendar date for convenience. Assila has mapped parcel codes but lacks delivery commitments and meter records. Its template leaves all operational fields empty for the operator to complete.
+
+To regenerate these files from the committed archives with the backend environment active, run `python -m tools.field_zones.delivery_examples` from the repository root.

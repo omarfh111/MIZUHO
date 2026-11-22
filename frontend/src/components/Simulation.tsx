@@ -2,7 +2,7 @@ import {
   BadgeCheck, CalendarClock, CircleAlert, CloudSun, Droplets, Gauge, Play, Radio, RotateCcw, Settings2, Sun, TriangleAlert, Zap,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ApiError, compare, type DataMode, type FieldErrors } from '../api.ts';
+import { ApiError, assistantSolarContext, compare, type DataMode, type FieldErrors } from '../api.ts';
 import { hour, percent, value } from '../format.ts';
 import { defaultOperating, parseOperating, type OperatingInputs } from '../operating.ts';
 import OperatingEditor from './OperatingEditor.tsx';
@@ -11,7 +11,8 @@ import OutageLab, { OutageEntry } from './OutageLab.tsx';
 import { useExperience } from '../experience/index.ts';
 import type { AssistantSimulationContext, CompareRequest, Comparison, Plan, Scenario, SolarOption } from '../types.ts';
 import Planning from './Planning.tsx';
-import DigitalTwin from './DigitalTwin.tsx';
+import DigitalTwin, { type GuardianEvent } from './DigitalTwin.tsx';
+import VoiceGuardian, { type GuardianConfirmation } from './VoiceGuardian.tsx';
 import type { ReplayContext } from '../twin.ts';
 import type { Site } from '../types.ts';
 
@@ -144,6 +145,7 @@ export default function Simulation({ site, visible, scenarios, mode, solar, onCl
   const [stress, setStress] = useState(false);
   const cinematic = useExperience().active;
   const [telemetry, setTelemetry] = useState<ReplayContext>();
+  const [guardianEvent, setGuardianEvent] = useState<GuardianEvent>();
   const [selectedPlan, selectPlan] = useState<ReplayContext['plan']>('optimized');
   const [inputs, setInputs] = useState(() => initialInputs(scenarios[0]));
   const [beforeExample, setBeforeExample] = useState<Inputs>();
@@ -160,6 +162,7 @@ export default function Simulation({ site, visible, scenarios, mode, solar, onCl
   useEffect(() => () => inFlight.current?.abort(), []);
 
   const invalidate = () => {
+    setGuardianEvent(undefined);
     inFlight.current?.abort();
     setLoading(false);
     setRevision((version) => version + 1);
@@ -246,13 +249,42 @@ export default function Simulation({ site, visible, scenarios, mode, solar, onCl
   else if (stale) outcome = 'Result out of date · recalculate to continue.';
   else if (calculated) outcome = statusText(calculated, mode);
 
+  function confirmGuardian(confirmed: GuardianConfirmation) {
+    if (!current || !calculated || !('comparison' in confirmed) || confirmed.comparison.scenario_id !== scenario.id) return;
+    const quota = confirmed.comparison.state.quota_remaining_m3;
+    const candidate = confirmed.result.weather_comparison?.buffer_on_adverse ?? confirmed.result.optimized;
+    if (quota >= calculated.request.state.quota_remaining_m3 || !candidate.actions || !candidate.metrics) return;
+    const next = revision + 1;
+    const request = { ...calculated.request, state: { ...calculated.request.state, quota_remaining_m3: quota } };
+    const time = new Date().toISOString();
+    setInputs(previous => ({ ...previous, quota: String(quota) }));
+    setRevision(next);
+    setCalculated({ ...calculated, revision: next, request, comparison: confirmed.result });
+    setGuardianEvent(undefined);
+    setTelemetry(undefined);
+    selectPlan('optimized');
+    setValidation(time);
+    saveValidation({ time, request, actions: candidate.actions });
+  }
+
+  const guardian = mode === 'live' && visible && !cinematic && <VoiceGuardian
+    key={`${revision}-${Boolean(current)}-${selectedPlan}-${stress}`}
+    context={{ site_id: site.properties.site_id, comparison: stress ? undefined : assistantContext,
+      selected_scenario_id: scenario.id, simulation_pending: stress || !assistantContext,
+      ...assistantSolarContext(solar),
+      telemetry: !stress && current ? telemetry : undefined }}
+    incoming={!stress && current && guardianEvent?.context.comparison === calculated?.request &&
+      guardianEvent?.context.telemetry.plan === selectedPlan ? guardianEvent : undefined}
+    onConfirm={confirmGuardian} />;
+
   if (stress) {
     const parsed = parseInputs(inputs, scenario, solar);
-    return visible && !cinematic && <OutageLab key={revision} site={site} plan={Object.keys(parsed.errors).length ? undefined : parsed.request}
+    return visible && !cinematic && <>{guardian}<OutageLab key={revision} site={site} plan={Object.keys(parsed.errors).length ? undefined : parsed.request}
       label={scenario.label} capacity={scenario.site.tank_capacity_m3} plots={scenario.plots.map(plot => plot.plot_id)}
-      back={() => setStress(false)}/>;
+      back={() => setStress(false)}/></>;
   }
   return <>
+    {(!calculated || !current) && guardian}
     <form className="surface simulation-controls" noValidate onSubmit={(event) => { event.preventDefault(); void run(); }}>
       <div className="panel-heading">
         <div className="title-with-icon"><div className="section-icon"><Settings2 size={18} /></div><div>
@@ -317,7 +349,8 @@ export default function Simulation({ site, visible, scenarios, mode, solar, onCl
     </div>
     {calculated && <>
       {mode === 'live' && visible && current && <DigitalTwin key={calculated.revision} site={site}
-        request={calculated.request} comparison={calculated.comparison} plan={selectedPlan} onSelectPlan={selectPlan} onContext={setTelemetry} />}
+        request={calculated.request} comparison={calculated.comparison} plan={selectedPlan} onSelectPlan={selectPlan}
+        onContext={setTelemetry} onGuardianEvent={setGuardianEvent} guardian={guardian} />}
       <Planning key={`${calculated.scenario.id}-${calculated.revision}`} comparison={calculated.comparison}
         scenario={calculated.scenario} input={calculated.request} stale={stale} live={mode === 'live'}
         selectedPlan={selectedPlan} onSelectPlan={selectPlan} onEvidence={onEvidence} />

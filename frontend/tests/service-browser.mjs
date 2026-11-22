@@ -104,6 +104,33 @@ async function fieldDay(page) {
     Object.keys(storage).some(key => `${key} ${storage.getItem(key)}`.includes(token))), marker), false);
 }
 
+async function simulatedSiteDownload(page) {
+  const picker = page.getByRole('combobox', { name: 'Agricultural site' });
+  await picker.selectOption('gafsa-oasis');
+  const summary = page.getByText('Check a recorded delivery day', { exact: true });
+  await summary.click();
+  const [file] = await Promise.all([page.waitForEvent('download'),
+    page.getByRole('link', { name: 'Download simulated site CSV' }).click()]);
+  assert.equal(file.suggestedFilename(), 'gafsa-oasis-simulated.csv');
+  const chunks = [];
+  for await (const chunk of await file.createReadStream()) chunks.push(chunk);
+  const renamed = { name: 'renamed.csv', mimeType: 'text/csv', buffer: Buffer.concat(chunks) };
+  const chooser = page.getByLabel('Recorded delivery CSV');
+  await chooser.setInputFiles(renamed);
+  const simulated = page.getByRole('region', { name: 'Simulated delivery results' });
+  await simulated.getByText('Volumes calculated by the physical simulator').waitFor();
+  assert.equal(await simulated.getByRole('rowheader').count(), 2);
+  assert.equal(await page.getByRole('region', { name: 'Recorded delivery results' }).count(), 0);
+  await picker.selectOption('korba-cap-bon');
+  await summary.click();
+  await chooser.setInputFiles(renamed);
+  await page.getByRole('alert').filter({ hasText: 'This simulated example belongs to a different site.' }).waitFor();
+  await picker.selectOption('TN-32-BALTABOUAWENE-ASSILA');
+  await summary.click();
+  await page.getByRole('link', { name: 'Download mapped parcel template' }).waitFor();
+  assert.equal(await page.getByRole('link', { name: 'Download simulated site CSV' }).count(), 0);
+}
+
 try {
   for (const width of [1360, 390]) {
     const page = await browser.newPage({ viewport: { width, height: 860 }, reducedMotion: 'reduce' });
@@ -123,6 +150,7 @@ try {
       assert.equal(await page.getByRole('button', { name: 'Calculate schedules' }).count(), 0);
     }
     await fieldDay(page);
+    if (width > 400) await simulatedSiteDownload(page);
     assert.equal(recordSent, false, 'An anonymous field record was sent over the network');
     assert.deepEqual(errors, []);
     await page.close();

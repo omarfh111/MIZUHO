@@ -17,11 +17,12 @@ export default defineConfig(({ mode }) => {
       alias: { '@mizhuo/i18n': fileURLToPath(new URL('./src/i18n', import.meta.url)) },
       dedupe: ['react', 'react-dom', 'three'],
     },
-    server: { proxy: { '/api': env.MIZU_API_TARGET || 'http://127.0.0.1:8000' } },
+    server: { proxy: { '/api': { target: env.MIZU_API_TARGET || 'http://127.0.0.1:8000', ws: true } } },
     build: {
       rollupOptions: {
         output: {
           manualChunks(id) {
+            if (/\/src\/i18n\/tunisian(Messages|Patterns)\.ts$/.test(id)) return 'tunisian-messages';
             if (/\/src\/i18n\/(common|explore|planning)\.ts$/.test(id)) return 'japanese-messages';
             if (id.endsWith('/three/build/three.core.js')) return 'three-core';
             if (id.includes('/node_modules/three/')) return 'three-renderer';

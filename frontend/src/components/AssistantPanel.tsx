@@ -1,8 +1,9 @@
-import { ArrowUp, BookOpenText, ExternalLink, LoaderCircle, Sparkles } from 'lucide-react';
+import { ArrowUp, LoaderCircle, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { ApiError, askAssistant, getAssistantHealth, type DataMode } from '../api.ts';
-import { dateLabel, provenanceLabel } from '../format.ts';
+import { ApiError, askAssistant, assistantSolarContext, getAssistantHealth, type DataMode } from '../api.ts';
+import { dateLabel } from '../format.ts';
 import type { AssistantAnswer, AssistantHealth, AssistantSimulationContext, RegionPlanContext, Site, SolarOption, TunisiaCity, TunisiaPeriod } from '../types.ts';
+import { Metric, SourceCitation } from './AssistantEvidence.tsx';
 import { Modal } from './EvidencePanel.tsx';
 import { translate, useLanguage } from '../i18n/language.ts';
 
@@ -32,30 +33,6 @@ function createSessionId() {
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
   return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20)].join('-');
-}
-
-function Metric({ fact }: { fact: AssistantAnswer['facts'][number] }) {
-  return <div className="assistant-fact">
-    <span className={`assistant-provenance provenance-${fact.provenance}`}>{fact.source_url ? 'Source data' : 'MIZUHO'} · {provenanceLabel[fact.provenance]}</span>
-    <span>{fact.text}</span>
-    {fact.source_url && <a href={fact.source_url} target="_blank" rel="noreferrer" className="text-button">
-      Open dataset <ExternalLink size={14} />
-    </a>}
-  </div>;
-}
-
-function SourceCitation({ citation }: { citation: AssistantAnswer['citations'][number] }) {
-  return <details className="assistant-citation" open>
-    <summary><BookOpenText size={15} /> {citation.organization} · {citation.title}</summary>
-    <div>
-      <p className="muted">{citation.section} · {dateLabel(citation.date)}
-        {citation.page != null && ` · p. ${citation.page}`}</p>
-      <p className="muted">Publisher excerpt</p>
-      <blockquote translate="no">{citation.excerpt}</blockquote>
-      <p><strong>MIZUHO assessment:</strong> {citation.limitation}</p>
-      <a href={citation.url} target="_blank" rel="noreferrer" className="text-button">Read the source <ExternalLink size={14} /></a>
-    </div>
-  </details>;
 }
 
 function Answer({ answer }: { answer: AssistantAnswer }) {
@@ -142,11 +119,9 @@ export default function AssistantPanel({ site, city, period, mode, solar, simula
       if (!controller.signal.aborted) setTurns((previous) => [...previous.slice(0, -1), entry]);
       request.current = null;
     };
-    const archive = solar?.source_id === 'pvgis-sarah3-jendouba-2023';
     askAssistant({
       provider, language, question: prompt, site_id: site?.properties.site_id, city_id: city?.id, city_period: period, session_id: sessionId,
-      solar_option_id: archive ? undefined : solar?.id,
-      pvgis_option_id: archive && (solar.id === 'ombriere' || solar.id === 'toiture') ? solar.id : undefined,
+      ...assistantSolarContext(solar),
       comparison: simulation?.comparison, selected_scenario_id: simulation?.scenarioId,
       simulation_revision: simulation?.revision, simulation_pending: simulation?.pending,
       telemetry: simulation?.telemetry, zone_plan: zonePlan,

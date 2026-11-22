@@ -10,6 +10,7 @@ import OutageLab, { OutageEntry } from './OutageLab.tsx';
 import CommitmentRegister from './CommitmentRegister.tsx';
 import OperatorRotation from './OperatorRotation.tsx';
 import StoredWaterOnly from './StoredWaterOnly.tsx';
+import VoiceGuardian, { type GuardianConfirmation } from './VoiceGuardian.tsx';
 import './field-zone.css';
 
 const RegionalSiteScene = lazy(() => import('./RegionalSiteScene.tsx'));
@@ -42,8 +43,8 @@ const example: Record<InputKey, string> = {
 const hours = Array.from({ length: 24 }, (_, hour) => hour);
 const planNames = { baseline: 'Fixed turn', optimized: 'Optimized plan' };
 
-function PlanSummary({ result }: { result: RegionalPlanningResult }) {
-  const [approvedAt, approve] = useState<Date>();
+function PlanSummary({ result, confirmedAt }: { result: RegionalPlanningResult; confirmedAt?: Date }) {
+  const [approvedAt, approve] = useState<Date | undefined>(confirmedAt);
   const proposed = result.comparison.optimized;
   const reviewable = ['OPTIMAL', 'FEASIBLE'].includes(proposed.status) && proposed.metrics && proposed.actions?.length;
   const rows: [string, (plan: Plan) => string][] = [
@@ -89,6 +90,7 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
   const cinematic = useExperience().active;
   const [resources, setResources] = useState<{ profile: FieldZone; context: RegionalPlanningContext }>();
   const [resourceError, setResourceError] = useState(false);
+  const [needsQuota, setNeedsQuota] = useState(false);
   const [attempt, retry] = useState(0);
   const [opened, setOpened] = useState(visible);
   const [stress, setStress] = useState(false);
@@ -98,7 +100,7 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
   const [selectedDate, setDate] = useState('');
   const [outages, setOutages] = useState<number[]>([]);
   const [exampleLoaded, setExampleLoaded] = useState(false);
-  const [calculated, setCalculated] = useState<{ inputs: RegionPlanRequest; result: RegionalPlanningResult }>();
+  const [calculated, setCalculated] = useState<{ inputs: RegionPlanRequest; result: RegionalPlanningResult; confirmedAt?: Date }>();
   const result = calculated?.result;
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -140,6 +142,7 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
   }, [result, visible]);
 
   function invalidate() {
+    setNeedsQuota(false);
     request.current?.abort();
     setBusy(false);
     setCalculated(undefined);
@@ -197,9 +200,24 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
     }
   }
 
-  if (!resources) return <section className="surface page-fallback" role={resourceError ? 'alert' : 'status'}>
+  function confirmGuardian(confirmed: GuardianConfirmation) {
+    if (!calculated || !('zone_inputs' in confirmed) || confirmed.zone_result.site_id !== id ||
+      confirmed.zone_inputs.withdrawal_limit_m3 >= calculated.inputs.withdrawal_limit_m3) return;
+    const { zone_inputs: inputs, zone_result: next } = confirmed;
+    setDraft(previous => ({ ...previous, withdrawal_limit_m3: String(inputs.withdrawal_limit_m3) }));
+    setCalculated({ inputs, result: next, confirmedAt: new Date() });
+    onPlanChange({ inputs, comparison_id: next.comparison_id });
+    play(false);
+    selectPlan('optimized');
+    seek(inputs.delivery_start_hour);
+  }
+  const guardian = visible && !cinematic && <VoiceGuardian key={stress ? 'stress' : result?.comparison_id ?? 'setup'}
+    context={{ site_id: id, zone_plan: !stress && calculated ? { inputs: calculated.inputs, comparison_id: calculated.result.comparison_id } : undefined }}
+    incoming={!stress && needsQuota && !draft.withdrawal_limit_m3 ? { id: id + '/missing-quota', reason: 'clarification' } : undefined}
+    onConfirm={confirmGuardian} />;
+  if (!resources) return <>{guardian}<section className="surface page-fallback" role={resourceError ? 'alert' : 'status'}>
     {resourceError ? <>Regional planning inputs could not be loaded. <button type="button" className="button button-secondary"
-      onClick={() => retry(n => n + 1)}>Retry planning inputs</button></> : 'Loading the regional terrain and solar archive…'}</section>;
+      onClick={() => retry(n => n + 1)}>Retry planning inputs</button></> : 'Loading the regional terrain and solar archive…'}</section></>;
 
   const { profile, context } = resources;
   if (stress) {
@@ -209,11 +227,11 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
       ...Object.fromEntries(keys.map(key => [key, Number(draft[key])])) as Record<InputKey, number>,
       date: day.date, outage_hours: outages, ...(Object.keys(demandBasis).length > 0 && { demand_basis: demandBasis }),
     } : undefined;
-    return visible && !cinematic && <OutageLab site={site} plan={inputs} profile={profile} label="Regional experiment"
+    return visible && !cinematic && <>{guardian}<OutageLab site={site} plan={inputs} profile={profile} label="Regional experiment"
       capacity={Number(draft.tank_capacity_m3)} plots={context.anchors.map(a => a.plot_id)} back={() => {
         setStress(false);
         if (result && inputs) onPlanChange({ inputs, comparison_id: result.comparison_id });
-      }}/>;
+      }}/></>;
   }
   const [west, south, east, north] = profile.relief.bounds;
   const markers = context.anchors.map(anchor => {
@@ -226,6 +244,7 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
   });
   const actionCount = plan?.actions?.length ?? 0;
   return <div className="region-planning" aria-label="Regional planning experiment">
+    {guardian}
     <section className="surface field-detail-card region-location" aria-label="Regional simulation terrain" ref={replayRegion} tabIndex={-1}>
       <div className="region-title"><div><h2><MapPin size={20} /> {site.properties.label}</h2>
         <p>Two hypothetical irrigation sectors, each anchored to a cell classified as cropland by ESA WorldCover in 2021.</p></div>
@@ -266,7 +285,7 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
         plots={context.anchors.map(({ plot_id }) => ({ plot_id, deadline_slot: calculated.inputs.delivery_end_hour,
           allowed_slots: hours.filter(h => h >= calculated.inputs.delivery_start_hour && h <= calculated.inputs.delivery_end_hour) }))} />
       <OperatorRotation siteId={id} plan={calculated.inputs} plotIds={context.anchors.map(a => a.plot_id)} horizon={24} />
-      <PlanSummary key={calculated.result.comparison_id} result={calculated.result} />
+      <PlanSummary key={calculated.result.comparison_id} result={calculated.result} confirmedAt={calculated.confirmedAt} />
     </>}
     <section className="surface field-detail-card region-form" ref={assumptionSection}>
       <div className="region-title"><div><h2><Droplets size={20} /> Set planning assumptions</h2>
@@ -299,7 +318,10 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
         }}
         onDiscard={sector => { if (demandBasis[sector]) edit(`demand_${sector}_m3`, ''); }} /> :
         <p className="muted small">A verified daily reference ET₀ and rainfall pair is unavailable. Enter sector demands below.</p>}
-      <form onSubmit={solve}>
+      <form onSubmit={solve} onInvalidCapture={event => {
+        const field = event.target;
+        if (field instanceof HTMLInputElement && field.name === 'withdrawal_limit_m3' && field.validity.valueMissing) setNeedsQuota(true);
+      }}>
         <StoredWaterOnly onApply={() => {
           invalidate();
           setDraft(current => ({ ...current, withdrawal_limit_m3: '0' }));
@@ -307,7 +329,7 @@ export default function RegionalPlanning({ site, onPlanChange, visible = true }:
         }} />
         {groups.map(group => <fieldset key={group.title}><legend>{group.title}</legend><div className="region-inputs">
           {group.fields.map(({ key, title, unit, min = 0, max = 100000, step = '1' }) =>
-            <div key={key}><label className="field"><span>{title} ({unit})</span><input type="number" required min={min}
+            <div key={key}><label className="field"><span>{title} ({unit})</span><input type="number" name={key} required min={min}
               max={max} step={step} value={draft[key] ?? ''} onChange={e => edit(key, e.target.value)} /></label>
               {((key === 'demand_west_m3' && demandBasis.west) || (key === 'demand_east_m3' && demandBasis.east)) &&
                 <div className="region-demand-origin"><small>Weather estimate · {dateLabel(selectedDate)}</small>
