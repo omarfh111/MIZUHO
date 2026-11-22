@@ -166,20 +166,20 @@ The catalogue contains **eight sites**. Jendouba is the fictional engineering pi
 
 During a replay, trigger an unexpected outage or pump shutdown to see which commitments can still be met. Inject a missing or inconsistent meter reading to compare the instrument with the physical ledger. The day-ahead load forecast evaluates a Ridge model against held-out simulated load history. [Operating scenarios and verification](docs/integration-v5.md#judge-walkthrough)
 
-**M1–M3** prepare the site, energy and weather inputs. **M4** applies the physical water and energy balances. **M5** uses OR-Tools CP-SAT to search for a schedule and M4 checks the outcome. **M6** exposes these services through FastAPI and Pydantic. **M7** is the React, TypeScript and Three.js interface. **M8** and **M9** provide documentary and spoken assistance. [Integration architecture and module history](docs/integration-v5.md)
+Site, solar and weather data supply the planning inputs. The physical simulator tracks water and energy balances. The OR-Tools CP-SAT optimizer searches for a schedule, which the simulator then replays to check feasibility. The React, TypeScript and Three.js dashboard accesses these services through FastAPI and Pydantic. Ask Mizhuo explains the results, and Voice Guardian supports spoken interaction. [Integration architecture and module history](docs/integration-v5.md)
 
 ```mermaid
 flowchart TD
     accTitle: MIZUHO application architecture
     accDescr: Geography, energy and weather feed a planning engine exposed through the API to the dashboard and assistants.
-    Inputs["M1–M3 · Land, energy and weather"] --> API["M6 · FastAPI"]
-    API <--> Plan["M4 / M5 · Replay and optimization"]
-    API <--> Web["M7 · Map and digital twin"]
-    Web <--> Help["M8 / M9 · Evidence and voice"]
+    Inputs["Land, energy and weather"] --> API["FastAPI"]
+    API <--> Plan["Replay and optimization"]
+    API <--> Web["Map and digital twin"]
+    Web <--> Help["Evidence and voice"]
     Help <--> API
 ```
 
-The manager can replay a fixed turn or enter an hourly operator rotation. The solver prioritizes the worst-served parcel’s minimum coverage under the default fair rule and considers deferral-weighted shortfall, delivered volume and energy objectives in sequence. M4 enforces tank capacity, withdrawal quota, permitted delivery windows and available power. It reports which deliveries met each parcel’s deadline. Gravity-fed delivery may continue during an outage while stock remains. Incident replanning preserves completed actions. A time-limited solve carries its returned status into the comparison. [Canonical planning contract](backend/models.py) · [Planning implementation](backend/optimizer.py)
+The manager can replay a fixed turn or enter an hourly operator rotation. The solver prioritizes the worst-served parcel’s minimum coverage under the default fair rule and considers deferral-weighted shortfall, delivered volume and energy objectives in sequence. The simulator enforces tank capacity, withdrawal quota, permitted delivery windows and available power. It reports which deliveries met each parcel’s deadline. Gravity-fed delivery may continue during an outage while stock remains. Incident replanning preserves completed actions. A time-limited solve carries its returned status into the comparison. [Canonical planning contract](backend/models.py) · [Planning implementation](backend/optimizer.py)
 
 ```mermaid
 flowchart TD
@@ -187,7 +187,7 @@ flowchart TD
     accDescr: The fixed rotation and proposed schedule share inputs and undergo physical replay before the manager reviews the comparison.
     Inputs["Site, stock, quota and outage"] --> Fixed["Fixed or operator rotation"]
     Inputs --> Fair["CP-SAT schedule"]
-    Fixed --> Replay["M4 physical replay"]
+    Fixed --> Replay["Physical replay"]
     Fair --> Replay
     Replay --> Compare["Parcel deadlines, stock and grid energy"]
     Compare --> Review["Manager review and simulated approval"]
@@ -195,7 +195,7 @@ flowchart TD
 
 ## Voice and evidence
 
-**Ask Mizhuo (M8)** uses one LangGraph agent. Its tools can consult site and city data, agricultural insights, current simulation results, decision explanations, sensor anomalies and documentary evidence. Search combines OpenAI embeddings in Qdrant with local BM25 and fuses the rankings. Citations open the source passage and its provenance. Numerical simulation claims come from application tools. The seven indexed passages cover sources including ANME, FAO, INS, SONEDE, DGRE and the World Bank. Missing local borehole and site-economics evidence is recorded explicitly. [Verified excerpts](docs/evidence/) · [English, French and Arabic retrieval benchmark](docs/m8-retrieval-benchmark.md)
+**Ask Mizhuo** uses one LangGraph agent. Its tools can consult site and city data, agricultural insights, current simulation results, decision explanations, sensor anomalies and documentary evidence. Search combines OpenAI embeddings in Qdrant with local BM25 and fuses the rankings. Citations open the source passage and its provenance. Numerical simulation claims come from application tools. The seven indexed passages cover sources including ANME, FAO, INS, SONEDE, DGRE and the World Bank. Missing local borehole and site-economics evidence is recorded explicitly. [Verified excerpts](docs/evidence/) · [English, French and Arabic retrieval benchmark](docs/m8-retrieval-benchmark.md)
 
 ```mermaid
 flowchart TD
@@ -205,13 +205,13 @@ flowchart TD
     Q --> L["Local BM25 retrieval"]
     D --> F["Fuse ranks and verify provenance"]
     L --> F
-    F --> A["M8 answer with source excerpts"]
-    M["M6 computed facts"] --> A
+    F --> A["Answer with source excerpts"]
+    M["Computed planning results"] --> A
 ```
 
-M8 keeps up to six grounded turns in process per session, expires idle sessions after one hour, and invalidates stale numerical context when planning inputs change. Restarting the backend clears that memory. A follow-up can refer to a previous citation or a current plan.
+The evidence assistant keeps up to six grounded turns in process per session, expires idle sessions after one hour, and invalidates stale numerical context when planning inputs change. Restarting the backend clears that memory. A follow-up can refer to a previous citation or a current plan.
 
-**Voice Guardian (M9)** starts as a conversational presentation and accessibility assistant. An urgent replay alert or missing planning input can also offer an in-app conversation that the operator can accept or dismiss. Open **Live voice** for hands-free turns, or **Voice assistant** to type or submit a clip. Ask it to present the project in Japanese, translate a phrase into Tunisian Derja, or explain a selected alert. An explicit source request or the **Sources** mode can hand the turn to M8. The built-in project briefing supports follow-up questions. **Presenter notes** accepts pasted text or a UTF-8 `.txt` or `.md` script up to 4,000 characters for the call. Personalized speech and translation can send notes to the configured provider. Derja pronunciation needs evaluation with local speakers. [Multilingual project briefing](data/guardian/project-presentation.json)
+**Voice Guardian** starts as a conversational presentation and accessibility assistant. An urgent replay alert or missing planning input can also offer an in-app conversation that the operator can accept or dismiss. Open **Live voice** for hands-free turns, or **Voice assistant** to type or submit a clip. Ask it to present the project in Japanese, translate a phrase into Tunisian Derja, or explain a selected alert. An explicit source request or the **Sources** mode can route the question to the evidence assistant. The built-in project briefing supports follow-up questions. **Presenter notes** accepts pasted text or a UTF-8 `.txt` or `.md` script up to 4,000 characters for the call. Personalized speech and translation can send notes to the configured provider. Derja pronunciation needs evaluation with local speakers. [Multilingual project briefing](data/guardian/project-presentation.json)
 
 ```mermaid
 flowchart TD
@@ -220,7 +220,7 @@ flowchart TD
     Turn["Speech or text"] --> Guardian["Voice Guardian"]
     Guardian --> Talk["Present or translate"]
     Guardian --> Data["Consult the project"]
-    Data --> Evidence["M8 sources"]
+    Data --> Evidence["Documentary sources"]
     Data --> Plan["Plan or alert"]
     Plan --> Quota["Preview a lower quota"]
     Quota --> Manager["Manager confirms"]
