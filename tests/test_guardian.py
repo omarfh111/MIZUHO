@@ -62,6 +62,9 @@ def test_verified_emergency_prioritizes_discrepancy_over_concurrent_grid_outage(
     with connect(client) as ws:
         incoming = exchange(ws, **start)
         assert incoming["type"] == "ready"
+        assert incoming["trigger"]["type"] == "unexplained_water"
+        assert incoming["trigger"]["simulation_slot"] == 1 and incoming["trigger"]["source"] == "virtual_sensor"
+        assert "01:00 heure de Tunis" in incoming["text"]
         assert "13 m³" in incoming["text"] and "avant de conclure à une fuite" in incoming["text"]
         assert "0 m³" in exchange(ws, type="message", text="réservoir")["text"]
     start["telemetry"]["selected_slot"] = 2
@@ -169,11 +172,14 @@ def test_region_compares_actual_plans_and_rejects_stale_receipts(client):
 
 def test_archive_and_verified_evidence_without_station(client):
     city = client.get("/api/tunisia").json()["cities"][0]
-    start = {"type": "start", "reason": "accessibility", "city_id": city["id"], "language": "en"}
+    path = f'/api/tunisia/cities/{city["id"]}'
+    first = client.get(path).json()["climate"]["start"]
+    start = {"type": "start", "reason": "accessibility", "city_id": city["id"], "language": "en",
+             "city_period": {"start": first, "end": first}}
     with connect(client) as ws:
         assert city["name"] in exchange(ws, **start)["text"]
         climate = exchange(ws, type="message", text="Rain chart")
-        expected = client.get(f'/api/tunisia/cities/{city["id"]}').json()["climate"]
+        expected = client.get(path, params={"start": first, "end": first}).json()["climate"]
         assert str(expected["precipitation_mm"]) in climate["text"]
         assert climate["citations"][0]["url"] == expected["source"]["url"]
         source = exchange(ws, type="message", text="source ANME photovoltaïque")

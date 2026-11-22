@@ -213,7 +213,7 @@ async def guardian_call(socket: WebSocket):
         call = Dialogue(start, state.assistant, state.tunisia_data_dir)
         call.last_text = await run_in_threadpool(call.open)
         provider = state.guardian_provider()
-        await socket.send_json({"type": "ready", "text": call.last_text, "voice": provider.capabilities,
+        await socket.send_json({"type": "ready", "text": call.last_text, "voice": provider.capabilities, "trigger": call.event,
                                 "requires_manager_code": bool(state.guardian_manager_code)})
         deadline = monotonic() + 600
         for _ in range(80):

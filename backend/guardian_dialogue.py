@@ -1,19 +1,21 @@
 """Ground M9 turns in the active site's verified M3/M4 replay, M5 result and M8 corpus."""
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Literal
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from pydantic import Field
 
 from .assistant_api import AssistantRuntime
 from .compare import compare, effective_scenario
 from .evidence import search
-from .models import AssistantTelemetry, CompareRequest, Comparison, PlanningModel, RegionalPlanContext
+from .models import AssistantCityPeriod, AssistantTelemetry, CompareRequest, Comparison, PlanningModel, RegionalPlanContext
 from .providers import ServiceError
 from .telemetry import known_site, replay
-from .tunisia import ARCHIVE_DIR, get_city_analysis
+from .tunisia import ARCHIVE_DIR, Climate, get_city_analysis
 from .zone_planning import compare_zone
 
 
@@ -21,6 +23,7 @@ class CallStart(PlanningModel):
     type: Literal["start"]
     site_id: Annotated[str, Field(min_length=1, max_length=120)] | None = None
     city_id: Annotated[str, Field(pattern=r"^\d{1,12}$")] | None = None
+    city_period: AssistantCityPeriod | None = None
     reason: Literal["accessibility", "emergency", "clarification"]
     language: Literal["fr", "en", "ja"] = "fr"
     comparison: CompareRequest | None = None
@@ -45,6 +48,7 @@ class Dialogue:
     service: AssistantRuntime
     archive: Path = ARCHIVE_DIR
     site_label: str = ""
+    climate: Climate | None = None
     frame: dict | None = None
     event: dict | None = None
     plan: Comparison | None = None
@@ -59,15 +63,25 @@ class Dialogue:
 
     def open(self):
         ctx, catalog = self.start, self.service.catalog
+        if ctx.city_period and not ctx.city_id:
+            raise ValueError("Choose a city before selecting a climate period")
         if not ctx.site_id:
             if ctx.reason != "accessibility" or ctx.comparison or ctx.telemetry or ctx.zone_plan:
                 raise ValueError("No registered station")
-            self.site_label = get_city_analysis(ctx.city_id, self.archive).city.name if ctx.city_id else self.say("Tunisie", "Tunisia", "チュニジア")
+            if ctx.city_id:
+                period = ctx.city_period
+                city = get_city_analysis(ctx.city_id, self.archive, start=period.start if period else None,
+                                         end=period.end if period else None)
+                self.site_label, self.climate = city.city.name, city.climate
+            else:
+                self.site_label = self.say("Tunisie", "Tunisia", "チュニジア")
             return self.site_summary()
         if ctx.city_id:
             raise ValueError("Conflicting locations")
         site = known_site(catalog, ctx.site_id)
         self.site_label = site.label
+        if zone := catalog.field_zones.get(ctx.site_id):
+            self.climate = zone.climate
         if ctx.comparison:
             scenario = catalog.scenarios.get(ctx.comparison.scenario_id)
             if not scenario or scenario.site_id != ctx.site_id or ctx.zone_plan:
@@ -119,8 +133,7 @@ class Dialogue:
 
     def inspect_site(self):
         scope = self.start
-        zone = self.service.catalog.field_zones.get(scope.site_id)
-        climate = zone.climate if zone else get_city_analysis(scope.city_id, self.archive).climate if scope.city_id else None
+        climate = self.climate
         if climate:
             period = f"{climate.start} – {climate.end}"
             temp, rain = climate.temperature_mean_c, climate.precipitation_mm
@@ -145,10 +158,11 @@ class Dialogue:
     def replay_summary(self):
         if not self.frame:
             return self.say("Aucune heure de rejeu sélectionnée.", "No replay hour is selected.", "再生時刻が選択されていません。")
-        slot, stock = self.frame["slot"], self.frame["tank_stock_m3"]
-        message = self.say(f"Simulation à {self.site_label}, {slot} h. Stock en fin d’heure : {stock} m³.",
-                           f"Simulation at {self.site_label}, hour {slot}. End-of-hour stock: {stock} m³.",
-                           f"{self.site_label} のシミュレーション、{slot}時。時間枠終了時の貯水量は{stock} m³です。")
+        stock = self.frame["tank_stock_m3"]
+        local = datetime.fromisoformat(self.frame["timestamp"]).astimezone(ZoneInfo("Africa/Tunis")).strftime("%Y-%m-%d %H:%M")
+        message = self.say(f"Simulation à {self.site_label}, {local} heure de Tunis. Stock en fin d’heure : {stock} m³.",
+                           f"Simulation at {self.site_label}, {local} Tunis time. End-of-hour stock: {stock} m³.",
+                           f"{self.site_label} のシミュレーション、チュニス時間{local}。時間枠終了時の貯水量は{stock} m³です。")
         if self.event:
             value = self.event["value"]
             details = "" if self.event["type"] != "unexplained_water" else self.say(
