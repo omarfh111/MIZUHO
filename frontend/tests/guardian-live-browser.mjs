@@ -20,8 +20,8 @@ const synthesizeQuestion = [
   'load_dotenv(".env")',
   'async def synthesize():',
   '    provider = GuardianProvider.from_env()',
-  '    questions = ("Please explain the water balance alert on the tank meter.", "Which official source describes solar photovoltaic potential in northwest Tunisia? Please cite the national energy agency.")',
-  '    return [base64.b64encode((await provider.speak(question, "en"))[0]).decode() for question in questions]',
+  '    questions = ("Please explain the water balance alert on the tank meter.", "Which official source describes photovoltaic potential in northwest Tunisia?")',
+  '    return [base64.b64encode((await provider.speak(question, "en", seed=42))[0]).decode() for question in questions]',
   'print(json.dumps(asyncio.run(synthesize())))',
 ].join('\n');
 const fixture = spawnSync(process.env.MIZHUO_TEST_PYTHON || 'python', ['-X', 'utf8', '-c', synthesizeQuestion], {
@@ -50,7 +50,12 @@ try {
         const source = ctx.createBufferSource();
         source.buffer = questions[index];
         source.connect(sink);
-        source.onended = () => { source.disconnect(); window.questionEndedAt = performance.now(); };
+        source.onended = () => {
+          source.disconnect();
+          window.questionEndedAt = performance.now();
+          window.guardianQuestionTimes ??= [];
+          window.guardianQuestionTimes[index] = Date.now();
+        };
         source.start();
         return performance.now();
       };
@@ -70,6 +75,21 @@ try {
   const connection = page.waitForEvent('websocket', { predicate: ws => new URL(ws.url()).pathname === '/api/guardian/call' });
   await page.getByRole('button', { name: 'Start live voice', exact: true }).click();
   const ws = await connection;
+  const timings = new Map();
+  ws.on('framesent', ({ payload }) => {
+    const { type, turn_id } = JSON.parse(payload);
+    if (turn_id) console.log(`Browser → ${type}, turn ${turn_id}`);
+  });
+  ws.on('close', () => console.log('Voice socket closed.'));
+  ws.on('framereceived', ({ payload }) => {
+    const { type, turn_id, code } = JSON.parse(payload);
+    if (turn_id && ['transcript', 'progress', 'reply', 'audio_end', 'error'].includes(type)) {
+      console.log(`Server → ${type}, turn ${turn_id}${code ? ' (' + code + ')' : ''}`);
+    }
+    if (!turn_id || !['transcript', 'progress', 'reply', 'audio_chunk'].includes(type)) return;
+    if (!timings.has(turn_id)) timings.set(turn_id, {});
+    timings.get(turn_id)[type] ??= Date.now();
+  });
   const dialog = page.getByRole('dialog', { name: 'Voice Guardian' });
   const log = dialog.getByRole('log', { name: 'Conversation' });
   const orb = state => dialog.locator(`.guardian-orb[data-state="${state}"]`);
@@ -78,28 +98,30 @@ try {
     timeout: 90_000,
   }).then(({ payload }) => JSON.parse(payload));
   await orb('listening').waitFor();
+  const playbackDelay = async () => {
+    await orb('speaking').waitFor({ timeout: 90_000 });
+    return page.evaluate(() => Math.round(performance.now() - window.questionEndedAt));
+  };
   const firstTranscript = frame('transcript', 1), firstAnswer = frame('reply', 1);
   await page.evaluate(() => window.sayTestQuestion(0));
   assert.match((await firstTranscript).text, /water.balance.*tank meter/i);
-  const answer = await firstAnswer;
+  const [answer, firstReplyMs] = await Promise.all([firstAnswer, playbackDelay()]);
   assert.equal(answer.mode, 'langgraph');
   assert.ok(answer.tools_used.includes('get_sensor_anomalies'));
   assert.match(answer.text, /13 m³/);
   await orb('speaking').waitFor({ timeout: 90_000 });
-  const firstReplyMs = await page.evaluate(() => Math.round(performance.now() - window.questionEndedAt));
 
   // Interrupt audible output with a documentary question on the same live mic.
   const evidenceReply = frame('reply', 2);
   const interruptedAt = await page.evaluate(() => window.sayTestQuestion(1));
   await orb('hearing').waitFor();
   const interruptionMs = await page.evaluate(start => Math.round(performance.now() - start), interruptedAt);
-  const evidence = await evidenceReply;
+  const [evidence, evidenceReplyMs] = await Promise.all([evidenceReply, playbackDelay()]);
   assert.equal(evidence.mode, 'langgraph');
   assert.ok(evidence.tools_used.includes('search_evidence'));
   assert.ok(evidence.citations.some(item => item.organization === 'ANME' && item.excerpt && item.url.startsWith('https://')));
   await log.locator('.assistant-citation').filter({ hasText: /ANME/ }).first().waitFor();
   await orb('speaking').waitFor({ timeout: 90_000 });
-  const evidenceReplyMs = await page.evaluate(() => Math.round(performance.now() - window.questionEndedAt));
   await dialog.getByRole('button', { name: 'Pause microphone' }).click();
   assert.equal(await page.evaluate(() => window.testGuardianTrack.readyState), 'ended');
   await page.evaluate(() => window.closeTestAudio());
@@ -120,6 +142,12 @@ try {
   await dialog.getByRole('button', { name: 'Done' }).click();
   await dialog.waitFor({ state: 'detached' });
   assert.deepEqual(errors, []);
+  const ends = await page.evaluate(() => window.guardianQuestionTimes);
+  for (const [i, end] of ends.entries()) {
+    const t = timings.get(i + 1);
+    assert.ok(t.transcript && t.reply && t.audio_chunk, 'Expected a real transcription, M8 answer and streamed provider audio');
+    console.log(`Turn ${i + 1}: transcript at ${t.transcript-end} ms, first PCM at ${t.audio_chunk-end} ms, full M8 answer at ${t.reply-end} ms.`);
+  }
   console.log(`End of synthetic speech to first playback: replay ${firstReplyMs} ms, official evidence ${evidenceReplyMs} ms. Spoken interruption registered in ${interruptionMs} ms.`);
   console.log('Chrome verified one-click hands-free speech, interruption, M8 retrieval with an ANME citation, a spoken M3 result, Japanese and Tunisian presentations and a real Japanese-to-Derja translation.');
 } finally {
